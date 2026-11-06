@@ -24,7 +24,7 @@ RLS, idempotency keys, and transactional audit/outbox records.
 ```
 apps/
   api/        Fastify control-plane API (modular monolith), OpenAPI contract in openapi.json
-  worker/     Outbox relay, event consumers (verification email), local email adapters
+  worker/     Outbox relay, event consumers (verification email), email adapters (Resend, local)
 packages/
   config/     Typed, fail-closed environment configuration
   kernel/     Errors, permission catalog, domain-event envelope, provider ports + contract tests
@@ -48,6 +48,7 @@ pnpm verify              # format check, lint, typecheck, migration lint, unit +
 pnpm test:unit           # no database needed
 TEST_DATABASE_ADMIN_URL=postgres://postgres:<pw>@localhost:5432/postgres pnpm test:integration
 pnpm openapi:generate    # regenerate apps/api/openapi.json after changing routes
+pnpm test:live           # opt-in live provider contracts (needs RESEND_* credentials)
 ```
 
 ## Running locally

@@ -21,6 +21,7 @@ describe('identity journey end to end', () => {
     sendVerificationEmailConsumer(inbox, {
       appBaseUrl: 'https://app.example.test',
       ttlSeconds: 86_400,
+      tokenSecret: 'test-token-secret-0123456789abcdef', // pragma: allowlist secret
     }),
   ]);
   let app: FastifyInstance;

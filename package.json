@@ -19,7 +19,8 @@
     "db:check": "node packages/db/src/cli/check-migrations.ts",
     "openapi:generate": "node apps/api/src/cli/generate-openapi.ts",
     "security:audit": "pnpm audit --prod --audit-level=high",
-    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm db:check && pnpm test"
+    "verify": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm db:check && pnpm test",
+    "test:live": "vitest run --config vitest.live.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

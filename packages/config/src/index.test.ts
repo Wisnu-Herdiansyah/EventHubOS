@@ -80,6 +80,7 @@ describe('loadWorkerConfig', () => {
     EVENT_PUBLISHER: 'local_dispatch',
     EMAIL_SENDER: 'in_memory',
     APP_BASE_URL: 'http://localhost:3001/',
+    EMAIL_TOKEN_SECRET: 'x'.repeat(32),
   };
 
   it('accepts local adapters locally and normalises the base URL', () => {
@@ -87,6 +88,14 @@ describe('loadWorkerConfig', () => {
     expect(c.eventPublisher).toBe('local_dispatch');
     expect(c.appBaseUrl).toBe('http://localhost:3001');
     expect(c.emailVerificationTtlSeconds).toBe(86_400);
+  });
+
+  it('requires a token secret of at least 32 characters', () => {
+    const e = captureError(
+      () => loadWorkerConfig({ ...base, EVENTHUB_ENV: 'local', EMAIL_TOKEN_SECRET: 'short' }), // pragma: allowlist secret
+    );
+    expect(e.keys).toEqual(['EMAIL_TOKEN_SECRET']);
+    expect(e.message).not.toContain('short');
   });
 
   it('refuses local-only adapters in staging and production', () => {
@@ -98,8 +107,70 @@ describe('loadWorkerConfig', () => {
           DATABASE_WORKER_URL: `${localUrl}?sslmode=require`,
         }),
       );
-      expect(e.keys).toEqual(['EVENT_PUBLISHER', 'EMAIL_SENDER']);
+      expect(e.keys).toEqual(['EVENT_PUBLISHER', 'EMAIL_SENDER', 'APP_BASE_URL']);
     }
+  });
+
+  describe('resend', () => {
+    const API_KEY = 're_test_key_never_logged_123'; // pragma: allowlist secret
+    const resend = {
+      ...base,
+      EVENTHUB_ENV: 'local',
+      EMAIL_SENDER: 'resend',
+      RESEND_API_KEY: API_KEY,
+      EMAIL_FROM: 'EventHub OS <no-reply@mail.example.test>',
+    };
+
+    it('loads Resend settings with safe defaults', () => {
+      expect(loadWorkerConfig(resend).email).toEqual({
+        sender: 'resend',
+        localDir: undefined,
+        resend: {
+          apiKey: API_KEY,
+          from: 'EventHub OS <no-reply@mail.example.test>',
+          baseUrl: 'https://api.resend.com',
+          timeoutMs: 10_000,
+        },
+      });
+    });
+
+    it('requires an API key and a sender address', () => {
+      const e = captureError(() =>
+        loadWorkerConfig({ ...resend, RESEND_API_KEY: undefined, EMAIL_FROM: undefined }),
+      );
+      expect(e.keys).toEqual(['RESEND_API_KEY', 'EMAIL_FROM']);
+    });
+
+    it('rejects a malformed sender address', () => {
+      const e = captureError(() => loadWorkerConfig({ ...resend, EMAIL_FROM: 'not an address' }));
+      expect(e.keys).toEqual(['EMAIL_FROM']);
+    });
+
+    it('is the only email adapter allowed remotely; the broker remains the sole blocker', () => {
+      const e = captureError(() =>
+        loadWorkerConfig({
+          ...resend,
+          EVENTHUB_ENV: 'production',
+          DATABASE_WORKER_URL: `${localUrl}?sslmode=verify-full`,
+          APP_BASE_URL: 'https://app.eventhub.example',
+        }),
+      );
+      expect(e.keys).toEqual(['EVENT_PUBLISHER']);
+      expect(e.message).not.toContain(API_KEY);
+    });
+
+    it('requires HTTPS for the Resend endpoint remotely', () => {
+      const e = captureError(() =>
+        loadWorkerConfig({
+          ...resend,
+          EVENTHUB_ENV: 'staging',
+          DATABASE_WORKER_URL: `${localUrl}?sslmode=require`,
+          APP_BASE_URL: 'https://app.eventhub.example',
+          RESEND_BASE_URL: 'http://insecure.example',
+        }),
+      );
+      expect(e.keys).toContain('RESEND_BASE_URL');
+    });
   });
 
   it('requires a directory for the local file email sender', () => {

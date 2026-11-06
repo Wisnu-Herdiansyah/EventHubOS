@@ -1,5 +1,11 @@
-import { randomUUID } from 'node:crypto';
-import { createDomainEvent, InMemoryEmailSender, type DomainEvent } from '@eventhub/kernel';
+import { createHash, randomUUID } from 'node:crypto';
+import {
+  createDomainEvent,
+  InMemoryEmailSender,
+  type DomainEvent,
+  type EmailMessage,
+  type EmailSender,
+} from '@eventhub/kernel';
 import { createTestPools } from '@eventhub/db/testing';
 import { afterAll, describe, expect, it } from 'vitest';
 import {
@@ -41,6 +47,7 @@ describe('send-verification-email consumer', () => {
     const consumer = sendVerificationEmailConsumer(sender, {
       appBaseUrl: 'https://app.example.test',
       ttlSeconds: 86_400,
+      tokenSecret: 'test-token-secret-0123456789abcdef', // pragma: allowlist secret
     });
     return { sender, publisher: new LocalDispatchPublisher(pools.worker, [consumer]) };
   };
@@ -100,5 +107,52 @@ describe('send-verification-email consumer', () => {
     expect(before.rows[0].n).toBe(0);
     await publisher.publish(event);
     expect(sender.sent).toHaveLength(1);
+  });
+
+  it('provider accepted but our transaction rolled back: the retry is deduplicated and the delivered link works', async () => {
+    const { userId, version } = await registered();
+    // Behaves like Resend: dedupes on messageId, rejects a reused key with a different payload,
+    // and here also "times out" after accepting the first request.
+    const accepted = new Map<string, string>();
+    let deliveredToUser: EmailMessage | null = null;
+    let timeoutAfterAccept = true;
+    const provider: EmailSender = {
+      name: 'fake_provider',
+      send(m) {
+        const payload = JSON.stringify(m);
+        const prior = accepted.get(m.messageId);
+        if (prior !== undefined && prior !== payload) {
+          return Promise.reject(new Error('invalid_idempotent_request'));
+        }
+        if (prior === undefined) {
+          accepted.set(m.messageId, payload);
+          deliveredToUser = m;
+        }
+        if (timeoutAfterAccept) {
+          timeoutAfterAccept = false;
+          return Promise.reject(new Error('timeout'));
+        }
+        return Promise.resolve();
+      },
+    };
+    const publisher = new LocalDispatchPublisher(pools.worker, [
+      sendVerificationEmailConsumer(provider, {
+        appBaseUrl: 'https://app.example.test',
+        ttlSeconds: 86_400,
+        tokenSecret: 'test-token-secret-0123456789abcdef', // pragma: allowlist secret
+      }),
+    ]);
+    const event = request(userId, version);
+
+    await expect(publisher.publish(event)).rejects.toThrow('timeout'); // rolled back
+    await publisher.publish(event); // outbox retry: identical payload, deduplicated by provider
+
+    expect(accepted.size).toBe(1); // exactly one email reached the user
+    const token = /#token=([A-Za-z0-9_-]{43})$/m.exec(deliveredToUser!.text)![1]!;
+    const { rows } = await pools.app.query<{ out_user_id: string }>(
+      'SELECT out_user_id FROM eventhub.auth_consume_verification($1)',
+      [createHash('sha256').update(token).digest()],
+    );
+    expect(rows[0]?.out_user_id).toBe(userId); // the link the user actually received is valid
   });
 });
