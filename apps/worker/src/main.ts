@@ -4,6 +4,7 @@ import { loadWorkerConfig } from '@eventhub/config';
 import { createPool } from '@eventhub/db';
 import { InMemoryEmailSender, LOG_REDACT_PATHS, type EmailSender } from '@eventhub/kernel';
 import { LocalFileEmailSender } from './adapters/local-file-email-sender.ts';
+import { ResendEmailSender } from './adapters/resend-email-sender.ts';
 import { sendVerificationEmailConsumer } from './consumers/send-verification-email.ts';
 import { LocalDispatchPublisher } from './local-dispatch-publisher.ts';
 import { relayOnce } from './outbox-relay.ts';
@@ -20,6 +21,8 @@ function selectEmailSender(): EmailSender {
       return new InMemoryEmailSender();
     case 'local_file':
       return new LocalFileEmailSender(config.email.localDir!);
+    case 'resend':
+      return new ResendEmailSender(config.email.resend!);
   }
 }
 
@@ -33,6 +36,7 @@ const consumers = [
   sendVerificationEmailConsumer(selectEmailSender(), {
     appBaseUrl: config.appBaseUrl,
     ttlSeconds: config.emailVerificationTtlSeconds,
+    tokenSecret: config.emailTokenSecret,
   }),
 ];
 // Only local dispatch exists until the broker decision (D5); config refuses it remotely.

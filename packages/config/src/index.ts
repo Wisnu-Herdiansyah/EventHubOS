@@ -119,10 +119,14 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
 export const EVENT_PUBLISHER_ADAPTERS = ['local_dispatch'] as const;
 
 /**
- * Email adapters (provider decision D4 open): `in_memory` (CI) and `local_file` (writes .eml-like
- * JSON files for local development). Both are refused in staging/production.
+ * Email adapters (ADR-0008): `resend` (production provider), plus the local fakes `in_memory` (CI)
+ * and `local_file` (JSON files for local development), which are refused in staging/production.
  */
-export const EMAIL_SENDER_ADAPTERS = ['in_memory', 'local_file'] as const;
+export const EMAIL_SENDER_ADAPTERS = ['resend', 'in_memory', 'local_file'] as const;
+const LOCAL_EMAIL_SENDERS: ReadonlySet<string> = new Set(['in_memory', 'local_file']);
+
+/** `Display Name <local@domain>` or a bare address. */
+const EMAIL_FROM_RE = /^(?:[^<>\r\n]{1,100} )?<?[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+>?$/;
 
 const workerSchema = baseSchema.extend({
   DATABASE_WORKER_URL: postgresUrl,
@@ -132,8 +136,14 @@ const workerSchema = baseSchema.extend({
   OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(12),
   EMAIL_SENDER: z.enum(EMAIL_SENDER_ADAPTERS),
   EMAIL_LOCAL_DIR: z.string().min(1).optional(),
+  EMAIL_FROM: z.string().regex(EMAIL_FROM_RE).optional(),
+  RESEND_API_KEY: z.string().min(10).max(200).optional(),
+  RESEND_BASE_URL: z.url({ protocol: /^https?$/ }).default('https://api.resend.com'),
+  RESEND_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
   APP_BASE_URL: z.url({ protocol: /^https?$/ }),
   EMAIL_VERIFICATION_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(24),
+  // Secret for deterministic, retry-stable verification tokens (ADR-0008).
+  EMAIL_TOKEN_SECRET: z.string().min(32).max(512),
 });
 
 export interface WorkerConfig {
@@ -142,23 +152,48 @@ export interface WorkerConfig {
   database: { workerUrl: string };
   eventPublisher: (typeof EVENT_PUBLISHER_ADAPTERS)[number];
   outbox: { pollIntervalMs: number; batchSize: number; maxAttempts: number };
-  email: { sender: (typeof EMAIL_SENDER_ADAPTERS)[number]; localDir: string | undefined };
+  email: {
+    sender: (typeof EMAIL_SENDER_ADAPTERS)[number];
+    localDir: string | undefined;
+    /** Present only when sender is `resend`. The API key is a secret: never log this object. */
+    resend: { apiKey: string; from: string; baseUrl: string; timeoutMs: number } | undefined;
+  };
   appBaseUrl: string;
   emailVerificationTtlSeconds: number;
+  /** Secret: never log. */
+  emailTokenSecret: string;
 }
 
 export function loadWorkerConfig(env: Readonly<Record<string, string | undefined>>): WorkerConfig {
   const c = parse(workerSchema, env);
   assertDatabaseTls(c.EVENTHUB_ENV, { DATABASE_WORKER_URL: c.DATABASE_WORKER_URL });
-  if (isRemoteEnvironment(c.EVENTHUB_ENV)) {
-    // Every adapter that exists today is a local fake; remote environments must fail closed.
-    throw new ConfigError(
-      ['EVENT_PUBLISHER', 'EMAIL_SENDER'],
-      `local-only adapters are refused in ${c.EVENTHUB_ENV}; broker (D5) and email provider (D4) decisions are required`,
-    );
-  }
   if (c.EMAIL_SENDER === 'local_file' && !c.EMAIL_LOCAL_DIR) {
     throw new ConfigError(['EMAIL_LOCAL_DIR'], 'required when EMAIL_SENDER=local_file');
+  }
+  if (c.EMAIL_SENDER === 'resend') {
+    const missing = [
+      ...(c.RESEND_API_KEY ? [] : ['RESEND_API_KEY']),
+      ...(c.EMAIL_FROM ? [] : ['EMAIL_FROM']),
+    ];
+    if (missing.length > 0) throw new ConfigError(missing, 'required when EMAIL_SENDER=resend');
+  }
+  if (isRemoteEnvironment(c.EVENTHUB_ENV)) {
+    // Local fakes must fail closed remotely. Each key is reported on its own so the remaining
+    // blocker is explicit.
+    const refused = [
+      ...(c.EVENT_PUBLISHER === 'local_dispatch' ? ['EVENT_PUBLISHER'] : []),
+      ...(LOCAL_EMAIL_SENDERS.has(c.EMAIL_SENDER) ? ['EMAIL_SENDER'] : []),
+      ...(c.EMAIL_SENDER === 'resend' && !c.RESEND_BASE_URL.startsWith('https://')
+        ? ['RESEND_BASE_URL']
+        : []),
+      ...(c.APP_BASE_URL.startsWith('https://') ? [] : ['APP_BASE_URL']),
+    ];
+    if (refused.length > 0) {
+      throw new ConfigError(
+        refused,
+        `refused in ${c.EVENTHUB_ENV}: local-only adapters (broker decision D5 pending for EVENT_PUBLISHER) and non-HTTPS URLs`,
+      );
+    }
   }
   return {
     environment: c.EVENTHUB_ENV,
@@ -170,9 +205,22 @@ export function loadWorkerConfig(env: Readonly<Record<string, string | undefined
       batchSize: c.OUTBOX_BATCH_SIZE,
       maxAttempts: c.OUTBOX_MAX_ATTEMPTS,
     },
-    email: { sender: c.EMAIL_SENDER, localDir: c.EMAIL_LOCAL_DIR },
+    email: {
+      sender: c.EMAIL_SENDER,
+      localDir: c.EMAIL_LOCAL_DIR,
+      resend:
+        c.EMAIL_SENDER === 'resend'
+          ? {
+              apiKey: c.RESEND_API_KEY!,
+              from: c.EMAIL_FROM!,
+              baseUrl: c.RESEND_BASE_URL.replace(/\/+$/, ''),
+              timeoutMs: c.RESEND_TIMEOUT_MS,
+            }
+          : undefined,
+    },
     appBaseUrl: c.APP_BASE_URL.replace(/\/+$/, ''),
     emailVerificationTtlSeconds: c.EMAIL_VERIFICATION_TTL_HOURS * 3600,
+    emailTokenSecret: c.EMAIL_TOKEN_SECRET,
   };
 }
 

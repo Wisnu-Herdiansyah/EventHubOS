@@ -1,7 +1,8 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { EmailSender } from '@eventhub/kernel';
 import type { EventConsumer } from './consumer.ts';
+import { deriveVerificationToken } from './verification-token.ts';
 
 export const EMAIL_VERIFICATION_REQUESTED = 'identity.email_verification_requested';
 
@@ -13,11 +14,13 @@ const payloadSchema = z.object({
 export interface VerificationEmailOptions {
   appBaseUrl: string;
   ttlSeconds: number;
+  /** Secret for deterministic, retry-stable token derivation (EMAIL_TOKEN_SECRET). */
+  tokenSecret: string;
 }
 
 /**
- * Mints the single-use verification token at send time (so it never exists in the outbox or the
- * database in raw form), stores only its SHA-256 hash, and emails the link. The token travels in
+ * Derives the single-use verification token at send time (so it never exists in the outbox or
+ * the database in raw form), stores only its SHA-256 hash, and emails the link. The token travels in
  * the URL fragment, which browsers do not send to servers or in Referer headers.
  */
 export function sendVerificationEmailConsumer(
@@ -29,7 +32,7 @@ export function sendVerificationEmailConsumer(
     eventTypes: [EMAIL_VERIFICATION_REQUESTED],
     async handle(event, client) {
       const payload = payloadSchema.parse(event.payload);
-      const token = randomBytes(32).toString('base64url');
+      const token = deriveVerificationToken(options.tokenSecret, event.eventId);
       const tokenHash = createHash('sha256').update(token).digest();
       const { rows } = await client.query<{ out_email: string }>(
         'SELECT out_email FROM eventhub.auth_issue_verification($1, $2, $3, $4)',

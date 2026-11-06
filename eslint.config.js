@@ -27,7 +27,15 @@ export default tseslint.config(
         {
           patterns: [
             {
-              group: ['stripe', '@aws-sdk/*', '@sendgrid/*', 'twilio', 'cloudflare', '@vercel/*'],
+              group: [
+                'stripe',
+                'resend',
+                '@aws-sdk/*',
+                '@sendgrid/*',
+                'twilio',
+                'cloudflare',
+                '@vercel/*',
+              ],
               message: 'Provider SDKs may only be imported from an adapter module.',
             },
           ],
