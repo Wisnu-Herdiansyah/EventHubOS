@@ -151,3 +151,28 @@ export async function completePasswordResetAction(
       'Your password has been changed and you have been signed out everywhere. Sign in with your new password.',
   };
 }
+
+/** Re-authenticates with the current password; neither password is ever echoed back. */
+export async function changePasswordAction(_prev: FormState, form: FormData): Promise<FormState> {
+  try {
+    const client = await api();
+    const res = unwrap(
+      await client.POST('/v1/auth/password/change', {
+        body: {
+          currentPassword: str(form, 'currentPassword'),
+          newPassword: str(form, 'newPassword'),
+        },
+      }),
+    );
+    const others = res.otherSessionsSignedOut;
+    return {
+      ok: true,
+      message:
+        others > 0
+          ? `Your password has been changed. You stay signed in here; ${others} other session${others === 1 ? ' was' : 's were'} signed out.`
+          : 'Your password has been changed. You stay signed in here.',
+    };
+  } catch (error) {
+    return errorToFormState(error);
+  }
+}

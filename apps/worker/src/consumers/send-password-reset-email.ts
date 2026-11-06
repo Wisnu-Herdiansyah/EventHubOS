@@ -88,8 +88,8 @@ export function sendPasswordChangedEmailConsumer(
         template: 'password_changed',
         subject: 'Your EventHub OS password was changed',
         text: [
-          'The password for your EventHub OS account was just changed, and every signed-in',
-          'session was signed out.',
+          'The password for your EventHub OS account was just changed, and your other',
+          'signed-in sessions were signed out.',
           '',
           'If this was you, there is nothing else to do.',
           `If it was not, reset your password now: ${options.appBaseUrl}/forgot-password`,

@@ -68,6 +68,5 @@ passwords or tokens.
   sessions.
 - Up to three reset links can be outstanding at once until one is used, and each expires within
   the TTL.
-- Not built: changing the password while signed in (needs re-authentication), session listing and
-  revoke-all, MFA, and a breached-password screen (ADR-0007 follow-ups).
+- Changing the password while signed in: ADR-0016. Not built: session listing and revoke-all, MFA, and a breached-password screen (ADR-0007 follow-ups).
 - Migration 0007 is expand-only. An upgrade from 0006 with existing accounts was verified.
