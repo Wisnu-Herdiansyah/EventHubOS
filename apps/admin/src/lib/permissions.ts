@@ -28,3 +28,25 @@ export function teamAbilities(role: string): TeamAbilities {
 export function canManageMember(actorRole: string, memberRole: string): boolean {
   return canAssignRole(actorRole, memberRole);
 }
+
+export interface SettingsAbilities {
+  /** Name, legal name, language, time zone (organization.manage). */
+  canEditProfile: boolean;
+  /** The billing contact is personal data, returned only with billing.read. */
+  canReadBilling: boolean;
+  canEditBilling: boolean;
+  /** Whether the settings page has anything for this role. */
+  canOpen: boolean;
+}
+
+export function settingsAbilities(role: string): SettingsAbilities {
+  const canEditProfile = roleHasPermission(role, 'organization.manage');
+  const canReadBilling = roleHasPermission(role, 'billing.read');
+  const canEditBilling = roleHasPermission(role, 'billing.manage');
+  return {
+    canEditProfile,
+    canReadBilling,
+    canEditBilling,
+    canOpen: canEditProfile || canReadBilling || canEditBilling,
+  };
+}

@@ -66,6 +66,25 @@ roles, and removes members (or lets you leave).
   shown at page level from an allow-listed `notice` code. URL text is never echoed.
 - **Leaving:** removing yourself returns you to the organization list.
 
+## Organization settings (third slice)
+
+`/orgs/{id}/settings` follows ADR-0012's per-field permissions:
+
+- **Profile** (name, legal name, language, default time zone) is editable with
+  `organization.manage` (Owner, Admin).
+- **Billing contact** is editable with `billing.manage` (Owner, Billing admin) and read-only with
+  `billing.read` (Admin). Other roles never receive it, and the page tells them settings are
+  restricted.
+
+The two parts are separate forms because the API rejects a request whole when any field is out of
+reach. The action re-reads the organization on the server and sends only the fields that changed.
+Unchanged saves send nothing. `expectedVersion` comes from the page, so a concurrent edit is
+refused. The UI explains this in plain language (`version_conflict`) and keeps the user's typed
+values. Clearing an optional field (legal name, both billing fields) stores `null`.
+
+Billing admins lack `event.read`. The organization page therefore loads events only for roles
+that can read them. It previously failed for Billing admins.
+
 ## OpenAPI fix shipped with this slice
 
 Generating client types exposed `$ref`s to nested `$defs` that did not resolve from the document
@@ -97,6 +116,6 @@ definitions. A test asserts that every `$ref` resolves.
   Without both, every user shares the admin server's per-IP auth limit (10/min).
 - How the app is packaged and hosted (standalone output, container, edge) waits on the cloud
   decision (D1). Today it runs with `next build && next start`.
-- The UI still lacks organization settings and the audit log viewer (API ready), plus
-  resend-verification and password reset. Those are the next UI slices.
+- The UI still lacks the audit log viewer (API ready), plus resend-verification and password
+  reset. Those are the next UI slices.
 - Session idle timeout and revoke-all remain open (threat model T5).

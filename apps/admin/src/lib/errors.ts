@@ -48,6 +48,12 @@ export function fieldName(path: string): string {
   return path.split('.').pop() ?? path;
 }
 
+/** Plain-language messages for API reasons whose own message is too technical for the UI. */
+const FRIENDLY_REASONS: Record<string, string> = {
+  version_conflict:
+    'Someone else changed this while you were editing, so nothing was saved. Reload the page to see the latest version, then make your change again.',
+};
+
 export function errorToFormState(error: unknown): FormState {
   if (error instanceof ApiError) {
     const fields: Record<string, string> = {};
@@ -56,7 +62,9 @@ export function errorToFormState(error: unknown): FormState {
     return {
       ok: false,
       // Field errors are shown next to their inputs; the summary points the user there.
-      message: hasFields ? 'Check the highlighted fields.' : error.message,
+      message: hasFields
+        ? 'Check the highlighted fields.'
+        : (FRIENDLY_REASONS[error.reason ?? ''] ?? error.message),
       ...(hasFields ? { fields } : {}),
       ...(error.correlationId ? { reference: error.correlationId } : {}),
     };

@@ -158,3 +158,20 @@ describe('submittedValues', () => {
     expect(submittedValues(form)).toEqual({ email: 'ade@example.test', slug: 'jakarta-summit' });
   });
 });
+
+describe('friendly API reasons', () => {
+  it('explains a version conflict in plain language', () => {
+    const conflict = new ApiError(409, {
+      error: {
+        code: 'conflict',
+        message: 'The organization changed since you loaded it (now version 7). Reload and retry.',
+        correlationId: 'corr-2',
+        details: { reason: 'version_conflict' },
+      },
+    });
+    const state = errorToFormState(conflict);
+    expect(state.message).toMatch(/Someone else changed this while you were editing/);
+    expect(state.message).not.toContain('version 7');
+    expect(state.reference).toBe('corr-2');
+  });
+});

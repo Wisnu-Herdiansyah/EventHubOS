@@ -6,7 +6,11 @@ import {
   transitionEventAction,
   updateEventSettingsAction,
 } from '@/app/actions/events';
-import { createOrganizationAction } from '@/app/actions/orgs';
+import {
+  createOrganizationAction,
+  updateBillingContactAction,
+  updateOrganizationProfileAction,
+} from '@/app/actions/orgs';
 import { initialFormState } from '@/lib/errors';
 import { VENUE_MODES, VISIBILITY } from '@/lib/options';
 import { Field, FormMessage, Select, SubmitButton } from './form';
@@ -296,6 +300,103 @@ export function TransitionForm(props: TransitionProps) {
       >
         {props.label}
       </SubmitButton>
+    </form>
+  );
+}
+
+export function OrganizationProfileForm(props: {
+  organizationId: string;
+  version: number;
+  idempotencyKey: string;
+  timeZones: string[];
+  locales: string[];
+  defaults: { displayName: string; legalName: string; locale: string; timezone: string };
+}) {
+  const [state, action] = useActionState(updateOrganizationProfileAction, initialFormState);
+  const d = props.defaults;
+  return (
+    <form action={action} noValidate>
+      <FormMessage state={state} />
+      <input type="hidden" name="organizationId" value={props.organizationId} />
+      <input type="hidden" name="expectedVersion" value={props.version} />
+      <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
+      <Field
+        name="displayName"
+        label="Organization name"
+        state={state}
+        defaultValue={d.displayName}
+        maxLength={200}
+        required
+      />
+      <Field
+        name="legalName"
+        label="Legal name"
+        state={state}
+        defaultValue={d.legalName}
+        maxLength={300}
+        hint="The registered company name, if different. Leave empty to remove."
+      />
+      <div className="row">
+        <Field
+          name="locale"
+          label="Language"
+          state={state}
+          defaultValue={d.locale}
+          list="settings-locales"
+          required
+          hint="A language tag such as en or id-ID."
+        />
+        <Select
+          name="timezone"
+          label="Time zone"
+          state={state}
+          options={props.timeZones.map((z) => ({ value: z, label: z }))}
+          defaultValue={d.timezone}
+          hint="Default for new events. Existing events keep their own time zone."
+        />
+      </div>
+      <datalist id="settings-locales">
+        {props.locales.map((l) => (
+          <option key={l} value={l} />
+        ))}
+      </datalist>
+      <SubmitButton pendingLabel="Saving…">Save profile</SubmitButton>
+    </form>
+  );
+}
+
+export function BillingContactForm(props: {
+  organizationId: string;
+  version: number;
+  idempotencyKey: string;
+  defaults: { name: string; email: string };
+}) {
+  const [state, action] = useActionState(updateBillingContactAction, initialFormState);
+  return (
+    <form action={action} noValidate>
+      <FormMessage state={state} />
+      <input type="hidden" name="organizationId" value={props.organizationId} />
+      <input type="hidden" name="expectedVersion" value={props.version} />
+      <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
+      <Field
+        name="billingName"
+        label="Billing contact name"
+        state={state}
+        defaultValue={props.defaults.name}
+        maxLength={200}
+        autoComplete="off"
+      />
+      <Field
+        name="billingEmail"
+        label="Billing contact email"
+        type="email"
+        state={state}
+        defaultValue={props.defaults.email}
+        maxLength={254}
+        autoComplete="off"
+        hint="Receives invoices and payment notices. Clear both fields to remove the contact."
+      />
+      <SubmitButton pendingLabel="Saving…">Save billing contact</SubmitButton>
     </form>
   );
 }

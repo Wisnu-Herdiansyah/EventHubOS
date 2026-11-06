@@ -5,7 +5,7 @@ import { CreateEventForm } from '@/components/org-forms';
 import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
 import { LIFECYCLE_LABELS, ROLE_LABELS, timeZones } from '@/lib/options';
-import { can, teamAbilities } from '@/lib/permissions';
+import { can, settingsAbilities, teamAbilities } from '@/lib/permissions';
 import { formatInZone } from '@/lib/time';
 
 export const metadata: Metadata = { title: 'Organization' };
@@ -23,11 +23,14 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
         params: { path: { organizationId: orgId } },
       }),
     );
-    events = unwrap(
-      await client.GET('/v1/organizations/{organizationId}/events', {
-        params: { path: { organizationId: orgId }, query: { limit: 50 } },
-      }),
-    ).data;
+    // Some roles (e.g. Billing admin) may not read events; don't ask the API for what it will refuse.
+    if (can(org.role, 'event.read')) {
+      events = unwrap(
+        await client.GET('/v1/organizations/{organizationId}/events', {
+          params: { path: { organizationId: orgId }, query: { limit: 50 } },
+        }),
+      ).data;
+    }
   } catch (error) {
     // Another tenant's organization looks exactly like a missing one.
     if (error instanceof ApiError && error.status === 404) notFound();
@@ -51,11 +54,18 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
           <p className="muted">
             Your role: {ROLE_LABELS[org.role] ?? org.role} · {org.timezone}
           </p>
-          {teamAbilities(org.role).canRead ? (
+          {teamAbilities(org.role).canRead || settingsAbilities(org.role).canOpen ? (
             <ul className="section-links" aria-label="Organization sections">
-              <li>
-                <Link href={`/orgs/${orgId}/team`}>Team</Link>
-              </li>
+              {teamAbilities(org.role).canRead ? (
+                <li>
+                  <Link href={`/orgs/${orgId}/team`}>Team</Link>
+                </li>
+              ) : null}
+              {settingsAbilities(org.role).canOpen ? (
+                <li>
+                  <Link href={`/orgs/${orgId}/settings`}>Settings</Link>
+                </li>
+              ) : null}
             </ul>
           ) : null}
         </div>
@@ -63,7 +73,9 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
       <div className="grid">
         <section className="card accent" aria-labelledby="events-heading">
           <h2 id="events-heading">Events</h2>
-          {events.length === 0 ? (
+          {!events ? (
+            <p className="muted">Your role does not include access to events.</p>
+          ) : events.length === 0 ? (
             <p className="muted">No events yet.</p>
           ) : (
             <ul className="list">
