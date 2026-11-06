@@ -31,6 +31,7 @@
 | `RESEND_BASE_URL`, `RESEND_TIMEOUT_MS`                           | worker                     | no            | defaults `https://api.resend.com`, 10 s                                 |
 | `EMAIL_TOKEN_SECRET`                                             | worker                     | **yes**       | ≥ 32 chars; derives verification tokens (ADR-0008)                      |
 | `APP_BASE_URL`, `EMAIL_VERIFICATION_TTL_HOURS`                   | worker                     | no            | base for verification links; default 24 h                               |
+| `PASSWORD_RESET_TTL_MINUTES`                                     | worker                     | no            | reset link lifetime (ADR-0015); default 60 min                          |
 | `ADMIN_API_URL`                                                  | admin                      | no            | API base URL, server-side only                                          |
 | `ADMIN_ORIGIN`                                                   | admin                      | no            | public https origin; enables `upgrade-insecure-requests`                |
 | `ADMIN_TRUSTED_PROXY_HOPS`                                       | admin                      | no            | proxies in front of the admin app (ADR-0014); set ≥ 1 when deployed     |

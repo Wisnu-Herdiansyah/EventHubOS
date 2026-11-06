@@ -125,6 +125,7 @@ describe('loadWorkerConfig', () => {
     });
     expect(c.appBaseUrl).toBe('http://localhost:3001');
     expect(c.emailVerificationTtlSeconds).toBe(86_400);
+    expect(c.passwordResetTtlSeconds).toBe(3_600);
   });
 
   it('requires a token secret of at least 32 characters', () => {

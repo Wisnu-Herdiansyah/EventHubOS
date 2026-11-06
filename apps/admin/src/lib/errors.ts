@@ -39,6 +39,8 @@ export interface FormState {
   reference?: string;
   /** Submitted text to refill the form after a failure (never passwords or tokens). */
   values?: Record<string, string>;
+  /** The API's machine-readable reason, when the UI needs to react to a specific failure. */
+  reason?: string;
 }
 
 export const initialFormState: FormState = {};
@@ -67,6 +69,7 @@ export function errorToFormState(error: unknown): FormState {
         : (FRIENDLY_REASONS[error.reason ?? ''] ?? error.message),
       ...(hasFields ? { fields } : {}),
       ...(error.correlationId ? { reference: error.correlationId } : {}),
+      ...(error.reason ? { reason: error.reason } : {}),
     };
   }
   // Never echo unexpected errors to the browser; they are logged server-side.

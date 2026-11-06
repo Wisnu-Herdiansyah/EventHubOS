@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useActionState, useEffect, useState } from 'react';
 import {
   acceptInvitationAction,
+  completePasswordResetAction,
   loginAction,
+  requestPasswordResetAction,
   resendVerificationAction,
   signupAction,
   verifyEmailAction,
@@ -27,6 +29,9 @@ export function LoginForm({ next }: { next: string }) {
         autoComplete="current-password"
         required
       />
+      <p className="hint">
+        <Link href="/forgot-password">Forgot your password?</Link>
+      </p>
       <div className="actions">
         <SubmitButton pendingLabel="Signing in…">Sign in</SubmitButton>
         <Link href={`/signup${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`}>
@@ -195,6 +200,81 @@ export function AcceptInvitation({ signedIn }: { signedIn: boolean }) {
       <FormMessage state={state} />
       <input type="hidden" name="token" value={token} />
       <SubmitButton pendingLabel="Joining…">Accept invitation</SubmitButton>
+    </form>
+  );
+}
+
+export function ForgotPasswordForm() {
+  const [state, action] = useActionState(requestPasswordResetAction, initialFormState);
+  if (state.ok) {
+    return (
+      <div className="stack">
+        <FormMessage state={state} />
+        <Link href="/login">Back to sign in</Link>
+      </div>
+    );
+  }
+  return (
+    <form action={action} noValidate>
+      <FormMessage state={state} />
+      <p>
+        Enter the email address you sign in with. We will send you a link to choose a new password.
+      </p>
+      <Field name="email" label="Email" type="email" state={state} autoComplete="email" required />
+      <div className="actions">
+        <SubmitButton pendingLabel="Sending…">Send reset link</SubmitButton>
+        <Link href="/login">Back to sign in</Link>
+      </div>
+    </form>
+  );
+}
+
+export function ResetPasswordForm() {
+  const token = useFragmentToken();
+  const [state, action] = useActionState(completePasswordResetAction, initialFormState);
+  if (token === undefined) return <p>Checking your link…</p>;
+  if (state.ok) {
+    return (
+      <div className="stack">
+        <FormMessage state={state} />
+        <Link className="button" href="/login">
+          Sign in
+        </Link>
+      </div>
+    );
+  }
+  if (!token || state.reason === 'invalid_or_expired_token') {
+    // A broken, used or expired link cannot be retried; the way forward is a new one.
+    return (
+      <div className="stack">
+        {token ? (
+          <FormMessage state={state} />
+        ) : (
+          <div className="message error" role="alert">
+            This reset link is incomplete. Open the link from your email again.
+          </div>
+        )}
+        <p>Reset links work once and expire after an hour.</p>
+        <Link className="button" href="/forgot-password">
+          Request a new link
+        </Link>
+      </div>
+    );
+  }
+  return (
+    <form action={action} noValidate>
+      <FormMessage state={state} />
+      <input type="hidden" name="token" value={token} />
+      <Field
+        name="password"
+        label="New password"
+        type="password"
+        state={state}
+        autoComplete="new-password"
+        hint="At least 12 characters. A passphrase of several words works well."
+        required
+      />
+      <SubmitButton pendingLabel="Saving…">Set new password</SubmitButton>
     </form>
   );
 }

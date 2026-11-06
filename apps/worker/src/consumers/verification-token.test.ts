@@ -23,6 +23,9 @@ describe('deriveVerificationToken', () => {
     expect(deriveEmailToken(SECRET, 'invitation', 'e')).not.toBe(
       deriveEmailToken(SECRET, 'verify-email', 'e'),
     );
+    expect(deriveEmailToken(SECRET, 'password-reset', 'e')).not.toBe(
+      deriveEmailToken(SECRET, 'verify-email', 'e'),
+    );
     expect(deriveVerificationToken(SECRET, 'e')).toBe(
       deriveEmailToken(SECRET, 'verify-email', 'e'),
     );

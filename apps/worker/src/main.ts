@@ -6,6 +6,10 @@ import { InMemoryEmailSender, LOG_REDACT_PATHS, type EmailSender } from '@eventh
 import { LocalFileEmailSender } from './adapters/local-file-email-sender.ts';
 import { ResendEmailSender } from './adapters/resend-email-sender.ts';
 import { sendInvitationEmailConsumer } from './consumers/send-invitation-email.ts';
+import {
+  sendPasswordChangedEmailConsumer,
+  sendPasswordResetEmailConsumer,
+} from './consumers/send-password-reset-email.ts';
 import { sendVerificationEmailConsumer } from './consumers/send-verification-email.ts';
 import { OutboxDispatchPublisher } from './outbox-dispatch-publisher.ts';
 import { relayOnce } from './outbox-relay.ts';
@@ -44,6 +48,12 @@ const consumers = [
     appBaseUrl: config.appBaseUrl,
     tokenSecret: config.emailTokenSecret,
   }),
+  sendPasswordResetEmailConsumer(emailSender, {
+    appBaseUrl: config.appBaseUrl,
+    ttlSeconds: config.passwordResetTtlSeconds,
+    tokenSecret: config.emailTokenSecret,
+  }),
+  sendPasswordChangedEmailConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
 ];
 // PostgreSQL outbox broker (ADR-0009): the outbox table is the durable queue.
 const publisher = new OutboxDispatchPublisher(pool, consumers);

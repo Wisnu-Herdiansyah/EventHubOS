@@ -59,7 +59,7 @@ to exactly one role (`eventhub_app` or `eventhub_worker`). Sessions and verifica
 
 - Real users can now sign up, verify, and sign in locally. Staging and production still need an
   email provider (D4) and a durable broker (D5); the worker refuses local adapters there.
-- Not yet built: password reset and change, session listing and revoke-all, MFA, breached-password
+- Password reset: ADR-0015. Not yet built: password change while signed in, session listing and revoke-all, MFA, breached-password
   screen, idle session timeout, cookie sessions with CSRF for the future admin web app, and a
   "someone tried to register your address" notice.
 - `eventhub.resolve_session` is superseded by `auth_resolve_session` (expand step). It will be

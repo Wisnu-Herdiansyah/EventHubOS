@@ -171,6 +171,8 @@ const workerSchema = baseSchema.extend({
   RESEND_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60_000).default(10_000),
   APP_BASE_URL: z.url({ protocol: /^https?$/ }),
   EMAIL_VERIFICATION_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(24),
+  // Password reset links are short-lived (ADR-0015).
+  PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(10).max(240).default(60),
   // Secret for deterministic, retry-stable verification tokens (ADR-0008).
   EMAIL_TOKEN_SECRET: z.string().min(32).max(512),
 });
@@ -195,6 +197,7 @@ export interface WorkerConfig {
   };
   appBaseUrl: string;
   emailVerificationTtlSeconds: number;
+  passwordResetTtlSeconds: number;
   /** Secret: never log. */
   emailTokenSecret: string;
 }
@@ -256,6 +259,7 @@ export function loadWorkerConfig(env: Readonly<Record<string, string | undefined
     },
     appBaseUrl: c.APP_BASE_URL.replace(/\/+$/, ''),
     emailVerificationTtlSeconds: c.EMAIL_VERIFICATION_TTL_HOURS * 3600,
+    passwordResetTtlSeconds: c.PASSWORD_RESET_TTL_MINUTES * 60,
     emailTokenSecret: c.EMAIL_TOKEN_SECRET,
   };
 }
