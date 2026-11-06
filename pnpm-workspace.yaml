@@ -1,3 +1,9 @@
 packages:
   - apps/*
   - packages/*
+  - tests
+
+# Install scripts stay blocked by default (supply-chain hardening). argon2 ships prebuilt
+# N-API binaries for all deployment targets, so its node-gyp fallback build is not needed.
+ignoredBuiltDependencies:
+  - argon2

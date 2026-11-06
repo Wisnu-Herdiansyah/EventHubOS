@@ -21,6 +21,18 @@ describe('loadApiConfig', () => {
     expect(c.environment).toBe('local');
     expect(c.http).toEqual({ host: '127.0.0.1', port: 3000, trustProxy: false });
     expect(c.logLevel).toBe('info');
+    expect(c.auth).toEqual({
+      sessionTtlSeconds: 43_200,
+      loginMaxFailures: 5,
+      loginLockSeconds: 900,
+    });
+  });
+
+  it('bounds authentication settings', () => {
+    const e = captureError(() =>
+      loadApiConfig({ EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl, LOGIN_MAX_FAILURES: '1' }),
+    );
+    expect(e.keys).toEqual(['LOGIN_MAX_FAILURES']);
   });
 
   it('fails closed when a critical value is missing', () => {
@@ -63,21 +75,45 @@ describe('loadApiConfig', () => {
 });
 
 describe('loadWorkerConfig', () => {
-  const base = { DATABASE_WORKER_URL: localUrl, EVENT_PUBLISHER: 'in_memory' };
+  const base = {
+    DATABASE_WORKER_URL: localUrl,
+    EVENT_PUBLISHER: 'local_dispatch',
+    EMAIL_SENDER: 'in_memory',
+    APP_BASE_URL: 'http://localhost:3001/',
+  };
 
-  it('accepts the in-memory publisher locally', () => {
-    expect(loadWorkerConfig({ ...base, EVENTHUB_ENV: 'ci' }).eventPublisher).toBe('in_memory');
+  it('accepts local adapters locally and normalises the base URL', () => {
+    const c = loadWorkerConfig({ ...base, EVENTHUB_ENV: 'ci' });
+    expect(c.eventPublisher).toBe('local_dispatch');
+    expect(c.appBaseUrl).toBe('http://localhost:3001');
+    expect(c.emailVerificationTtlSeconds).toBe(86_400);
   });
 
-  it('refuses the non-durable in-memory publisher in production', () => {
+  it('refuses local-only adapters in staging and production', () => {
+    for (const env of ['staging', 'production']) {
+      const e = captureError(() =>
+        loadWorkerConfig({
+          ...base,
+          EVENTHUB_ENV: env,
+          DATABASE_WORKER_URL: `${localUrl}?sslmode=require`,
+        }),
+      );
+      expect(e.keys).toEqual(['EVENT_PUBLISHER', 'EMAIL_SENDER']);
+    }
+  });
+
+  it('requires a directory for the local file email sender', () => {
     const e = captureError(() =>
-      loadWorkerConfig({
-        ...base,
-        EVENTHUB_ENV: 'production',
-        DATABASE_WORKER_URL: `${localUrl}?sslmode=require`,
-      }),
+      loadWorkerConfig({ ...base, EVENTHUB_ENV: 'local', EMAIL_SENDER: 'local_file' }),
     );
-    expect(e.keys).toEqual(['EVENT_PUBLISHER']);
+    expect(e.keys).toEqual(['EMAIL_LOCAL_DIR']);
+  });
+
+  it('requires an http(s) application base URL', () => {
+    const e = captureError(() =>
+      loadWorkerConfig({ ...base, EVENTHUB_ENV: 'local', APP_BASE_URL: 'javascript:alert(1)' }),
+    );
+    expect(e.keys).toEqual(['APP_BASE_URL']);
   });
 });
 

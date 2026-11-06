@@ -1,0 +1,16 @@
+{
+  "name": "@eventhub/e2e-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@eventhub/db": "workspace:*",
+    "@eventhub/kernel": "workspace:*",
+    "@eventhub/api": "workspace:*",
+    "@eventhub/worker": "workspace:*",
+    "fastify": "5.12.8",
+    "vitest": "5.1.0"
+  }
+}

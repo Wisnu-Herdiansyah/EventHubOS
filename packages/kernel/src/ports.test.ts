@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createDomainEvent } from './domain-event.ts';
-import { InMemoryEventPublisher } from './ports.ts';
+import { InMemoryEmailSender, InMemoryEventPublisher } from './ports.ts';
 import { maskEmail } from './redaction.ts';
-import { eventPublisherContract } from './testing/index.ts';
+import { emailSenderContract, eventPublisherContract } from './testing/index.ts';
 
 eventPublisherContract('in_memory', () => {
   const publisher = new InMemoryEventPublisher();
@@ -36,5 +36,21 @@ describe('maskEmail', () => {
   it('masks the local part', () => {
     expect(maskEmail('alice@example.com')).toBe('a***@example.com');
     expect(maskEmail('invalid')).toBe('***');
+  });
+});
+
+emailSenderContract('in_memory', () => {
+  const sender = new InMemoryEmailSender();
+  return Promise.resolve({ sender, delivered: () => Promise.resolve(sender.sent) });
+});
+
+describe('InMemoryEmailSender', () => {
+  it('can simulate an outage', async () => {
+    const s = new InMemoryEmailSender();
+    s.failNext(1);
+    const m = { messageId: 'm', to: 'a@example.test', template: 't', subject: 's', text: 'x' };
+    await expect(s.send(m)).rejects.toThrow('simulated outage');
+    await s.send(m);
+    expect(s.sent).toHaveLength(1);
   });
 });

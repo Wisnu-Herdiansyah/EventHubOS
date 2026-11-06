@@ -38,3 +38,42 @@ export class InMemoryEventPublisher implements EventPublisher {
     return Promise.resolve();
   }
 }
+
+/**
+ * Transactional email delivery. The provider is an open decision (D4); adapters must be
+ * idempotent per `messageId` where the provider supports it, and must never log `text`
+ * (it can contain single-use tokens).
+ */
+export interface EmailMessage {
+  /** Stable ID (e.g. derived from the domain event) for provider-side deduplication. */
+  messageId: string;
+  to: string;
+  template: string;
+  subject: string;
+  text: string;
+}
+
+export interface EmailSender {
+  readonly name: string;
+  send(message: EmailMessage): Promise<void>;
+}
+
+/** In-memory sender: a local/test fake only. Refused by config in staging/production. */
+export class InMemoryEmailSender implements EmailSender {
+  readonly name = 'in_memory';
+  readonly sent: EmailMessage[] = [];
+  #failNext = 0;
+
+  failNext(count: number): void {
+    this.#failNext = count;
+  }
+
+  send(message: EmailMessage): Promise<void> {
+    if (this.#failNext > 0) {
+      this.#failNext -= 1;
+      return Promise.reject(new Error('in-memory email sender: simulated outage'));
+    }
+    this.sent.push(structuredClone(message));
+    return Promise.resolve();
+  }
+}

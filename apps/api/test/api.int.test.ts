@@ -9,6 +9,7 @@ import {
   createTestPools,
   type FixtureUser,
 } from '@eventhub/db/testing';
+import { Argon2idPasswordHasher } from '../src/adapters/argon2id-password-hasher.ts';
 import { buildApp } from '../src/app.ts';
 import { DatabaseSessionAuthenticator } from '../src/modules/identity/authenticator.ts';
 
@@ -19,6 +20,8 @@ beforeAll(async () => {
   app = await buildApp({
     pool: pools.app,
     authenticator: new DatabaseSessionAuthenticator(pools.app),
+    passwordHasher: new Argon2idPasswordHasher(),
+    identity: { sessionTtlSeconds: 3600, loginMaxFailures: 5, loginLockSeconds: 900 },
     logger: false,
     validateResponses: true,
     rateLimitPerMinute: 10_000,

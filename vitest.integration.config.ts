@@ -6,7 +6,11 @@ import { defineConfig } from 'vitest/config';
 // drops the database afterwards. No credentials are stored in the repository.
 export default defineConfig({
   test: {
-    include: ['packages/*/src/**/*.int.test.ts', 'apps/*/test/**/*.int.test.ts'],
+    include: [
+      'packages/*/src/**/*.int.test.ts',
+      'apps/*/test/**/*.int.test.ts',
+      'tests/**/*.int.test.ts',
+    ],
     globalSetup: ['packages/db/src/testing/global-setup.ts'],
     fileParallelism: false,
     testTimeout: 20_000,

@@ -1,28 +1,48 @@
 import { readFile } from 'node:fs/promises';
 import type { Pool } from '@eventhub/db';
 import { describe, expect, it } from 'vitest';
+import { ARGON2ID_BASELINE, Argon2idPasswordHasher } from './adapters/argon2id-password-hasher.ts';
 import { allRoutes } from './app.ts';
 import { decodeCursor, encodeCursor } from './modules/event/routes.ts';
 import { parseBearerToken } from './modules/identity/authenticator.ts';
 import { buildOpenApiDocument } from './openapi.ts';
+
+const routes = () =>
+  allRoutes({
+    pool: null as unknown as Pool,
+    passwordHasher: new Argon2idPasswordHasher(ARGON2ID_BASELINE),
+    identity: { sessionTtlSeconds: 1, loginMaxFailures: 5, loginLockSeconds: 60 },
+  });
 
 describe('OpenAPI contract', () => {
   it('committed openapi.json matches the route definitions (run `pnpm openapi:generate`)', async () => {
     const committed = JSON.parse(
       await readFile(new URL('../openapi.json', import.meta.url), 'utf8'),
     );
-    expect(buildOpenApiDocument(allRoutes(null as unknown as Pool))).toEqual(committed);
+    expect(buildOpenApiDocument(routes())).toEqual(committed);
   });
 
-  it('every mutating route requires an Idempotency-Key and declares a permission', () => {
-    for (const r of allRoutes(null as unknown as Pool)) {
-      if (r.method !== 'GET') expect(r.idempotent, r.operationId).toBe(true);
+  it('every mutating route requires an Idempotency-Key or documents why it is exempt', () => {
+    for (const r of routes()) {
+      if (r.method !== 'GET') {
+        expect(r.idempotent || (r.idempotencyExempt ?? '').length > 20, r.operationId).toBe(true);
+      }
       expect(r.requires).toBeTruthy();
     }
   });
 
+  it('only pre-session identity flows are public', () => {
+    const publicOps = routes()
+      .filter((r) => r.auth === 'public')
+      .map((r) => r.operationId)
+      .sort();
+    expect(publicOps).toEqual(['logIn', 'signUp', 'verifyEmail']);
+    for (const r of routes().filter((x) => x.auth === 'public'))
+      expect(r.rateLimit, r.operationId).toBeDefined();
+  });
+
   it('operation IDs are unique', () => {
-    const ids = allRoutes(null as unknown as Pool).map((r) => r.operationId);
+    const ids = routes().map((r) => r.operationId);
     expect(new Set(ids).size).toBe(ids.length);
   });
 });

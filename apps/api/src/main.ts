@@ -1,6 +1,7 @@
 import { loadApiConfig } from '@eventhub/config';
 import { createPool } from '@eventhub/db';
 import { buildApp, loggerOptions } from './app.ts';
+import { Argon2idPasswordHasher } from './adapters/argon2id-password-hasher.ts';
 import { DatabaseSessionAuthenticator } from './modules/identity/authenticator.ts';
 
 const config = loadApiConfig(process.env);
@@ -11,6 +12,8 @@ const pool = createPool({
 const app = await buildApp({
   pool,
   authenticator: new DatabaseSessionAuthenticator(pool),
+  passwordHasher: new Argon2idPasswordHasher(),
+  identity: config.auth,
   logger: loggerOptions(config.logLevel),
   trustProxy: config.http.trustProxy,
   rateLimitPerMinute: config.rateLimitPerMinute,
