@@ -28,7 +28,7 @@ export interface AppDependencies {
   logger: FastifyServerOptions['logger'];
   /** Custom logger instance (tests capture output to assert redaction). */
   loggerInstance?: FastifyServerOptions['loggerInstance'];
-  trustProxy?: boolean;
+  trustProxy?: boolean | string[];
   rateLimitPerMinute?: number;
   /** Validate responses against their contract (enable outside production). */
   validateResponses?: boolean;

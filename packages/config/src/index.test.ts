@@ -29,6 +29,35 @@ describe('loadApiConfig', () => {
     });
   });
 
+  it('trusts only listed proxies remotely', () => {
+    const tls = `${localUrl}?sslmode=require`;
+    expect(
+      loadApiConfig({
+        EVENTHUB_ENV: 'production',
+        DATABASE_APP_URL: tls,
+        TRUST_PROXY: '10.0.0.0/8, 192.168.1.5',
+      }).http.trustProxy,
+    ).toEqual(['10.0.0.0/8', '192.168.1.5']);
+    expect(
+      captureError(() =>
+        loadApiConfig({ EVENTHUB_ENV: 'production', DATABASE_APP_URL: tls, TRUST_PROXY: 'true' }),
+      ).keys,
+    ).toEqual(['TRUST_PROXY']);
+    expect(
+      loadApiConfig({ EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl, TRUST_PROXY: 'true' }).http
+        .trustProxy,
+    ).toBe(true);
+    expect(
+      captureError(() =>
+        loadApiConfig({
+          EVENTHUB_ENV: 'local',
+          DATABASE_APP_URL: localUrl,
+          TRUST_PROXY: 'evil.example',
+        }),
+      ).keys,
+    ).toEqual(['TRUST_PROXY']);
+  });
+
   it('bounds authentication settings', () => {
     const e = captureError(() =>
       loadApiConfig({ EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl, LOGIN_MAX_FAILURES: '1' }),

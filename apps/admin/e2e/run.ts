@@ -1,0 +1,204 @@
+/**
+ * End-to-end harness: a disposable PostgreSQL database (production role model, all migrations),
+ * the real API, the outbox worker writing emails to a temp folder, and the production build of
+ * this app, then Playwright against it. Everything is torn down afterwards, pass or fail.
+ *
+ * Needs TEST_DATABASE_ADMIN_URL (superuser URL of a disposable PostgreSQL 16 instance).
+ * Set E2E_SKIP_BUILD=1 to reuse an existing `next build`.
+ */
+import { spawn, type ChildProcess } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import pg from 'pg';
+import { ROLE_NAMES, bootstrapDatabase, loadMigrations, migrate } from '@eventhub/db';
+
+const adminDir = fileURLToPath(new URL('..', import.meta.url));
+const repoRoot = join(adminDir, '..', '..');
+const adminUrl = process.env.TEST_DATABASE_ADMIN_URL;
+if (!adminUrl) {
+  process.stderr.write(
+    'TEST_DATABASE_ADMIN_URL is required (disposable PostgreSQL 16 superuser URL).\n',
+  );
+  process.exit(2);
+}
+
+function withCredentials(user: string, password: string, database: string): string {
+  const u = new URL(adminUrl!);
+  u.username = user;
+  u.password = password;
+  u.pathname = `/${database}`;
+  return u.toString();
+}
+
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.once('error', reject);
+    srv.listen(0, '127.0.0.1', () => {
+      const address = srv.address();
+      srv.close(() => resolve(typeof address === 'object' && address ? address.port : 0));
+    });
+  });
+}
+
+const children: ChildProcess[] = [];
+function start(
+  name: string,
+  command: string,
+  args: string[],
+  env: Record<string, string>,
+  cwd = repoRoot,
+) {
+  const child = spawn(command, args, {
+    cwd,
+    // Only what each process needs: no inherited secrets beyond PATH/HOME.
+    env: {
+      PATH: process.env.PATH ?? '',
+      HOME: process.env.HOME ?? '',
+      NODE_ENV: 'production',
+      ...env,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  const prefix = (chunk: Buffer) =>
+    chunk
+      .toString()
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => `[${name}] ${l}`)
+      .join('\n');
+  child.stdout?.on('data', (c: Buffer) => process.stdout.write(`${prefix(c)}\n`));
+  child.stderr?.on('data', (c: Buffer) => process.stderr.write(`${prefix(c)}\n`));
+  children.push(child);
+  return child;
+}
+
+function run(command: string, args: string[], env: Record<string, string>, cwd = repoRoot) {
+  return new Promise<number>((resolve) => {
+    const child = spawn(command, args, { cwd, env: { ...process.env, ...env }, stdio: 'inherit' });
+    child.on('exit', (code) => resolve(code ?? 1));
+  });
+}
+
+async function waitFor(url: string, timeoutMs = 60_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { redirect: 'manual' });
+      if (res.status < 500) return;
+    } catch {
+      // not up yet
+    }
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error(`Timed out waiting for ${url}`);
+}
+
+const database = `eventhub_e2e_${randomBytes(6).toString('hex')}`;
+const mailDir = await mkdtemp(join(tmpdir(), 'eventhub-e2e-mail-'));
+let exitCode = 1;
+let created = false;
+try {
+  const admin = new pg.Client({ connectionString: adminUrl });
+  await admin.connect();
+  await admin.query(`CREATE DATABASE ${admin.escapeIdentifier(database)}`);
+  created = true;
+  await admin.end();
+
+  const passwords = {
+    migrator: randomBytes(24).toString('hex'),
+    app: randomBytes(24).toString('hex'),
+    worker: randomBytes(24).toString('hex'),
+  };
+  const u = new URL(adminUrl);
+  const dbAdmin = new pg.Client({
+    connectionString: withCredentials(u.username, decodeURIComponent(u.password), database),
+  });
+  await dbAdmin.connect();
+  await bootstrapDatabase(dbAdmin, database, passwords);
+  await dbAdmin.end();
+  const migrator = new pg.Client({
+    connectionString: withCredentials(ROLE_NAMES.migrator, passwords.migrator, database),
+  });
+  await migrator.connect();
+  await migrate(migrator, await loadMigrations());
+  await migrator.end();
+
+  const [apiPort, adminPort] = [await freePort(), await freePort()];
+  const apiUrl = `http://127.0.0.1:${apiPort}`;
+  // `localhost` is a secure context in Chromium, so the Secure __Host- cookie works without TLS.
+  const baseUrl = `http://localhost:${adminPort}`;
+
+  if (process.env.E2E_SKIP_BUILD !== '1') {
+    const code = await run(
+      'pnpm',
+      ['exec', 'next', 'build'],
+      { NEXT_TELEMETRY_DISABLED: '1' },
+      adminDir,
+    );
+    if (code !== 0) throw new Error('next build failed');
+  }
+
+  start('api', process.execPath, ['apps/api/src/main.ts'], {
+    EVENTHUB_ENV: 'ci',
+    LOG_LEVEL: 'warn',
+    HTTP_HOST: '127.0.0.1',
+    HTTP_PORT: String(apiPort),
+    DATABASE_APP_URL: withCredentials(ROLE_NAMES.app, passwords.app, database),
+    // Only the admin app (same host here) may supply X-Forwarded-For.
+    TRUST_PROXY: '127.0.0.1,::1',
+    RATE_LIMIT_PER_MINUTE: '2000',
+  });
+  start('worker', process.execPath, ['apps/worker/src/main.ts'], {
+    EVENTHUB_ENV: 'ci',
+    LOG_LEVEL: 'warn',
+    DATABASE_WORKER_URL: withCredentials(ROLE_NAMES.worker, passwords.worker, database),
+    EVENT_PUBLISHER: 'postgres_outbox',
+    OUTBOX_POLL_INTERVAL_MS: '200',
+    EMAIL_SENDER: 'local_file',
+    EMAIL_LOCAL_DIR: mailDir,
+    APP_BASE_URL: baseUrl,
+    EMAIL_TOKEN_SECRET: randomBytes(32).toString('hex'),
+  });
+  start(
+    'admin',
+    'pnpm',
+    ['exec', 'next', 'start', '--hostname', 'localhost', '--port', String(adminPort)],
+    {
+      NEXT_TELEMETRY_DISABLED: '1',
+      ADMIN_API_URL: apiUrl,
+      // Tests send X-Forwarded-For the way a load balancer would (see e2e/support.ts).
+      ADMIN_TRUSTED_PROXY_HOPS: '1',
+    },
+    adminDir,
+  );
+
+  await waitFor(`${apiUrl}/health/live`);
+  await waitFor(`${baseUrl}/login`);
+
+  exitCode = await run(
+    'pnpm',
+    ['exec', 'playwright', 'test', ...process.argv.slice(2)],
+    { E2E_BASE_URL: baseUrl, E2E_API_URL: apiUrl, E2E_MAIL_DIR: mailDir },
+    adminDir,
+  );
+} catch (error) {
+  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+} finally {
+  for (const child of children) child.kill('SIGTERM');
+  await new Promise((r) => setTimeout(r, 500));
+  await rm(mailDir, { recursive: true, force: true });
+  if (created) {
+    const teardown = new pg.Client({ connectionString: adminUrl });
+    await teardown.connect();
+    await teardown.query(
+      `DROP DATABASE IF EXISTS ${teardown.escapeIdentifier(database)} WITH (FORCE)`,
+    );
+    await teardown.end();
+  }
+}
+process.exit(exitCode);

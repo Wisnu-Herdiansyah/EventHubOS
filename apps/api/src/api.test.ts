@@ -41,6 +41,31 @@ describe('OpenAPI contract', () => {
       expect(r.rateLimit, r.operationId).toBeDefined();
   });
 
+  it('every $ref in the document resolves against the document root', () => {
+    const doc = buildOpenApiDocument(routes());
+    const refs: string[] = [];
+    const walk = (node: unknown): void => {
+      if (Array.isArray(node)) node.forEach(walk);
+      else if (node && typeof node === 'object') {
+        for (const [k, v] of Object.entries(node)) {
+          if (k === '$ref' && typeof v === 'string') refs.push(v);
+          else walk(v);
+        }
+      }
+    };
+    walk(doc);
+    expect(refs.length).toBeGreaterThan(10);
+    for (const ref of refs) {
+      expect(ref, ref).toMatch(/^#\/components\/schemas\/[A-Za-z0-9]+$/);
+      const name = ref.split('/').pop()!;
+      expect(
+        (doc.components as { schemas: Record<string, unknown> }).schemas[name],
+        ref,
+      ).toBeDefined();
+    }
+    expect(JSON.stringify(doc)).not.toContain('$defs');
+  });
+
   it('operation IDs are unique', () => {
     const ids = routes().map((r) => r.operationId);
     expect(new Set(ids).size).toBe(ids.length);

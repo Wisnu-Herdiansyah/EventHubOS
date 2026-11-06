@@ -1,2 +1,7 @@
 pnpm-lock.yaml
 apps/api/openapi.json
+**/.next/
+apps/admin/src/lib/api-types.ts
+apps/admin/next-env.d.ts
+apps/admin/playwright-report/
+apps/admin/test-results/
