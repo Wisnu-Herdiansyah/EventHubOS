@@ -6,6 +6,7 @@ import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
 import { LIFECYCLE_LABELS } from '@/lib/options';
 import { can } from '@/lib/permissions';
+import { auditHref } from '@/lib/audit';
 import { formatInZone, isoToZonedLocal } from '@/lib/time';
 
 export const metadata: Metadata = { title: 'Event' };
@@ -93,6 +94,15 @@ export default async function EventPage({
               {LIFECYCLE_LABELS[evt.lifecycle] ?? evt.lifecycle}
             </span>
           </p>
+          {can(org.role, 'audit.read') ? (
+            <ul className="section-links" aria-label="Event sections">
+              <li>
+                <Link href={auditHref(orgId, { targetType: 'event', targetId: eventId })}>
+                  View history
+                </Link>
+              </li>
+            </ul>
+          ) : null}
         </div>
       </div>
 

@@ -633,3 +633,64 @@ details.confirm[open] > summary {
   align-items: center;
   min-height: 2.75rem;
 }
+
+/* Audit log */
+.filters {
+  display: grid;
+  gap: 0 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  align-items: end;
+}
+
+.filters .actions {
+  grid-column: 1 / -1;
+}
+
+.audit-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.audit-list > li {
+  border-bottom: 1px solid var(--border);
+  padding: 0.9rem 0;
+}
+
+.audit-list > li:last-child {
+  border-bottom: none;
+}
+
+.audit-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.audit-actor {
+  font-weight: 700;
+  color: var(--navy);
+  overflow-wrap: anywhere;
+}
+
+.audit-summary {
+  margin: 0.25rem 0;
+  overflow-wrap: anywhere;
+}
+
+.audit-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+  align-items: center;
+  margin: 0.25rem 0 0;
+  font-size: 0.9rem;
+}
+
+.audit-meta a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}

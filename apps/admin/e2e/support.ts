@@ -154,6 +154,9 @@ export async function signIn(page: Page, email: string, next?: string): Promise<
 
 /** WCAG 2.x A/AA automated checks. Automated scans catch only part of the issues. */
 export async function expectAccessible(page: Page): Promise<void> {
+  // Next.js streams page metadata, so the <title> can land just after the content. Every page
+  // must end up with a proper title; wait for it before scanning.
+  await expect(page).toHaveTitle(/\S.* · EventHub OS$|^EventHub OS$/);
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();
