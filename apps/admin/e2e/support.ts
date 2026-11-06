@@ -41,7 +41,13 @@ export async function mailLink(to: string, template: string): Promise<string> {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
     for (const file of await readdir(MAIL_DIR).catch(() => [] as string[])) {
-      const mail = JSON.parse(await readFile(join(MAIL_DIR, file), 'utf8')) as Mail;
+      let mail: Mail;
+      try {
+        mail = JSON.parse(await readFile(join(MAIL_DIR, file), 'utf8')) as Mail;
+      } catch {
+        // The worker may still be writing this file (writes are not atomic); retry next poll.
+        continue;
+      }
       if (mail.to === to && mail.template === template) {
         const link = /https?:\/\/\S+#token=[A-Za-z0-9_-]{43}/.exec(mail.text)?.[0];
         if (link) return link;
