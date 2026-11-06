@@ -104,6 +104,16 @@ reached from the organization page and from each event ("View history").
   UUIDs, real dates, cursor charset) are passed to the API. Anything else is dropped, and the page
   says so.
 
+## Resend verification (fifth slice)
+
+Signed-in, unverified users see their address and a "Send a new verification email" button on
+the home page (`POST /v1/auth/resend-verification`). The idempotency key is rendered once per page
+and the button is replaced after a successful send, so repeated clicks cannot flood an inbox. The
+API's per-IP auth limit still applies. The copy states only what the system does: earlier links
+keep working until they expire, and verifying signs out other sessions. A used or expired link
+on `/verify-email` no longer offers a retry that cannot work. It explains why and links to a new
+one, through sign-in if needed. The sign-up confirmation says what to do if no email arrives.
+
 ## OpenAPI fix shipped with this slice
 
 Generating client types exposed `$ref`s to nested `$defs` that did not resolve from the document
@@ -135,6 +145,6 @@ definitions. A test asserts that every `$ref` resolves.
   Without both, every user shares the admin server's per-IP auth limit (10/min).
 - How the app is packaged and hosted (standalone output, container, edge) waits on the cloud
   decision (D1). Today it runs with `next build && next start`.
-- Every Phase 1 API capability now has a UI. Remaining UI work: resend verification and
-  password reset (the latter needs an API first), and audit export (ADR-0013 follow-up).
+- Every Phase 1 API capability now has a UI. Remaining: password reset (needs an API first) and
+  audit export (ADR-0013 follow-up).
 - Session idle timeout and revoke-all remain open (threat model T5).

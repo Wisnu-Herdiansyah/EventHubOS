@@ -76,3 +76,28 @@ export async function acceptInvitationAction(_prev: FormState, form: FormData): 
   }
   redirect(`/orgs/${organizationId}`);
 }
+
+/**
+ * Sends a fresh verification email to the signed-in, unverified user. The idempotency key is
+ * rendered once per page, so repeated clicks on one page cannot send a stream of emails.
+ */
+export async function resendVerificationAction(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  try {
+    const client = await api();
+    unwrap(
+      await client.POST('/v1/auth/resend-verification', {
+        params: { header: { 'Idempotency-Key': str(form, 'idempotencyKey') } },
+      }),
+    );
+    return {
+      ok: true,
+      message:
+        'A new verification email is on its way. It can take a minute; check your spam folder too. Earlier links keep working until they expire.',
+    };
+  } catch (error) {
+    return errorToFormState(error);
+  }
+}

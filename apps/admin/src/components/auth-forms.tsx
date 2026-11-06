@@ -5,6 +5,7 @@ import { useActionState, useEffect, useState } from 'react';
 import {
   acceptInvitationAction,
   loginAction,
+  resendVerificationAction,
   signupAction,
   verifyEmailAction,
 } from '@/app/actions/auth';
@@ -38,7 +39,16 @@ export function LoginForm({ next }: { next: string }) {
 
 export function SignupForm() {
   const [state, action] = useActionState(signupAction, initialFormState);
-  if (state.ok) return <FormMessage state={state} />;
+  if (state.ok) {
+    return (
+      <div className="stack">
+        <FormMessage state={state} />
+        <p className="muted">
+          No email after a few minutes? <Link href="/login">Sign in</Link> and request a new link.
+        </p>
+      </div>
+    );
+  }
   return (
     <form action={action} noValidate>
       <FormMessage state={state} />
@@ -94,12 +104,39 @@ export function VerifyEmail() {
       </>
     );
   }
+  if (state.ok === false) {
+    // A used or expired link cannot be retried; the way forward is a new one.
+    return (
+      <div className="stack">
+        <FormMessage state={state} />
+        <p>Verification links work once and expire after a day.</p>
+        <Link className="button" href="/">
+          Get a new verification link
+        </Link>
+      </div>
+    );
+  }
   return (
     <form action={action}>
       <FormMessage state={state} />
       <input type="hidden" name="token" value={token ?? ''} />
       <p>Confirm that this email address belongs to you.</p>
       <SubmitButton pendingLabel="Verifying…">Verify my email</SubmitButton>
+    </form>
+  );
+}
+
+/** For signed-in, unverified users. After one successful send the button is replaced. */
+export function ResendVerificationForm({ idempotencyKey }: { idempotencyKey: string }) {
+  const [state, action] = useActionState(resendVerificationAction, initialFormState);
+  if (state.ok) return <FormMessage state={state} />;
+  return (
+    <form action={action}>
+      <FormMessage state={state} />
+      <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
+      <SubmitButton className="secondary" pendingLabel="Sending…">
+        Send a new verification email
+      </SubmitButton>
     </form>
   );
 }

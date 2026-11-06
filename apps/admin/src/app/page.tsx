@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { ResendVerificationForm } from '@/components/auth-forms';
 import { CreateOrganizationForm } from '@/components/org-forms';
 import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { LOCALES, ROLE_LABELS, timeZones } from '@/lib/options';
@@ -53,9 +54,12 @@ export default async function HomePage() {
               locales={LOCALES}
             />
           ) : (
-            <div className="message info" role="status">
-              Verify your email address before creating an organization. Check your inbox for the
-              link.
+            <div className="stack">
+              <div className="message info" role="status">
+                Verify your email address ({me.email}) before creating an organization. Check your
+                inbox for the link.
+              </div>
+              <ResendVerificationForm idempotencyKey={newIdempotencyKey()} />
             </div>
           )}
         </section>
