@@ -101,3 +101,53 @@ export async function resendVerificationAction(
     return errorToFormState(error);
   }
 }
+
+/** Always answers the same way: whether an account exists is never revealed. */
+export async function requestPasswordResetAction(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const email = formText(form, 'email');
+  if (!email) {
+    return {
+      ok: false,
+      message: 'Check the highlighted fields.',
+      fields: { email: 'Enter the email address you sign in with.' },
+    };
+  }
+  try {
+    const client = await api();
+    unwrap(await client.POST('/v1/auth/password-reset/request', { body: { email } }));
+    return {
+      ok: true,
+      message:
+        'If an account uses this address, we have sent it a link to choose a new password. The link expires in an hour and works once. Check your spam folder if it does not arrive.',
+    };
+  } catch (error) {
+    return { ...errorToFormState(error), values: submittedValues(form) };
+  }
+}
+
+/** The token comes from the URL fragment via the page; the new password is never echoed back. */
+export async function completePasswordResetAction(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  try {
+    const client = await api();
+    unwrap(
+      await client.POST('/v1/auth/password-reset/complete', {
+        body: { token: str(form, 'token'), password: str(form, 'password') },
+      }),
+    );
+  } catch (error) {
+    return errorToFormState(error);
+  }
+  // Every session was revoked by the API, including any in this browser.
+  await clearSession();
+  return {
+    ok: true,
+    message:
+      'Your password has been changed and you have been signed out everywhere. Sign in with your new password.',
+  };
+}

@@ -145,6 +145,6 @@ definitions. A test asserts that every `$ref` resolves.
   Without both, every user shares the admin server's per-IP auth limit (10/min).
 - How the app is packaged and hosted (standalone output, container, edge) waits on the cloud
   decision (D1). Today it runs with `next build && next start`.
-- Every Phase 1 API capability now has a UI. Remaining: password reset (needs an API first) and
-  audit export (ADR-0013 follow-up).
+- Every Phase 1 API capability now has a UI, and password reset ships with its own (ADR-0015).
+  Remaining: audit export (ADR-0013 follow-up).
 - Session idle timeout and revoke-all remain open (threat model T5).

@@ -36,7 +36,14 @@ describe('OpenAPI contract', () => {
       .filter((r) => r.auth === 'public')
       .map((r) => r.operationId)
       .sort();
-    expect(publicOps).toEqual(['logIn', 'signUp', 'verifyEmail']);
+    // Password reset is pre-session by nature: the user cannot sign in (ADR-0015).
+    expect(publicOps).toEqual([
+      'completePasswordReset',
+      'logIn',
+      'requestPasswordReset',
+      'signUp',
+      'verifyEmail',
+    ]);
     for (const r of routes().filter((x) => x.auth === 'public'))
       expect(r.rateLimit, r.operationId).toBeDefined();
   });

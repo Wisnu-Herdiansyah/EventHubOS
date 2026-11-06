@@ -25,6 +25,20 @@ export interface IdentitySettings {
 }
 
 export const EMAIL_VERIFICATION_REQUESTED = 'identity.email_verification_requested';
+export const PASSWORD_RESET_REQUESTED = 'identity.password_reset_requested'; // pragma: allowlist secret (event name)
+export const PASSWORD_CHANGED = 'identity.password_changed'; // pragma: allowlist secret (event name)
+
+/**
+ * Per-account reset throttle (ADR-0015): at most 3 reset emails per 15 minutes per account, on top
+ * of the per-IP limit, so nobody can flood an inbox by spreading requests across addresses.
+ */
+export const PASSWORD_RESET_MAX_PER_WINDOW = 3;
+export const PASSWORD_RESET_WINDOW_SECONDS = 15 * 60;
+
+const RESET_ACCEPTED_BODY = {
+  status: 'accepted' as const,
+  message: 'If an account uses this address, a password reset email is on its way.',
+};
 
 const AUTH_RATE_LIMIT = { max: 10, timeWindow: '1 minute' };
 const VERIFY_RATE_LIMIT = { max: 20, timeWindow: '1 minute' };
@@ -48,6 +62,16 @@ const loginBody = z
   .object({ email: emailSchema, password: loginPasswordSchema })
   .strict()
   .meta({ id: 'LoginRequest' });
+
+const resetRequestBody = z
+  .object({ email: emailSchema })
+  .strict()
+  .meta({ id: 'PasswordResetRequest' });
+
+const resetCompleteBody = z
+  .object({ token: z.string().regex(TOKEN_RE, 'Malformed token.'), password: passwordSchema })
+  .strict()
+  .meta({ id: 'PasswordResetCompletion' });
 
 const verifyBody = z
   .object({ token: z.string().regex(TOKEN_RE, 'Malformed token.') })
@@ -330,6 +354,139 @@ export function identityRoutes(
           );
         }
         return { status: 200, body: { status: 'verified' } };
+      },
+    }),
+
+    definePublicRoute({
+      method: 'POST',
+      path: '/v1/auth/password-reset/request',
+      operationId: 'requestPasswordReset',
+      summary:
+        'Email a single-use password reset link. Always answers 202 to prevent account enumeration.',
+      tags: ['identity'],
+      idempotent: false,
+      idempotencyExempt:
+        'A repeat only sends another email, capped per account; there is no other side effect.',
+      rateLimit: AUTH_RATE_LIMIT,
+      schemas: { body: resetRequestBody, response: { status: 202, schema: acceptedSchema } },
+      async handler({ body, correlationId }) {
+        await withTransaction(pool, {}, async (client) => {
+          const { rows } = await client.query<{
+            out_user_id: string;
+            out_credential_version: number;
+            out_allowed: boolean;
+          }>(
+            'SELECT out_user_id, out_credential_version, out_allowed FROM eventhub.auth_request_password_reset($1, $2, $3)',
+            [body.email, PASSWORD_RESET_MAX_PER_WINDOW, PASSWORD_RESET_WINDOW_SECONDS],
+          );
+          const account = rows[0];
+          const outcome = !account ? 'unknown_account' : account.out_allowed ? 'sent' : 'throttled';
+          // No address in the audit record (ADR-0007): unknown requests have no target at all.
+          await audit(
+            client,
+            PASSWORD_RESET_REQUESTED,
+            { type: 'user', id: account?.out_user_id ?? null },
+            account?.out_user_id ?? null,
+            correlationId,
+            { outcome },
+          );
+          if (outcome !== 'sent') return;
+          // Identifiers only: the worker mints the token at send time (ADR-0008).
+          await enqueueEvent(
+            client,
+            createDomainEvent({
+              eventType: PASSWORD_RESET_REQUESTED,
+              schemaVersion: 1,
+              actor: { type: 'user', id: account!.out_user_id },
+              organizationId: null,
+              aggregateType: 'user',
+              aggregateId: account!.out_user_id,
+              correlationId,
+              payload: {
+                userId: account!.out_user_id,
+                credentialVersion: account!.out_credential_version,
+              },
+            }),
+          );
+        });
+        return { status: 202, body: RESET_ACCEPTED_BODY };
+      },
+    }),
+
+    definePublicRoute({
+      method: 'POST',
+      path: '/v1/auth/password-reset/complete',
+      operationId: 'completePasswordReset',
+      summary:
+        'Set a new password with the single-use token from the reset email. Signs out every session.',
+      tags: ['identity'],
+      idempotent: false,
+      idempotencyExempt:
+        'Single-use token: a repeat after success reports the token as used and changes nothing.',
+      rateLimit: AUTH_RATE_LIMIT,
+      schemas: {
+        body: resetCompleteBody,
+        response: {
+          status: 200,
+          schema: z
+            .object({ status: z.literal('password_reset') })
+            .meta({ id: 'PasswordResetCompleted' }),
+        },
+      },
+      async handler({ body, correlationId }) {
+        const tokenHash = createHash('sha256').update(body.token).digest();
+        const passwordHash = await hasher.hash(body.password);
+        const outcome = await withTransaction(pool, {}, async (client) => {
+          const { rows } = await client.query<{ out_user_id: string; out_email: string }>(
+            'SELECT out_user_id, out_email FROM eventhub.auth_complete_password_reset($1, $2)',
+            [tokenHash, passwordHash],
+          );
+          const done = rows[0];
+          if (!done) return 'invalid' as const;
+          if (body.password.toLowerCase() === done.out_email) {
+            // Same rule as sign-up. Throwing rolls everything back, so the link still works.
+            throw new AppError('validation_failed', 'Invalid request body.', {
+              details: {
+                fields: [
+                  { path: 'body.password', message: 'Password must not be your email address.' },
+                ],
+              },
+            });
+          }
+          const actor: Actor = { type: 'user', id: done.out_user_id };
+          await audit(
+            client,
+            'identity.password_reset_completed',
+            actor,
+            done.out_user_id,
+            correlationId,
+            {
+              sessionsRevoked: true,
+            },
+          );
+          await enqueueEvent(
+            client,
+            createDomainEvent({
+              eventType: PASSWORD_CHANGED,
+              schemaVersion: 1,
+              actor,
+              organizationId: null,
+              aggregateType: 'user',
+              aggregateId: done.out_user_id,
+              correlationId,
+              payload: { userId: done.out_user_id },
+            }),
+          );
+          return 'done' as const;
+        });
+        if (outcome === 'invalid') {
+          throw new AppError(
+            'validation_failed',
+            'This password reset link is invalid, used, or has expired.',
+            { details: { reason: 'invalid_or_expired_token' } },
+          );
+        }
+        return { status: 200, body: { status: 'password_reset' } };
       },
     }),
 

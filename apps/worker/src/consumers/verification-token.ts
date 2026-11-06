@@ -14,7 +14,7 @@ import { createHmac } from 'node:crypto';
 export const MIN_TOKEN_SECRET_LENGTH = 32;
 
 /** Token purposes are domain-separated: a token minted for one flow is useless in another. */
-export type EmailTokenPurpose = 'verify-email' | 'invitation';
+export type EmailTokenPurpose = 'verify-email' | 'invitation' | 'password-reset';
 
 export function deriveEmailToken(
   secret: string,
