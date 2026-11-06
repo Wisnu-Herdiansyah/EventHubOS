@@ -1,0 +1,427 @@
+import { z } from 'zod';
+import {
+  AppError,
+  createDomainEvent,
+  notFound,
+  roleHasPermission,
+  type FieldIssue,
+} from '@eventhub/kernel';
+import {
+  enqueueEvent,
+  pgConstraint,
+  pgErrorCode,
+  PG_UNIQUE_VIOLATION,
+  writeAudit,
+  type Pool,
+  type PoolClient,
+} from '@eventhub/db';
+import { runIdempotentCommand } from '../../http/idempotent-command.ts';
+import { defineRoute, type AnyRoute } from '../../http/route.ts';
+import { ianaTimeZone, languageTag, uuid } from '../../http/schemas.ts';
+import { withOrganization, type OrganizationAccess } from '../tenancy/access.ts';
+import { buildChecklist, evaluateForScheduling } from './checklist.ts';
+import { checkTransition, LIFECYCLES, TRANSITIONS, type Lifecycle } from './lifecycle.ts';
+import {
+  EVENT_COLUMNS,
+  eventSchema,
+  slugSchema,
+  toEventDto,
+  VENUE_MODES,
+  type EventRow,
+} from './routes.ts';
+import {
+  applySettingsPatch,
+  eventSettingsPatchSchema,
+  settingsIssues,
+  SETTINGS_VERSION,
+} from './settings.ts';
+
+const eventParams = z.object({ organizationId: uuid, eventId: uuid }).strict();
+
+const updateEventBody = z
+  .object({
+    expectedVersion: z.number().int().min(1),
+    name: z.string().trim().min(1).max(200).optional(),
+    slug: slugSchema.optional(),
+    timezone: ianaTimeZone.optional(),
+    startsAt: z.iso.datetime({ offset: true }).optional(),
+    endsAt: z.iso.datetime({ offset: true }).optional(),
+    venueMode: z.enum(VENUE_MODES).optional(),
+    primaryLanguage: languageTag.optional(),
+    settings: eventSettingsPatchSchema.optional(),
+  })
+  .strict()
+  .refine((b) => Object.keys(b).some((k) => k !== 'expectedVersion'), {
+    message: 'Provide at least one field to change.',
+  })
+  .meta({ id: 'UpdateEventRequest' });
+
+const transitionBody = z
+  .object({
+    to: z.enum(LIFECYCLES),
+    expectedVersion: z.number().int().min(1),
+    acknowledgedWarnings: z.array(z.string().max(64)).max(20).default([]),
+  })
+  .strict()
+  .meta({ id: 'EventTransitionRequest' });
+
+const checklistSchema = z
+  .object({
+    eventId: uuid,
+    lifecycle: z.enum(LIFECYCLES),
+    version: z.number().int(),
+    items: z.array(
+      z.object({
+        id: z.string(),
+        severity: z.enum(['blocking', 'recommended']),
+        complete: z.boolean(),
+        message: z.string(),
+      }),
+    ),
+    canSchedule: z.boolean(),
+    availableTransitions: z.array(z.enum(LIFECYCLES)),
+  })
+  .meta({ id: 'EventChecklist' });
+
+function conflict(reason: string, message: string, fields?: FieldIssue[]): AppError {
+  return new AppError('conflict', message, { details: { reason, ...(fields ? { fields } : {}) } });
+}
+
+async function lockEvent(
+  client: PoolClient,
+  access: OrganizationAccess,
+  eventId: string,
+): Promise<EventRow> {
+  const { rows } = await client.query<EventRow>(
+    `SELECT ${EVENT_COLUMNS} FROM eventhub.event WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
+    [access.organizationId, eventId],
+  );
+  if (!rows[0]) throw notFound('Event');
+  return rows[0];
+}
+
+function assertVersion(row: EventRow, expected: number): void {
+  if (row.version !== expected) {
+    throw conflict(
+      'version_conflict',
+      `The event changed since you loaded it (now version ${row.version}). Reload and retry.`,
+    );
+  }
+}
+
+function checklistFor(row: Pick<EventRow, 'name' | 'starts_at' | 'settings'>) {
+  return buildChecklist({
+    name: row.name,
+    startsAt: row.starts_at,
+    settings: row.settings,
+    now: new Date(),
+  });
+}
+
+function checklistFields(ids: string[], items: ReturnType<typeof checklistFor>): FieldIssue[] {
+  return ids.map((id) => ({
+    path: `checklist.${id}`,
+    message: items.find((i) => i.id === id)?.message ?? id,
+  }));
+}
+
+async function record(
+  client: PoolClient,
+  access: OrganizationAccess,
+  correlationId: string,
+  action: 'event.updated' | 'event.lifecycle_changed',
+  eventId: string,
+  metadata: Record<string, unknown>,
+): Promise<void> {
+  const actor = { type: 'user' as const, id: access.userId };
+  await writeAudit(client, {
+    organizationId: access.organizationId,
+    actor,
+    action,
+    targetType: 'event',
+    targetId: eventId,
+    correlationId,
+    metadata,
+  });
+  await enqueueEvent(
+    client,
+    createDomainEvent({
+      eventType: action,
+      schemaVersion: 1,
+      actor,
+      organizationId: access.organizationId,
+      aggregateType: 'event',
+      aggregateId: eventId,
+      correlationId,
+      payload: { eventId, ...metadata },
+    }),
+  );
+}
+
+export function eventManagementRoutes(pool: Pool): AnyRoute[] {
+  return [
+    defineRoute({
+      method: 'PATCH',
+      path: '/v1/organizations/:organizationId/events/:eventId',
+      operationId: 'updateEvent',
+      summary:
+        'Update event details and settings (EVT-02). Requires expectedVersion; archived events are read-only.',
+      tags: ['events'],
+      requires: 'event.update',
+      idempotent: true,
+      schemas: {
+        params: eventParams,
+        body: updateEventBody,
+        response: { status: 200, schema: eventSchema },
+      },
+      async handler({ principal, params, body, correlationId, idempotencyKey, idempotencyScope }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'event.update',
+          (client, access) =>
+            runIdempotentCommand(
+              client,
+              { actorId: principal.userId, scope: idempotencyScope, key: idempotencyKey!, body },
+              async () => {
+                const row = await lockEvent(client, access, params.eventId);
+                if (row.lifecycle === 'archived') {
+                  throw conflict(
+                    'event_archived',
+                    'Archived events are read-only. Restore the event to edit it.',
+                  );
+                }
+                assertVersion(row, body.expectedVersion);
+                if (
+                  body.slug !== undefined &&
+                  body.slug !== row.slug &&
+                  row.lifecycle !== 'draft'
+                ) {
+                  throw conflict(
+                    'slug_locked',
+                    'The slug can only change while the event is a draft.',
+                  );
+                }
+
+                const settings = applySettingsPatch(row.settings, body.settings ?? {});
+                const startsAt = body.startsAt ? new Date(body.startsAt) : row.starts_at;
+                const endsAt = body.endsAt ? new Date(body.endsAt) : row.ends_at;
+                const issues = settingsIssues(settings, { startsAt, endsAt });
+                if (issues.length > 0) {
+                  throw new AppError('validation_failed', 'The event settings are inconsistent.', {
+                    details: { fields: issues },
+                  });
+                }
+                // A scheduled event must keep satisfying the blocking checklist.
+                if (row.lifecycle === 'scheduled') {
+                  const items = checklistFor({
+                    name: body.name ?? row.name,
+                    starts_at: startsAt,
+                    settings,
+                  });
+                  const { blockingIncomplete } = evaluateForScheduling(items, []);
+                  if (blockingIncomplete.length > 0) {
+                    throw conflict(
+                      'checklist_regression',
+                      'This change would break a required setup item for a scheduled event. Unschedule it first.',
+                      checklistFields(blockingIncomplete, items),
+                    );
+                  }
+                }
+
+                const changes: Record<string, unknown> = {
+                  name: body.name,
+                  slug: body.slug,
+                  timezone: body.timezone,
+                  starts_at: body.startsAt,
+                  ends_at: body.endsAt,
+                  venue_mode: body.venueMode,
+                  primary_language: body.primaryLanguage,
+                };
+                const columns = Object.entries(changes).filter(([, v]) => v !== undefined);
+                const fields = [
+                  ...columns.map(([k]) => k),
+                  ...(body.settings ? Object.keys(body.settings).map((k) => `settings.${k}`) : []),
+                ];
+                const assignments = [
+                  ...columns.map(([k], i) => `${k} = $${i + 3}`),
+                  `settings = $${columns.length + 3}`,
+                  `settings_version = $${columns.length + 4}`,
+                ];
+                let updated: EventRow;
+                try {
+                  const r = await client.query<EventRow>(
+                    `UPDATE eventhub.event SET ${assignments.join(', ')}
+                    WHERE organization_id = $1 AND id = $2
+                    RETURNING ${EVENT_COLUMNS}`,
+                    [
+                      access.organizationId,
+                      row.id,
+                      ...columns.map(([, v]) => v),
+                      JSON.stringify(settings),
+                      SETTINGS_VERSION,
+                    ],
+                  );
+                  updated = r.rows[0]!;
+                } catch (error) {
+                  if (
+                    pgErrorCode(error) === PG_UNIQUE_VIOLATION &&
+                    pgConstraint(error) === 'event_organization_id_slug_key'
+                  ) {
+                    throw conflict(
+                      'event_slug_taken',
+                      'An event with this slug already exists in the organization.',
+                    );
+                  }
+                  throw error;
+                }
+                // Field names only: values may contain contact details.
+                await record(client, access, correlationId, 'event.updated', row.id, { fields });
+                return { status: 200, body: toEventDto(updated) };
+              },
+            ),
+        );
+      },
+    }),
+
+    defineRoute({
+      method: 'GET',
+      path: '/v1/organizations/:organizationId/events/:eventId/checklist',
+      operationId: 'getEventChecklist',
+      summary:
+        'Setup checklist (EVT-03): blocking and recommended items, and the transitions you may make now.',
+      tags: ['events'],
+      requires: 'event.read',
+      idempotent: false,
+      schemas: { params: eventParams, response: { status: 200, schema: checklistSchema } },
+      async handler({ principal, params }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'event.read',
+          async (client, access) => {
+            const { rows } = await client.query<EventRow>(
+              `SELECT ${EVENT_COLUMNS} FROM eventhub.event WHERE organization_id = $1 AND id = $2`,
+              [access.organizationId, params.eventId],
+            );
+            const row = rows[0];
+            if (!row) throw notFound('Event');
+            const items = checklistFor(row);
+            const { blockingIncomplete } = evaluateForScheduling(items, []);
+            const permitted = TRANSITIONS.filter(
+              (t) =>
+                t.from === row.lifecycle &&
+                roleHasPermission(access.role, t.permission) &&
+                checkTransition(row.lifecycle, t.to, row.archived_from).ok,
+            ).map((t) => t.to);
+            return {
+              status: 200,
+              body: {
+                eventId: row.id,
+                lifecycle: row.lifecycle,
+                version: row.version,
+                items,
+                canSchedule: row.lifecycle === 'draft' && blockingIncomplete.length === 0,
+                availableTransitions: permitted,
+              },
+            };
+          },
+        );
+      },
+    }),
+
+    defineRoute({
+      method: 'POST',
+      path: '/v1/organizations/:organizationId/events/:eventId/transitions',
+      operationId: 'transitionEvent',
+      summary:
+        'Move an event through its lifecycle. Scheduling runs the checklist; recommendations must be acknowledged.',
+      tags: ['events'],
+      // Entry needs event.read; each transition then requires its own permission (event.publish/archive).
+      requires: 'event.read',
+      idempotent: true,
+      schemas: {
+        params: eventParams,
+        body: transitionBody,
+        response: { status: 200, schema: eventSchema },
+      },
+      async handler({ principal, params, body, correlationId, idempotencyKey, idempotencyScope }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'event.read',
+          (client, access) =>
+            runIdempotentCommand(
+              client,
+              { actorId: principal.userId, scope: idempotencyScope, key: idempotencyKey!, body },
+              async () => {
+                const row = await lockEvent(client, access, params.eventId);
+                const from: Lifecycle = row.lifecycle;
+                const check = checkTransition(from, body.to, row.archived_from);
+                if (!check.ok) {
+                  const messages = {
+                    invalid_transition: `An event cannot move from ${from} to ${body.to}.`,
+                    requires_published_revision:
+                      'Publishing requires a published page revision, available once the page builder ships.',
+                    restore_target_mismatch: `This archived event can only be restored to ${row.archived_from === 'ended' ? 'ended' : 'draft'}.`,
+                  } as const;
+                  throw conflict(check.reason, messages[check.reason]);
+                }
+                if (!roleHasPermission(access.role, check.rule.permission)) {
+                  throw new AppError(
+                    'forbidden',
+                    'You do not have permission to perform this action.',
+                    {
+                      details: { reason: `missing_permission:${check.rule.permission}` },
+                    },
+                  );
+                }
+                assertVersion(row, body.expectedVersion);
+
+                let acknowledged: string[] = [];
+                if (check.rule.requiresChecklist) {
+                  const items = checklistFor(row);
+                  const evaluation = evaluateForScheduling(items, body.acknowledgedWarnings);
+                  if (evaluation.blockingIncomplete.length > 0) {
+                    throw conflict(
+                      'checklist_blocking',
+                      'Complete the required setup items before scheduling.',
+                      checklistFields(evaluation.blockingIncomplete, items),
+                    );
+                  }
+                  if (evaluation.unacknowledgedWarnings.length > 0) {
+                    throw conflict(
+                      'warnings_unacknowledged',
+                      'Acknowledge the recommended setup items you are skipping.',
+                      checklistFields(evaluation.unacknowledgedWarnings, items),
+                    );
+                  }
+                  acknowledged = items
+                    .filter((i) => i.severity === 'recommended' && !i.complete)
+                    .map((i) => i.id);
+                }
+
+                const { rows } = await client.query<EventRow>(
+                  `UPDATE eventhub.event
+                    SET lifecycle = $3, lifecycle_changed_at = now(),
+                        archived_from = CASE WHEN $3 = 'archived' THEN $4 ELSE NULL END
+                  WHERE organization_id = $1 AND id = $2
+                  RETURNING ${EVENT_COLUMNS}`,
+                  [access.organizationId, row.id, body.to, from],
+                );
+                await record(client, access, correlationId, 'event.lifecycle_changed', row.id, {
+                  from,
+                  to: body.to,
+                  acknowledgedWarnings: acknowledged,
+                });
+                return { status: 200, body: toEventDto(rows[0]!) };
+              },
+            ),
+        );
+      },
+    }),
+  ];
+}
