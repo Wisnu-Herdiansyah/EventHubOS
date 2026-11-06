@@ -11,6 +11,7 @@
     "e2e": "node e2e/run.ts"
   },
   "dependencies": {
+    "@eventhub/kernel": "workspace:*",
     "next": "16.4.2",
     "openapi-fetch": "0.17.0",
     "react": "19.1.10",

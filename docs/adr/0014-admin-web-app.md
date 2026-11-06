@@ -51,6 +51,21 @@ token. Nothing in the browser holds a credential.
 - **Visual identity:** navy, beige, gold and rose-gold tokens, a serif display face with a
   sans-serif body, and no web fonts or inline styles (keeps the CSP strict).
 
+## Team management (second slice)
+
+`/orgs/{id}/team` is for Owners and Admins (`membership.read`/`membership.manage`). It lists
+members, sends invitations, shows pending invitations (with revoke) and recent history, changes
+roles, and removes members (or lets you leave).
+
+- **One permission catalog.** The UI imports `roleHasPermission`/`canAssignRole` from
+  `@eventhub/kernel`, the same code the API enforces, instead of keeping a copy. Role pickers
+  offer only roles the viewer may grant, and rows the viewer may not affect have no controls. The
+  API remains the authority, and its errors (last Owner, role ceiling) are shown inline.
+- **Destructive actions take two steps:** a disclosure, then a button naming the person.
+- **Page-level confirmations:** when a row disappears (removed, revoked), the confirmation is
+  shown at page level from an allow-listed `notice` code. URL text is never echoed.
+- **Leaving:** removing yourself returns you to the organization list.
+
 ## OpenAPI fix shipped with this slice
 
 Generating client types exposed `$ref`s to nested `$defs` that did not resolve from the document
@@ -82,6 +97,6 @@ definitions. A test asserts that every `$ref` resolves.
   Without both, every user shares the admin server's per-IP auth limit (10/min).
 - How the app is packaged and hosted (standalone output, container, edge) waits on the cloud
   decision (D1). Today it runs with `next build && next start`.
-- The UI still lacks team management, organization settings and the audit log viewer (API ready),
-  plus resend-verification and password reset. Those are the next UI slices.
+- The UI still lacks organization settings and the audit log viewer (API ready), plus
+  resend-verification and password reset. Those are the next UI slices.
 - Session idle timeout and revoke-all remain open (threat model T5).

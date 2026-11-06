@@ -141,3 +141,26 @@ export async function expectAccessible(page: Page): Promise<void> {
     results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
   ).toEqual([]);
 }
+
+/** The invitee accepts through the API, using the token from their invitation email. */
+export async function acceptInvitationViaApi(inviteeEmail: string, inviteeToken: string) {
+  const link = await mailLink(inviteeEmail, 'organization_invitation');
+  await apiCall(
+    'POST',
+    '/v1/invitations/accept',
+    { token: link.split('#token=')[1] },
+    inviteeToken,
+  );
+}
+
+export async function joinAs(
+  ownerToken: string,
+  orgId: string,
+  label: string,
+  role: string,
+): Promise<{ email: string; token: string }> {
+  const member = await verifiedAccount(label);
+  await inviteViaApi(ownerToken, orgId, member.email, role);
+  await acceptInvitationViaApi(member.email, member.token);
+  return member;
+}
