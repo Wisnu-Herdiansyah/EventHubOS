@@ -12,6 +12,7 @@ import { parseInput, type AnyRoute, type RouteResult } from './http/route.ts';
 import { parseBearerToken, type SessionAuthenticator } from './modules/identity/authenticator.ts';
 import type { PasswordHasher } from './modules/identity/password.ts';
 import { identityRoutes, type IdentitySettings } from './modules/identity/routes.ts';
+import { auditRoutes } from './modules/audit/routes.ts';
 import { eventManagementRoutes } from './modules/event/management-routes.ts';
 import { eventRoutes } from './modules/event/routes.ts';
 import { DEFAULT_INVITATION_TTL_SECONDS, membershipRoutes } from './modules/membership/routes.ts';
@@ -50,6 +51,7 @@ export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
     ...membershipRoutes(deps.pool, deps.invitationTtlSeconds ?? DEFAULT_INVITATION_TTL_SECONDS),
     ...eventRoutes(deps.pool),
     ...eventManagementRoutes(deps.pool),
+    ...auditRoutes(deps.pool),
   ];
 }
 
