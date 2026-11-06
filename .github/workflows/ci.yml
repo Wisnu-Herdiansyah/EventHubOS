@@ -1,0 +1,76 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: format, lint, typecheck, unit, migration lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm db:check
+      - run: pnpm test:unit
+
+  integration:
+    name: migrations + integration (PostgreSQL 16, RLS, tenant isolation)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start PostgreSQL 16 with a random per-run admin password
+        run: |
+          PW="$(openssl rand -hex 24)"
+          echo "::add-mask::$PW"
+          docker run -d --name pg -e POSTGRES_PASSWORD="$PW" -p 127.0.0.1:5432:5432 postgres:16
+          for i in $(seq 1 30); do docker exec pg pg_isready -h 127.0.0.1 -U postgres -q && break; sleep 1; done
+          docker exec pg pg_isready -h 127.0.0.1 -U postgres
+          echo "TEST_DATABASE_ADMIN_URL=postgres://postgres:${PW}@localhost:5432/postgres" >> "$GITHUB_ENV"
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The global setup creates a fresh database, bootstraps least-privilege roles with random
+      # passwords, applies all migrations, then the suite re-runs them to prove idempotency.
+      - run: pnpm test:integration
+
+  security:
+    name: secret and dependency scanning
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks (full history)
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.28.0 \
+            detect --source /repo --redact --no-banner --exit-code 1
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm security:audit
