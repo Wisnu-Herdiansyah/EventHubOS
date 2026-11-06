@@ -200,3 +200,30 @@ export async function patchOrgViaApi(
     token,
   );
 }
+
+/** An account that signed up but has not verified its email yet. */
+export async function unverifiedAccount(label: string): Promise<{ email: string }> {
+  const email = uniqueEmail(label);
+  await apiCall('POST', '/v1/auth/signup', { email, password: PASSWORD });
+  return { email };
+}
+
+/** Waits until `count` emails of a template reached `to`, and returns their links. */
+export async function mailLinks(to: string, template: string, count: number): Promise<string[]> {
+  const deadline = Date.now() + 20_000;
+  for (;;) {
+    const links: string[] = [];
+    for (const file of await readdir(MAIL_DIR).catch(() => [] as string[])) {
+      try {
+        const mail = JSON.parse(await readFile(join(MAIL_DIR, file), 'utf8')) as Mail;
+        const link = /https?:\/\/\S+#token=[A-Za-z0-9_-]{43}/.exec(mail.text)?.[0];
+        if (mail.to === to && mail.template === template && link) links.push(link);
+      } catch {
+        // Still being written; picked up on the next poll.
+      }
+    }
+    if (links.length >= count) return links;
+    if (Date.now() > deadline) throw new Error(`Expected ${count} ${template} emails for ${to}`);
+    await new Promise((r) => setTimeout(r, 200));
+  }
+}
