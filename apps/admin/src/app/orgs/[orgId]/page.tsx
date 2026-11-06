@@ -37,6 +37,14 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
     signInOn401(error, `/orgs/${orgId}`);
   }
 
+  const sections = [
+    ...(teamAbilities(org.role).canRead ? [{ href: `/orgs/${orgId}/team`, label: 'Team' }] : []),
+    ...(settingsAbilities(org.role).canOpen
+      ? [{ href: `/orgs/${orgId}/settings`, label: 'Settings' }]
+      : []),
+    ...(can(org.role, 'audit.read') ? [{ href: `/orgs/${orgId}/audit`, label: 'Audit log' }] : []),
+  ];
+
   return (
     <div className="stack">
       <nav className="breadcrumbs" aria-label="Breadcrumb">
@@ -54,18 +62,13 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
           <p className="muted">
             Your role: {ROLE_LABELS[org.role] ?? org.role} · {org.timezone}
           </p>
-          {teamAbilities(org.role).canRead || settingsAbilities(org.role).canOpen ? (
+          {sections.length > 0 ? (
             <ul className="section-links" aria-label="Organization sections">
-              {teamAbilities(org.role).canRead ? (
-                <li>
-                  <Link href={`/orgs/${orgId}/team`}>Team</Link>
+              {sections.map((sec) => (
+                <li key={sec.href}>
+                  <Link href={sec.href}>{sec.label}</Link>
                 </li>
-              ) : null}
-              {settingsAbilities(org.role).canOpen ? (
-                <li>
-                  <Link href={`/orgs/${orgId}/settings`}>Settings</Link>
-                </li>
-              ) : null}
+              ))}
             </ul>
           ) : null}
         </div>

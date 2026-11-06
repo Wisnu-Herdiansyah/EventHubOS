@@ -85,6 +85,25 @@ values. Clearing an optional field (legal name, both billing fields) stores `nul
 Billing admins lack `event.read`. The organization page therefore loads events only for roles
 that can read them. It previously failed for Billing admins.
 
+## Audit log viewer (fourth slice)
+
+`/orgs/{id}/audit` is for roles with `audit.read` (Owner, Admin), over ADR-0013's API. It is
+reached from the organization page and from each event ("View history").
+
+- **Plain language:** records read as sentences built from their structured metadata, e.g.
+  "Changed the role of ade@… from Event manager to Viewer" or "Moved Jakarta Summit from Draft to
+  Scheduled". Field names map to words. Metadata is rendered as text only, unknown actions show
+  their action name, and unexpected metadata types fall back to neutral wording.
+- **Names:** member and event IDs are resolved against lists the viewer is already allowed to
+  read. Removed people show as "a former member". Invitee addresses stay masked as stored.
+- **Filters:** a plain GET form (no client script) offers category, person, and a date range. The
+  dates are whole days in the organization's time zone, sent as a half-open UTC range. A
+  per-object history filter is linked from each entry. Paging uses the API's keyset cursor
+  ("Older entries", "Back to newest").
+- **URL safety:** only well-formed filter values (allow-listed categories and object types,
+  UUIDs, real dates, cursor charset) are passed to the API. Anything else is dropped, and the page
+  says so.
+
 ## OpenAPI fix shipped with this slice
 
 Generating client types exposed `$ref`s to nested `$defs` that did not resolve from the document
@@ -116,6 +135,6 @@ definitions. A test asserts that every `$ref` resolves.
   Without both, every user shares the admin server's per-IP auth limit (10/min).
 - How the app is packaged and hosted (standalone output, container, edge) waits on the cloud
   decision (D1). Today it runs with `next build && next start`.
-- The UI still lacks the audit log viewer (API ready), plus resend-verification and password
-  reset. Those are the next UI slices.
+- Every Phase 1 API capability now has a UI. Remaining UI work: resend verification and
+  password reset (the latter needs an API first), and audit export (ADR-0013 follow-up).
 - Session idle timeout and revoke-all remain open (threat model T5).

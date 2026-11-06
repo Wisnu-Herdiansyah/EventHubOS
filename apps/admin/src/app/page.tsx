@@ -6,7 +6,8 @@ import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { LOCALES, ROLE_LABELS, timeZones } from '@/lib/options';
 import { readSessionToken } from '@/lib/session';
 
-export const metadata: Metadata = { title: 'Organizations' };
+// The layout's title template applies to child routes only, not to this root page.
+export const metadata: Metadata = { title: { absolute: 'Organizations · EventHub OS' } };
 
 export default async function HomePage() {
   if (!(await readSessionToken())) redirect('/login');
