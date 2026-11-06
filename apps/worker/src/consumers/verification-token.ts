@@ -13,11 +13,22 @@ import { createHmac } from 'node:crypto';
  */
 export const MIN_TOKEN_SECRET_LENGTH = 32;
 
-export function deriveVerificationToken(secret: string, eventId: string): string {
+/** Token purposes are domain-separated: a token minted for one flow is useless in another. */
+export type EmailTokenPurpose = 'verify-email' | 'invitation';
+
+export function deriveEmailToken(
+  secret: string,
+  purpose: EmailTokenPurpose,
+  eventId: string,
+): string {
   if (secret.length < MIN_TOKEN_SECRET_LENGTH) {
     throw new Error(`token secret must be at least ${MIN_TOKEN_SECRET_LENGTH} characters`);
   }
   return createHmac('sha256', secret)
-    .update(`eventhub:verify-email:v1:${eventId}`)
+    .update(`eventhub:${purpose}:v1:${eventId}`)
     .digest('base64url');
+}
+
+export function deriveVerificationToken(secret: string, eventId: string): string {
+  return deriveEmailToken(secret, 'verify-email', eventId);
 }

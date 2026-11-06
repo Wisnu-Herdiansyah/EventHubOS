@@ -15,6 +15,9 @@ Phase 0 (foundation) plus Phase 1 slices:
   lockout, logout, and `GET /v1/me`.
 - **Tenancy and events**: organization creation with Owner membership, listing a user's
   organizations, and creating, reading, and listing draft events.
+- **Team** (ADR-0010): email invitations with role ceiling, acceptance bound to the invited
+  address, revocation, member listing and removal with a last-Owner guard.
+- **Delivery** (ADR-0008, ADR-0009): Resend email through the PostgreSQL outbox broker.
 
 All of it sits behind server-resolved tenant context, deny-by-default permissions, PostgreSQL
 RLS, idempotency keys, and transactional audit/outbox records.
@@ -24,7 +27,7 @@ RLS, idempotency keys, and transactional audit/outbox records.
 ```
 apps/
   api/        Fastify control-plane API (modular monolith), OpenAPI contract in openapi.json
-  worker/     Outbox relay, event consumers (verification email), email adapters (Resend, local)
+  worker/     Outbox relay, consumers (verification and invitation email), email adapters
 packages/
   config/     Typed, fail-closed environment configuration
   kernel/     Errors, permission catalog, domain-event envelope, provider ports + contract tests

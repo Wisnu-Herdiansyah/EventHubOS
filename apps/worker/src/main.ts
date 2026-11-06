@@ -5,6 +5,7 @@ import { createPool, outboxHealth } from '@eventhub/db';
 import { InMemoryEmailSender, LOG_REDACT_PATHS, type EmailSender } from '@eventhub/kernel';
 import { LocalFileEmailSender } from './adapters/local-file-email-sender.ts';
 import { ResendEmailSender } from './adapters/resend-email-sender.ts';
+import { sendInvitationEmailConsumer } from './consumers/send-invitation-email.ts';
 import { sendVerificationEmailConsumer } from './consumers/send-verification-email.ts';
 import { OutboxDispatchPublisher } from './outbox-dispatch-publisher.ts';
 import { relayOnce } from './outbox-relay.ts';
@@ -32,10 +33,15 @@ const pool = createPool({
   applicationName: 'eventhub-worker',
   max: 4,
 });
+const emailSender = selectEmailSender();
 const consumers = [
-  sendVerificationEmailConsumer(selectEmailSender(), {
+  sendVerificationEmailConsumer(emailSender, {
     appBaseUrl: config.appBaseUrl,
     ttlSeconds: config.emailVerificationTtlSeconds,
+    tokenSecret: config.emailTokenSecret,
+  }),
+  sendInvitationEmailConsumer(emailSender, {
+    appBaseUrl: config.appBaseUrl,
     tokenSecret: config.emailTokenSecret,
   }),
 ];

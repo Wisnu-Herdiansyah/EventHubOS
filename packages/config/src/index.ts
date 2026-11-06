@@ -84,6 +84,7 @@ const apiSchema = baseSchema.extend({
   SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(12),
   LOGIN_MAX_FAILURES: z.coerce.number().int().min(3).max(50).default(5),
   LOGIN_LOCK_SECONDS: z.coerce.number().int().min(60).max(86_400).default(900),
+  INVITATION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(168),
 });
 
 export interface ApiConfig {
@@ -93,6 +94,7 @@ export interface ApiConfig {
   database: { appUrl: string };
   rateLimitPerMinute: number;
   auth: { sessionTtlSeconds: number; loginMaxFailures: number; loginLockSeconds: number };
+  invitations: { ttlSeconds: number };
 }
 
 export function loadApiConfig(env: Readonly<Record<string, string | undefined>>): ApiConfig {
@@ -109,6 +111,7 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
       loginMaxFailures: c.LOGIN_MAX_FAILURES,
       loginLockSeconds: c.LOGIN_LOCK_SECONDS,
     },
+    invitations: { ttlSeconds: c.INVITATION_TTL_HOURS * 3600 },
   };
 }
 

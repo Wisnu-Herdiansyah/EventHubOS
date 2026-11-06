@@ -21,6 +21,7 @@ describe('loadApiConfig', () => {
     expect(c.environment).toBe('local');
     expect(c.http).toEqual({ host: '127.0.0.1', port: 3000, trustProxy: false });
     expect(c.logLevel).toBe('info');
+    expect(c.invitations).toEqual({ ttlSeconds: 7 * 24 * 3600 });
     expect(c.auth).toEqual({
       sessionTtlSeconds: 43_200,
       loginMaxFailures: 5,

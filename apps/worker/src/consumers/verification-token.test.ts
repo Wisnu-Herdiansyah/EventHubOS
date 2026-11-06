@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveVerificationToken } from './verification-token.ts';
+import { deriveEmailToken, deriveVerificationToken } from './verification-token.ts';
 
 const SECRET = 'test-token-secret-0123456789abcdef'; // pragma: allowlist secret
 
@@ -18,5 +18,13 @@ describe('deriveVerificationToken', () => {
 
   it('refuses short secrets', () => {
     expect(() => deriveVerificationToken('short', 'e')).toThrow(/at least 32/);
+  });
+  it('separates purposes: the same event yields unrelated tokens per flow', () => {
+    expect(deriveEmailToken(SECRET, 'invitation', 'e')).not.toBe(
+      deriveEmailToken(SECRET, 'verify-email', 'e'),
+    );
+    expect(deriveVerificationToken(SECRET, 'e')).toBe(
+      deriveEmailToken(SECRET, 'verify-email', 'e'),
+    );
   });
 });

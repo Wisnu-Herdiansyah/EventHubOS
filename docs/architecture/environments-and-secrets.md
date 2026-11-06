@@ -20,6 +20,7 @@
 | `LOG_LEVEL`                                                      | all                        | no            | default `info`                                                        |
 | `HTTP_HOST`, `HTTP_PORT`, `TRUST_PROXY`, `RATE_LIMIT_PER_MINUTE` | api                        | no            | `TRUST_PROXY=true` only behind a trusted edge                         |
 | `SESSION_TTL_HOURS`, `LOGIN_MAX_FAILURES`, `LOGIN_LOCK_SECONDS`  | api                        | no            | defaults 12 h / 5 / 900 s                                             |
+| `INVITATION_TTL_HOURS`                                           | api                        | no            | default 168 h (7 days)                                                |
 | `DATABASE_APP_URL`                                               | api                        | **yes**       | `eventhub_app` role                                                   |
 | `DATABASE_WORKER_URL`                                            | worker                     | **yes**       | `eventhub_worker` role                                                |
 | `DATABASE_MIGRATOR_URL`                                          | migration job              | **yes**       | `eventhub_migrator`; never given to runtime workloads                 |

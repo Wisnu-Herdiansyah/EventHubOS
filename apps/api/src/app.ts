@@ -13,6 +13,7 @@ import { parseBearerToken, type SessionAuthenticator } from './modules/identity/
 import type { PasswordHasher } from './modules/identity/password.ts';
 import { identityRoutes, type IdentitySettings } from './modules/identity/routes.ts';
 import { eventRoutes } from './modules/event/routes.ts';
+import { DEFAULT_INVITATION_TTL_SECONDS, membershipRoutes } from './modules/membership/routes.ts';
 import { organizationRoutes } from './modules/organization/routes.ts';
 
 export interface AppDependencies {
@@ -20,6 +21,8 @@ export interface AppDependencies {
   authenticator: SessionAuthenticator;
   passwordHasher: PasswordHasher;
   identity: IdentitySettings;
+  /** Invitation lifetime; defaults to 7 days. */
+  invitationTtlSeconds?: number;
   logger: FastifyServerOptions['logger'];
   /** Custom logger instance (tests capture output to assert redaction). */
   loggerInstance?: FastifyServerOptions['loggerInstance'];
@@ -36,12 +39,14 @@ export interface RouteFactoryDeps {
   pool: Pool;
   passwordHasher: PasswordHasher;
   identity: IdentitySettings;
+  invitationTtlSeconds?: number;
 }
 
 export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
   return [
     ...identityRoutes(deps.pool, deps.passwordHasher, deps.identity),
     ...organizationRoutes(deps.pool),
+    ...membershipRoutes(deps.pool, deps.invitationTtlSeconds ?? DEFAULT_INVITATION_TTL_SECONDS),
     ...eventRoutes(deps.pool),
   ];
 }

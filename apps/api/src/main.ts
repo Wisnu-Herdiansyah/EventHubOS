@@ -14,6 +14,7 @@ const app = await buildApp({
   authenticator: new DatabaseSessionAuthenticator(pool),
   passwordHasher: new Argon2idPasswordHasher(),
   identity: config.auth,
+  invitationTtlSeconds: config.invitations.ttlSeconds,
   logger: loggerOptions(config.logLevel),
   trustProxy: config.http.trustProxy,
   rateLimitPerMinute: config.rateLimitPerMinute,
