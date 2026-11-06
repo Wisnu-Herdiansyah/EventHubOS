@@ -149,6 +149,41 @@ async function recordMembershipChange(
   );
 }
 
+const changeRoleBody = z
+  .object({ role: roleSchema })
+  .strict()
+  .meta({ id: 'ChangeMemberRoleRequest' });
+
+/**
+ * When a member is demoted (or removed, `newRole = null`), revoke their pending invitations that
+ * their new role could no longer issue. An invitation must stay within its sender's current
+ * authority, not just the authority they had when sending it.
+ */
+async function revokeInvitationsBeyondAuthority(
+  client: PoolClient,
+  organizationId: string,
+  inviterUserId: string,
+  newRole: Role | null,
+  actorUserId: string,
+): Promise<number> {
+  const { rows } = await client.query<{ id: string; role: Role }>(
+    `SELECT id, role FROM eventhub.invitation
+      WHERE organization_id = $1 AND invited_by = $2 AND status = 'pending'
+      FOR UPDATE`,
+    [organizationId, inviterUserId],
+  );
+  const toRevoke = rows
+    .filter((r) => newRole === null || !canAssignRole(newRole, r.role))
+    .map((r) => r.id);
+  if (toRevoke.length === 0) return 0;
+  await client.query(
+    `UPDATE eventhub.invitation SET status = 'revoked', revoked_at = now(), revoked_by = $3
+      WHERE organization_id = $1 AND id = ANY($2::uuid[])`,
+    [organizationId, toRevoke, actorUserId],
+  );
+  return toRevoke.length;
+}
+
 export function membershipRoutes(pool: Pool, invitationTtlSeconds: number): AnyRoute[] {
   return [
     defineRoute({
@@ -457,6 +492,13 @@ export function membershipRoutes(pool: Pool, invitationTtlSeconds: number): AnyR
                   `UPDATE eventhub.membership SET status = 'removed' WHERE organization_id = $1 AND id = $2`,
                   [access.organizationId, target.id],
                 );
+                const revokedInvitations = await revokeInvitationsBeyondAuthority(
+                  client,
+                  access.organizationId,
+                  target.user_id,
+                  null,
+                  principal.userId,
+                );
                 await recordMembershipChange(
                   client,
                   access,
@@ -465,7 +507,11 @@ export function membershipRoutes(pool: Pool, invitationTtlSeconds: number): AnyR
                   'membership',
                   target.id,
                   correlationId,
-                  { role: target.role, self: target.user_id === principal.userId },
+                  {
+                    role: target.role,
+                    self: target.user_id === principal.userId,
+                    revokedInvitations,
+                  },
                   {
                     membershipId: target.id,
                     userId: target.user_id,
@@ -473,6 +519,119 @@ export function membershipRoutes(pool: Pool, invitationTtlSeconds: number): AnyR
                   },
                 );
                 return { status: 204, body: null };
+              },
+            ),
+        );
+      },
+    }),
+
+    defineRoute({
+      method: 'POST',
+      path: '/v1/organizations/:organizationId/members/:membershipId/role',
+      operationId: 'changeMemberRole',
+      summary:
+        "Change a member's role. You cannot affect or grant a role above your own; the last Owner cannot be demoted.",
+      tags: ['members'],
+      requires: 'membership.manage',
+      idempotent: true,
+      schemas: {
+        params: memberParams,
+        body: changeRoleBody,
+        response: { status: 200, schema: memberSchema },
+      },
+      async handler({ principal, params, body, correlationId, idempotencyKey, idempotencyScope }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'membership.manage',
+          (client, access) =>
+            runIdempotentCommand(
+              client,
+              { actorId: principal.userId, scope: idempotencyScope, key: idempotencyKey!, body },
+              async () => {
+                // Lock every active Owner row first so concurrent demotions cannot remove the last Owner.
+                const owners = await client.query<{ id: string }>(
+                  `SELECT id FROM eventhub.membership
+                    WHERE organization_id = $1 AND role = 'owner' AND status = 'active' FOR UPDATE`,
+                  [access.organizationId],
+                );
+                const { rows } = await client.query<{
+                  id: string;
+                  user_id: string;
+                  role: Role;
+                  status: 'active' | 'suspended' | 'removed';
+                  accepted_at: Date | null;
+                }>(
+                  `SELECT id, user_id, role, status, accepted_at FROM eventhub.membership
+                    WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
+                  [access.organizationId, params.membershipId],
+                );
+                const target = rows[0];
+                if (!target || target.status === 'removed') throw notFound('Member');
+                if (!canAssignRole(access.role, target.role)) {
+                  throw forbidden(
+                    'role_above_actor',
+                    'You cannot change the role of a member whose role is above your own.',
+                  );
+                }
+                if (!canAssignRole(access.role, body.role)) {
+                  throw forbidden('role_above_actor', 'You cannot grant a role above your own.');
+                }
+                if (target.role === 'owner' && body.role !== 'owner' && owners.rows.length <= 1) {
+                  throw conflict(
+                    'last_owner',
+                    'The last Owner cannot be demoted. Make someone else an Owner first.',
+                  );
+                }
+                const member = await client.query<{ out_email: string }>(
+                  `SELECT out_email FROM eventhub.organization_members($1) WHERE out_membership_id = $2`,
+                  [access.organizationId, target.id],
+                );
+                const dto = (role: Role) => ({
+                  membershipId: target.id,
+                  userId: target.user_id,
+                  email: member.rows[0]!.out_email,
+                  role,
+                  status: target.status,
+                  joinedAt: target.accepted_at?.toISOString() ?? null,
+                });
+                if (target.role === body.role) return { status: 200, body: dto(target.role) };
+
+                await client.query(
+                  `UPDATE eventhub.membership SET role = $3 WHERE organization_id = $1 AND id = $2`,
+                  [access.organizationId, target.id, body.role],
+                );
+                const revokedInvitations = await revokeInvitationsBeyondAuthority(
+                  client,
+                  access.organizationId,
+                  target.user_id,
+                  body.role,
+                  principal.userId,
+                );
+                await recordMembershipChange(
+                  client,
+                  access,
+                  { type: 'user', id: principal.userId },
+                  'membership.role_changed',
+                  'membership',
+                  target.id,
+                  correlationId,
+                  {
+                    from: target.role,
+                    to: body.role,
+                    self: target.user_id === principal.userId,
+                    revokedInvitations,
+                  },
+                  {
+                    membershipId: target.id,
+                    userId: target.user_id,
+                    organizationId: access.organizationId,
+                    from: target.role,
+                    to: body.role,
+                  },
+                );
+                return { status: 200, body: dto(body.role) };
               },
             ),
         );

@@ -1,10 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { AppError, createDomainEvent, ROLES } from '@eventhub/kernel';
+import {
+  AppError,
+  createDomainEvent,
+  ROLES,
+  roleHasPermission,
+  type Permission,
+  type FieldIssue,
+} from '@eventhub/kernel';
 import { enqueueEvent, withTransaction, writeAudit, type Pool } from '@eventhub/db';
 import { runIdempotentCommand } from '../../http/idempotent-command.ts';
 import { defineRoute, type AnyRoute } from '../../http/route.ts';
 import { ianaTimeZone, languageTag, uuid } from '../../http/schemas.ts';
+import { emailSchema } from '../identity/password.ts';
 import { withOrganization } from '../tenancy/access.ts';
 
 const createOrganizationBody = z
@@ -27,6 +35,11 @@ const organizationSchema = z
     status: z.enum(['active', 'suspended', 'pending_deletion']),
     role: z.enum(ROLES),
     createdAt: z.iso.datetime(),
+    version: z.number().int(),
+    /** Present only for roles with billing.read (personal data). */
+    billingContact: z
+      .object({ name: z.string().nullable(), email: z.string().nullable() })
+      .optional(),
   })
   .meta({ id: 'Organization' });
 
@@ -44,7 +57,13 @@ interface OrganizationRow {
   timezone: string;
   status: 'active' | 'suspended' | 'pending_deletion';
   created_at: Date;
+  version: number;
+  billing_contact_name: string | null;
+  billing_contact_email: string | null;
 }
+
+const ORGANIZATION_COLUMNS =
+  'id, display_name, legal_name, locale, timezone, status, created_at, version, billing_contact_name, billing_contact_email';
 
 function toOrganizationDto(row: OrganizationRow, role: (typeof ROLES)[number]) {
   return {
@@ -56,8 +75,40 @@ function toOrganizationDto(row: OrganizationRow, role: (typeof ROLES)[number]) {
     status: row.status,
     role,
     createdAt: row.created_at.toISOString(),
+    version: row.version,
+    ...(roleHasPermission(role, 'billing.read')
+      ? { billingContact: { name: row.billing_contact_name, email: row.billing_contact_email } }
+      : {}),
   };
 }
+
+const updateOrganizationBody = z
+  .object({
+    expectedVersion: z.number().int().min(1),
+    displayName: z.string().trim().min(1).max(200).optional(),
+    legalName: z.string().trim().min(1).max(300).nullable().optional(),
+    locale: languageTag.optional(),
+    timezone: ianaTimeZone.optional(),
+    billingContact: z
+      .object({ name: z.string().trim().min(1).max(200), email: emailSchema })
+      .strict()
+      .nullable()
+      .optional(),
+  })
+  .strict()
+  .refine((b) => Object.keys(b).some((k) => k !== 'expectedVersion'), {
+    message: 'Provide at least one field to change.',
+  })
+  .meta({ id: 'UpdateOrganizationRequest' });
+
+/** Each field names the permission it needs: billing details are separate from the org profile. */
+const FIELD_PERMISSIONS: Record<string, Permission> = {
+  displayName: 'organization.manage',
+  legalName: 'organization.manage',
+  locale: 'organization.manage',
+  timezone: 'organization.manage',
+  billingContact: 'billing.manage',
+};
 
 export function organizationRoutes(pool: Pool): AnyRoute[] {
   return [
@@ -90,7 +141,7 @@ export function organizationRoutes(pool: Pool): AnyRoute[] {
               const { rows } = await client.query<OrganizationRow>(
                 `INSERT INTO eventhub.organization (id, display_name, legal_name, locale, timezone, created_by)
                  VALUES ($1, $2, $3, $4, $5, $6)
-                 RETURNING id, display_name, legal_name, locale, timezone, status, created_at`,
+                 RETURNING ${ORGANIZATION_COLUMNS}`,
                 [
                   organizationId,
                   body.displayName,
@@ -202,12 +253,123 @@ export function organizationRoutes(pool: Pool): AnyRoute[] {
           'organization.read',
           async (client, access) => {
             const { rows } = await client.query<OrganizationRow>(
-              `SELECT id, display_name, legal_name, locale, timezone, status, created_at
+              `SELECT ${ORGANIZATION_COLUMNS}
                FROM eventhub.organization WHERE id = $1`,
               [access.organizationId],
             );
             return { status: 200, body: toOrganizationDto(rows[0]!, access.role) };
           },
+        );
+      },
+    }),
+    defineRoute({
+      method: 'PATCH',
+      path: '/v1/organizations/:organizationId',
+      operationId: 'updateOrganization',
+      summary:
+        'Update organization settings (ORG-04). Profile fields need organization.manage; the billing contact needs billing.manage.',
+      tags: ['organizations'],
+      requires: 'organization.read',
+      idempotent: true,
+      schemas: {
+        params: orgParams,
+        body: updateOrganizationBody,
+        response: { status: 200, schema: organizationSchema },
+      },
+      async handler({ principal, params, body, correlationId, idempotencyKey, idempotencyScope }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'organization.read',
+          (client, access) =>
+            runIdempotentCommand(
+              client,
+              { actorId: principal.userId, scope: idempotencyScope, key: idempotencyKey!, body },
+              async () => {
+                const fields = Object.keys(body).filter(
+                  (k) => k !== 'expectedVersion' && body[k as keyof typeof body] !== undefined,
+                );
+                // Deny the whole request if any field needs a permission the caller lacks.
+                const missing = [...new Set(fields.map((f) => FIELD_PERMISSIONS[f]!))].filter(
+                  (perm) => !roleHasPermission(access.role, perm),
+                );
+                if (missing.length > 0) {
+                  throw new AppError(
+                    'forbidden',
+                    'You do not have permission to change some of these settings.',
+                    {
+                      details: {
+                        reason: 'missing_permission:' + missing[0],
+                        fields: fields
+                          .filter((f) => missing.includes(FIELD_PERMISSIONS[f]!))
+                          .map((f): FieldIssue => ({
+                            path: 'body.' + f,
+                            message: 'Requires ' + FIELD_PERMISSIONS[f] + '.',
+                          })),
+                      },
+                    },
+                  );
+                }
+                const current = await client.query<{ version: number }>(
+                  'SELECT version FROM eventhub.organization WHERE id = $1 FOR UPDATE',
+                  [access.organizationId],
+                );
+                const currentVersion = current.rows[0]!.version;
+                if (currentVersion !== body.expectedVersion) {
+                  throw new AppError(
+                    'conflict',
+                    'The organization changed since you loaded it (now version ' +
+                      currentVersion +
+                      '). Reload and retry.',
+                    { details: { reason: 'version_conflict' } },
+                  );
+                }
+                const columns: Array<[string, unknown]> = [];
+                if (body.displayName !== undefined)
+                  columns.push(['display_name', body.displayName]);
+                if (body.legalName !== undefined) columns.push(['legal_name', body.legalName]);
+                if (body.locale !== undefined) columns.push(['locale', body.locale]);
+                if (body.timezone !== undefined) columns.push(['timezone', body.timezone]);
+                if (body.billingContact !== undefined) {
+                  columns.push(['billing_contact_name', body.billingContact?.name ?? null]);
+                  columns.push(['billing_contact_email', body.billingContact?.email ?? null]);
+                }
+                const assignments = columns.map(([c], i) => c + ' = $' + String(i + 2)).join(', ');
+                const { rows } = await client.query<OrganizationRow>(
+                  'UPDATE eventhub.organization SET ' +
+                    assignments +
+                    ' WHERE id = $1 RETURNING ' +
+                    ORGANIZATION_COLUMNS,
+                  [access.organizationId, ...columns.map(([, v]) => v)],
+                );
+                const actor = { type: 'user' as const, id: principal.userId };
+                // Field names only: the billing contact is personal data.
+                await writeAudit(client, {
+                  organizationId: access.organizationId,
+                  actor,
+                  action: 'organization.updated',
+                  targetType: 'organization',
+                  targetId: access.organizationId,
+                  correlationId,
+                  metadata: { fields },
+                });
+                await enqueueEvent(
+                  client,
+                  createDomainEvent({
+                    eventType: 'organization.updated',
+                    schemaVersion: 1,
+                    actor,
+                    organizationId: access.organizationId,
+                    aggregateType: 'organization',
+                    aggregateId: access.organizationId,
+                    correlationId,
+                    payload: { organizationId: access.organizationId, fields },
+                  }),
+                );
+                return { status: 200, body: toOrganizationDto(rows[0]!, access.role) };
+              },
+            ),
         );
       },
     }),
