@@ -16,8 +16,9 @@ Phase 0 (foundation) plus Phase 1 slices:
 - **Tenancy and events**: organization creation with Owner membership, listing a user's
   organizations; events with validated settings, a setup checklist, and lifecycle transitions
   (schedule, unschedule, archive, restore; ADR-0011).
-- **Team** (ADR-0010): email invitations with role ceiling, acceptance bound to the invited
-  address, revocation, member listing and removal with a last-Owner guard.
+- **Team** (ADR-0010, ADR-0012): email invitations with role ceiling, acceptance bound to the
+  invited address, revocation, member listing, role changes, and removal with a last-Owner guard.
+- **Organization settings** (ADR-0012): profile and billing contact with per-field permissions.
 - **Delivery** (ADR-0008, ADR-0009): Resend email through the PostgreSQL outbox broker.
 
 All of it sits behind server-resolved tenant context, deny-by-default permissions, PostgreSQL
