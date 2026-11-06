@@ -1,0 +1,6 @@
+# Reviewed false positives only. Each entry pins one finding (commit:file:rule:line), so it
+# cannot suppress anything else. Never add real credentials here: rotate them instead.
+#
+# Low-quality test fixture (fake Resend key, never valid). Replaced in the next commit with a
+# low-entropy value; ignored here only because the scan covers full history.
+e401d3df777752356f822bbca0550c534536ea98:packages/config/src/index.test.ts:generic-api-key:115

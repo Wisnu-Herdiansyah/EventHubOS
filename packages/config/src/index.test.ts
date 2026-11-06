@@ -112,7 +112,8 @@ describe('loadWorkerConfig', () => {
   });
 
   describe('resend', () => {
-    const API_KEY = 're_test_key_never_logged_123'; // pragma: allowlist secret
+    // Deliberately low-entropy fixture so secret scanners never mistake it for a real key.
+    const API_KEY = `re_${'x'.repeat(24)}`;
     const resend = {
       ...base,
       EVENTHUB_ENV: 'local',
