@@ -55,7 +55,3 @@ export const ROLE_LABELS: Record<string, string> = {
   analyst: 'Analyst',
   viewer: 'Viewer',
 };
-
-/** UI convenience only; the API enforces permissions. Mirrors the permission catalog. */
-export const CAN_CREATE_EVENTS = new Set(['owner', 'admin', 'event_manager']);
-export const CAN_UPDATE_EVENTS = new Set(['owner', 'admin', 'event_manager']);

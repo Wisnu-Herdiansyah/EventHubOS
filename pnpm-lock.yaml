@@ -38,6 +38,9 @@ importers:
 
   apps/admin:
     dependencies:
+      '@eventhub/kernel':
+        specifier: workspace:*
+        version: link:../../packages/kernel
       next:
         specifier: 16.4.2
         version: 16.4.2(@playwright/test@1.63.0)(@types/node@22.20.5)(react-dom@19.1.10(react@19.1.10))(react@19.1.10)

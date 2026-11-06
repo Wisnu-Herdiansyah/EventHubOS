@@ -4,7 +4,8 @@ import { notFound } from 'next/navigation';
 import { EventSettingsForm, TransitionForm, type SettingsDefaults } from '@/components/org-forms';
 import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
-import { CAN_UPDATE_EVENTS, LIFECYCLE_LABELS } from '@/lib/options';
+import { LIFECYCLE_LABELS } from '@/lib/options';
+import { can } from '@/lib/permissions';
 import { formatInZone, isoToZonedLocal } from '@/lib/time';
 
 export const metadata: Metadata = { title: 'Event' };
@@ -67,7 +68,7 @@ export default async function EventPage({
   const warnings = checklist.items
     .filter((i) => i.severity === 'recommended' && !i.complete)
     .map((i) => ({ id: i.id, message: i.message }));
-  const canEdit = CAN_UPDATE_EVENTS.has(org.role) && evt.lifecycle !== 'archived';
+  const canEdit = can(org.role, 'event.update') && evt.lifecycle !== 'archived';
   const restoreLabel = evt.lifecycle === 'archived' ? 'Restore event' : undefined;
 
   return (

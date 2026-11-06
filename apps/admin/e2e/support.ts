@@ -74,13 +74,31 @@ async function apiCall<T>(method: string, path: string, body: unknown, token?: s
   return (await res.json()) as T;
 }
 
+/**
+ * Redeems an emailed token. The worker sends the email inside the transaction that stores the
+ * token's hash (ADR-0008: retry-stable delivery), so for a few milliseconds the link exists before
+ * the token is committed. People never notice; a test reading the mail file can. Retry briefly;
+ * a token that is really invalid still fails after the deadline.
+ */
+async function redeemToken<T>(path: string, token: string, bearer?: string): Promise<T> {
+  const deadline = Date.now() + 5_000;
+  for (;;) {
+    try {
+      return await apiCall<T>('POST', path, { token }, bearer);
+    } catch (error) {
+      if (Date.now() > deadline || !/-> 400: .*invalid/i.test(String(error))) throw error;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+}
+
 /** Fixture shortcut: a verified account created through the API (the UI flow has its own test). */
 export async function verifiedAccount(label: string): Promise<{ email: string; token: string }> {
   const email = uniqueEmail(label);
   await apiCall('POST', '/v1/auth/signup', { email, password: PASSWORD });
   const link = await mailLink(email, 'verify_email');
   const token = link.split('#token=')[1];
-  await apiCall('POST', '/v1/auth/verify-email', { token });
+  await redeemToken('/v1/auth/verify-email', token!);
   const session = await apiCall<{ token: string }>('POST', '/v1/auth/login', {
     email,
     password: PASSWORD,
@@ -140,4 +158,22 @@ export async function expectAccessible(page: Page): Promise<void> {
   expect(
     results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
   ).toEqual([]);
+}
+
+/** The invitee accepts through the API, using the token from their invitation email. */
+export async function acceptInvitationViaApi(inviteeEmail: string, inviteeToken: string) {
+  const link = await mailLink(inviteeEmail, 'organization_invitation');
+  await redeemToken('/v1/invitations/accept', link.split('#token=')[1]!, inviteeToken);
+}
+
+export async function joinAs(
+  ownerToken: string,
+  orgId: string,
+  label: string,
+  role: string,
+): Promise<{ email: string; token: string }> {
+  const member = await verifiedAccount(label);
+  await inviteViaApi(ownerToken, orgId, member.email, role);
+  await acceptInvitationViaApi(member.email, member.token);
+  return member;
 }

@@ -36,6 +36,8 @@ export function FormMessage({ state }: { state: FormState }) {
 
 interface FieldProps {
   name: string;
+  /** Needed when the same field name appears in several forms on one page. */
+  id?: string;
   label: string;
   state: FormState;
   hint?: string;
@@ -52,6 +54,7 @@ interface FieldProps {
 /** Labelled input with hint and error wired up via aria-describedby / aria-invalid. */
 export function Field({
   name,
+  id: idProp,
   label,
   state,
   hint,
@@ -59,7 +62,7 @@ export function Field({
   defaultValue,
   ...rest
 }: FieldProps) {
-  const id = `f-${name}`;
+  const id = idProp ?? `f-${name}`;
   const error = state.fields?.[name];
   const describedBy =
     [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') ||
@@ -95,6 +98,7 @@ export function Field({
 
 interface SelectProps {
   name: string;
+  id?: string;
   label: string;
   state: FormState;
   options: Array<{ value: string; label: string }>;
@@ -103,8 +107,17 @@ interface SelectProps {
   required?: boolean;
 }
 
-export function Select({ name, label, state, options, hint, defaultValue, ...rest }: SelectProps) {
-  const id = `f-${name}`;
+export function Select({
+  name,
+  id: idProp,
+  label,
+  state,
+  options,
+  hint,
+  defaultValue,
+  ...rest
+}: SelectProps) {
+  const id = idProp ?? `f-${name}`;
   const error = state.fields?.[name];
   const describedBy =
     [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') ||

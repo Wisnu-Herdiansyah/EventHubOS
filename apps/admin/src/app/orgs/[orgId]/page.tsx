@@ -4,7 +4,8 @@ import { notFound } from 'next/navigation';
 import { CreateEventForm } from '@/components/org-forms';
 import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
-import { CAN_CREATE_EVENTS, LIFECYCLE_LABELS, ROLE_LABELS, timeZones } from '@/lib/options';
+import { LIFECYCLE_LABELS, ROLE_LABELS, timeZones } from '@/lib/options';
+import { can, teamAbilities } from '@/lib/permissions';
 import { formatInZone } from '@/lib/time';
 
 export const metadata: Metadata = { title: 'Organization' };
@@ -50,6 +51,13 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
           <p className="muted">
             Your role: {ROLE_LABELS[org.role] ?? org.role} · {org.timezone}
           </p>
+          {teamAbilities(org.role).canRead ? (
+            <ul className="section-links" aria-label="Organization sections">
+              <li>
+                <Link href={`/orgs/${orgId}/team`}>Team</Link>
+              </li>
+            </ul>
+          ) : null}
         </div>
       </div>
       <div className="grid">
@@ -73,7 +81,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
             </ul>
           )}
         </section>
-        {CAN_CREATE_EVENTS.has(org.role) ? (
+        {can(org.role, 'event.create') ? (
           <section className="card" aria-labelledby="new-event-heading">
             <h2 id="new-event-heading">Create an event</h2>
             <CreateEventForm
