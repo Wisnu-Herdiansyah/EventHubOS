@@ -76,10 +76,27 @@ const apiSchema = baseSchema.extend({
   HTTP_HOST: z.string().min(1).default('127.0.0.1'),
   HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DATABASE_APP_URL: postgresUrl,
+  // 'false' (default), 'true' (local/ci only), or a comma-separated list of trusted proxy IPs/CIDRs
+  // (e.g. the admin web app's address) whose X-Forwarded-For is believed for client IPs.
   TRUST_PROXY: z
-    .enum(['true', 'false'])
+    .string()
     .default('false')
-    .transform((v) => v === 'true'),
+    .transform((v, ctx): boolean | string[] => {
+      if (v === 'false') return false;
+      if (v === 'true') return true;
+      const list = v
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const ok =
+        list.length > 0 &&
+        list.every((s) => /^[0-9a-fA-F:.]+(\/\d{1,3})?$/.test(s) && /[.:]/.test(s));
+      if (!ok) {
+        ctx.addIssue({ code: 'custom', message: 'Use false, true, or a list of IPs/CIDRs' });
+        return z.NEVER;
+      }
+      return list;
+    }),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(100_000).default(300),
   SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(12),
   LOGIN_MAX_FAILURES: z.coerce.number().int().min(3).max(50).default(5),
@@ -90,7 +107,7 @@ const apiSchema = baseSchema.extend({
 export interface ApiConfig {
   environment: DeployEnvironment;
   logLevel: (typeof LOG_LEVELS)[number];
-  http: { host: string; port: number; trustProxy: boolean };
+  http: { host: string; port: number; trustProxy: boolean | string[] };
   database: { appUrl: string };
   rateLimitPerMinute: number;
   auth: { sessionTtlSeconds: number; loginMaxFailures: number; loginLockSeconds: number };
@@ -100,6 +117,13 @@ export interface ApiConfig {
 export function loadApiConfig(env: Readonly<Record<string, string | undefined>>): ApiConfig {
   const c = parse(apiSchema, env);
   assertDatabaseTls(c.EVENTHUB_ENV, { DATABASE_APP_URL: c.DATABASE_APP_URL });
+  if (c.TRUST_PROXY === true && isRemoteEnvironment(c.EVENTHUB_ENV)) {
+    // Trusting every hop would let any client spoof its IP and dodge per-IP auth rate limits.
+    throw new ConfigError(
+      ['TRUST_PROXY'],
+      `list the trusted proxy addresses explicitly in ${c.EVENTHUB_ENV}`,
+    );
+  }
   return {
     environment: c.EVENTHUB_ENV,
     logLevel: c.LOG_LEVEL,

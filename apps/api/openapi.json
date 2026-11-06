@@ -36,26 +36,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/$defs/SignUpRequest",
-                "$defs": {
-                  "SignUpRequest": {
-                    "type": "object",
-                    "properties": {
-                      "email": {
-                        "type": "string",
-                        "maxLength": 254
-                      },
-                      "password": {
-                        "type": "string"
-                      }
-                    },
-                    "required": [
-                      "email",
-                      "password"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
+                "$ref": "#/components/schemas/SignUpRequest"
               }
             }
           }
@@ -66,26 +47,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Accepted",
-                  "$defs": {
-                    "Accepted": {
-                      "type": "object",
-                      "properties": {
-                        "status": {
-                          "type": "string",
-                          "const": "accepted"
-                        },
-                        "message": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "status",
-                        "message"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Accepted"
                 }
               }
             }
@@ -203,28 +165,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/$defs/LoginRequest",
-                "$defs": {
-                  "LoginRequest": {
-                    "type": "object",
-                    "properties": {
-                      "email": {
-                        "type": "string",
-                        "maxLength": 254
-                      },
-                      "password": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 512
-                      }
-                    },
-                    "required": [
-                      "email",
-                      "password"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
+                "$ref": "#/components/schemas/LoginRequest"
               }
             }
           }
@@ -235,36 +176,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Session",
-                  "$defs": {
-                    "Session": {
-                      "type": "object",
-                      "properties": {
-                        "token": {
-                          "type": "string"
-                        },
-                        "tokenType": {
-                          "type": "string",
-                          "const": "Bearer"
-                        },
-                        "expiresAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "emailVerified": {
-                          "type": "boolean"
-                        }
-                      },
-                      "required": [
-                        "token",
-                        "tokenType",
-                        "expiresAt",
-                        "emailVerified"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Session"
                 }
               }
             }
@@ -382,22 +294,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/$defs/VerifyEmailRequest",
-                "$defs": {
-                  "VerifyEmailRequest": {
-                    "type": "object",
-                    "properties": {
-                      "token": {
-                        "type": "string",
-                        "pattern": "^[A-Za-z0-9_-]{43}$"
-                      }
-                    },
-                    "required": [
-                      "token"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
+                "$ref": "#/components/schemas/VerifyEmailRequest"
               }
             }
           }
@@ -408,22 +305,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/EmailVerified",
-                  "$defs": {
-                    "EmailVerified": {
-                      "type": "object",
-                      "properties": {
-                        "status": {
-                          "type": "string",
-                          "const": "verified"
-                        }
-                      },
-                      "required": [
-                        "status"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/EmailVerified"
                 }
               }
             }
@@ -653,31 +535,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/CurrentUser",
-                  "$defs": {
-                    "CurrentUser": {
-                      "type": "object",
-                      "properties": {
-                        "userId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "email": {
-                          "type": "string"
-                        },
-                        "emailVerified": {
-                          "type": "boolean"
-                        }
-                      },
-                      "required": [
-                        "userId",
-                        "email",
-                        "emailVerified"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/CurrentUser"
                 }
               }
             }
@@ -808,26 +666,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Accepted",
-                  "$defs": {
-                    "Accepted": {
-                      "type": "object",
-                      "properties": {
-                        "status": {
-                          "type": "string",
-                          "const": "accepted"
-                        },
-                        "message": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "status",
-                        "message"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Accepted"
                 }
               }
             }
@@ -953,41 +792,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/$defs/CreateOrganizationRequest",
-                "$defs": {
-                  "CreateOrganizationRequest": {
-                    "type": "object",
-                    "properties": {
-                      "displayName": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 200
-                      },
-                      "legalName": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 300
-                      },
-                      "locale": {
-                        "type": "string",
-                        "minLength": 2,
-                        "maxLength": 35
-                      },
-                      "timezone": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 64,
-                        "pattern": "^(UTC|[A-Za-z_]+(\\/[A-Za-z0-9_+-]+)+)$"
-                      }
-                    },
-                    "required": [
-                      "displayName",
-                      "locale",
-                      "timezone"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
+                "$ref": "#/components/schemas/CreateOrganizationRequest"
               }
             }
           }
@@ -998,99 +803,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Organization",
-                  "$defs": {
-                    "Organization": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "displayName": {
-                          "type": "string"
-                        },
-                        "legalName": {
-                          "type": [
-                            "string",
-                            "null"
-                          ]
-                        },
-                        "locale": {
-                          "type": "string"
-                        },
-                        "timezone": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "active",
-                            "suspended",
-                            "pending_deletion"
-                          ]
-                        },
-                        "role": {
-                          "type": "string",
-                          "enum": [
-                            "owner",
-                            "admin",
-                            "billing_admin",
-                            "event_manager",
-                            "content_editor",
-                            "registration_manager",
-                            "analyst",
-                            "viewer"
-                          ]
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "version": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        },
-                        "billingContact": {
-                          "type": "object",
-                          "properties": {
-                            "name": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            },
-                            "email": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            }
-                          },
-                          "required": [
-                            "name",
-                            "email"
-                          ],
-                          "additionalProperties": false
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "displayName",
-                        "legalName",
-                        "locale",
-                        "timezone",
-                        "status",
-                        "role",
-                        "createdAt",
-                        "version"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Organization"
                 }
               }
             }
@@ -1208,56 +921,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/MyOrganizationList",
-                  "$defs": {
-                    "MyOrganizationList": {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/$defs/OrganizationMembershipSummary"
-                          }
-                        }
-                      },
-                      "required": [
-                        "data"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "OrganizationMembershipSummary": {
-                      "type": "object",
-                      "properties": {
-                        "organizationId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "displayName": {
-                          "type": "string"
-                        },
-                        "role": {
-                          "type": "string",
-                          "enum": [
-                            "owner",
-                            "admin",
-                            "billing_admin",
-                            "event_manager",
-                            "content_editor",
-                            "registration_manager",
-                            "analyst",
-                            "viewer"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "organizationId",
-                        "displayName",
-                        "role"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/MyOrganizationList"
                 }
               }
             }
@@ -1385,99 +1049,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Organization",
-                  "$defs": {
-                    "Organization": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "displayName": {
-                          "type": "string"
-                        },
-                        "legalName": {
-                          "type": [
-                            "string",
-                            "null"
-                          ]
-                        },
-                        "locale": {
-                          "type": "string"
-                        },
-                        "timezone": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "active",
-                            "suspended",
-                            "pending_deletion"
-                          ]
-                        },
-                        "role": {
-                          "type": "string",
-                          "enum": [
-                            "owner",
-                            "admin",
-                            "billing_admin",
-                            "event_manager",
-                            "content_editor",
-                            "registration_manager",
-                            "analyst",
-                            "viewer"
-                          ]
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "version": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        },
-                        "billingContact": {
-                          "type": "object",
-                          "properties": {
-                            "name": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            },
-                            "email": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            }
-                          },
-                          "required": [
-                            "name",
-                            "email"
-                          ],
-                          "additionalProperties": false
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "displayName",
-                        "legalName",
-                        "locale",
-                        "timezone",
-                        "status",
-                        "role",
-                        "createdAt",
-                        "version"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Organization"
                 }
               }
             }
@@ -1611,77 +1183,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/$defs/UpdateOrganizationRequest",
-                "$defs": {
-                  "UpdateOrganizationRequest": {
-                    "type": "object",
-                    "properties": {
-                      "expectedVersion": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 9007199254740991
-                      },
-                      "displayName": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 200
-                      },
-                      "legalName": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "minLength": 1,
-                            "maxLength": 300
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "locale": {
-                        "type": "string",
-                        "minLength": 2,
-                        "maxLength": 35
-                      },
-                      "timezone": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 64,
-                        "pattern": "^(UTC|[A-Za-z_]+(\\/[A-Za-z0-9_+-]+)+)$"
-                      },
-                      "billingContact": {
-                        "anyOf": [
-                          {
-                            "type": "object",
-                            "properties": {
-                              "name": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 200
-                              },
-                              "email": {
-                                "type": "string",
-                                "maxLength": 254
-                              }
-                            },
-                            "required": [
-                              "name",
-                              "email"
-                            ],
-                            "additionalProperties": false
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      }
-                    },
-                    "required": [
-                      "expectedVersion"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
+                "$ref": "#/components/schemas/UpdateOrganizationRequest"
               }
             }
           }
@@ -1692,99 +1194,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Organization",
-                  "$defs": {
-                    "Organization": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "displayName": {
-                          "type": "string"
-                        },
-                        "legalName": {
-                          "type": [
-                            "string",
-                            "null"
-                          ]
-                        },
-                        "locale": {
-                          "type": "string"
-                        },
-                        "timezone": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "active",
-                            "suspended",
-                            "pending_deletion"
-                          ]
-                        },
-                        "role": {
-                          "type": "string",
-                          "enum": [
-                            "owner",
-                            "admin",
-                            "billing_admin",
-                            "event_manager",
-                            "content_editor",
-                            "registration_manager",
-                            "analyst",
-                            "viewer"
-                          ]
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "version": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        },
-                        "billingContact": {
-                          "type": "object",
-                          "properties": {
-                            "name": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            },
-                            "email": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            }
-                          },
-                          "required": [
-                            "name",
-                            "email"
-                          ],
-                          "additionalProperties": false
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "displayName",
-                        "legalName",
-                        "locale",
-                        "timezone",
-                        "status",
-                        "role",
-                        "createdAt",
-                        "version"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Organization"
                 }
               }
             }
@@ -1924,36 +1334,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/$defs/CreateInvitationRequest",
-                "$defs": {
-                  "CreateInvitationRequest": {
-                    "type": "object",
-                    "properties": {
-                      "email": {
-                        "type": "string",
-                        "maxLength": 254
-                      },
-                      "role": {
-                        "type": "string",
-                        "enum": [
-                          "owner",
-                          "admin",
-                          "billing_admin",
-                          "event_manager",
-                          "content_editor",
-                          "registration_manager",
-                          "analyst",
-                          "viewer"
-                        ]
-                      }
-                    },
-                    "required": [
-                      "email",
-                      "role"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
+                "$ref": "#/components/schemas/CreateInvitationRequest"
               }
             }
           }
@@ -1964,75 +1345,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Invitation",
-                  "$defs": {
-                    "Invitation": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "organizationId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "email": {
-                          "type": "string"
-                        },
-                        "role": {
-                          "type": "string",
-                          "enum": [
-                            "owner",
-                            "admin",
-                            "billing_admin",
-                            "event_manager",
-                            "content_editor",
-                            "registration_manager",
-                            "analyst",
-                            "viewer"
-                          ]
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "pending",
-                            "accepted",
-                            "revoked",
-                            "expired"
-                          ]
-                        },
-                        "invitedBy": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "expiresAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "organizationId",
-                        "email",
-                        "role",
-                        "status",
-                        "invitedBy",
-                        "createdAt",
-                        "expiresAt"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Invitation"
                 }
               }
             }
@@ -2158,90 +1471,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/InvitationList",
-                  "$defs": {
-                    "InvitationList": {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/$defs/Invitation"
-                          }
-                        }
-                      },
-                      "required": [
-                        "data"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "Invitation": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "organizationId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "email": {
-                          "type": "string"
-                        },
-                        "role": {
-                          "type": "string",
-                          "enum": [
-                            "owner",
-                            "admin",
-                            "billing_admin",
-                            "event_manager",
-                            "content_editor",
-                            "registration_manager",
-                            "analyst",
-                            "viewer"
-                          ]
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "pending",
-                            "accepted",
-                            "revoked",
-                            "expired"
-                          ]
-                        },
-                        "invitedBy": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "expiresAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "organizationId",
-                        "email",
-                        "role",
-                        "status",
-                        "invitedBy",
-                        "createdAt",
-                        "expiresAt"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/InvitationList"
                 }
               }
             }
@@ -2388,75 +1618,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Invitation",
-                  "$defs": {
-                    "Invitation": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "organizationId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "email": {
-                          "type": "string"
-                        },
-                        "role": {
-                          "type": "string",
-                          "enum": [
-                            "owner",
-                            "admin",
-                            "billing_admin",
-                            "event_manager",
-                            "content_editor",
-                            "registration_manager",
-                            "analyst",
-                            "viewer"
-                          ]
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "pending",
-                            "accepted",
-                            "revoked",
-                            "expired"
-                          ]
-                        },
-                        "invitedBy": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "expiresAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "organizationId",
-                        "email",
-                        "role",
-                        "status",
-                        "invitedBy",
-                        "createdAt",
-                        "expiresAt"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Invitation"
                 }
               }
             }
@@ -2584,84 +1746,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/MemberList",
-                  "$defs": {
-                    "MemberList": {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/$defs/Member"
-                          }
-                        }
-                      },
-                      "required": [
-                        "data"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "Member": {
-                      "type": "object",
-                      "properties": {
-                        "membershipId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "userId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "email": {
-                          "type": "string"
-                        },
-                        "role": {
-                          "type": "string",
-                          "enum": [
-                            "owner",
-                            "admin",
-                            "billing_admin",
-                            "event_manager",
-                            "content_editor",
-                            "registration_manager",
-                            "analyst",
-                            "viewer"
-                          ]
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "active",
-                            "suspended",
-                            "removed"
-                          ]
-                        },
-                        "joinedAt": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "membershipId",
-                        "userId",
-                        "email",
-                        "role",
-                        "status",
-                        "joinedAt"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/MemberList"
                 }
               }
             }
@@ -2947,31 +2032,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/$defs/ChangeMemberRoleRequest",
-                "$defs": {
-                  "ChangeMemberRoleRequest": {
-                    "type": "object",
-                    "properties": {
-                      "role": {
-                        "type": "string",
-                        "enum": [
-                          "owner",
-                          "admin",
-                          "billing_admin",
-                          "event_manager",
-                          "content_editor",
-                          "registration_manager",
-                          "analyst",
-                          "viewer"
-                        ]
-                      }
-                    },
-                    "required": [
-                      "role"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
+                "$ref": "#/components/schemas/ChangeMemberRoleRequest"
               }
             }
           }
@@ -2982,69 +2043,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Member",
-                  "$defs": {
-                    "Member": {
-                      "type": "object",
-                      "properties": {
-                        "membershipId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "userId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "email": {
-                          "type": "string"
-                        },
-                        "role": {
-                          "type": "string",
-                          "enum": [
-                            "owner",
-                            "admin",
-                            "billing_admin",
-                            "event_manager",
-                            "content_editor",
-                            "registration_manager",
-                            "analyst",
-                            "viewer"
-                          ]
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "active",
-                            "suspended",
-                            "removed"
-                          ]
-                        },
-                        "joinedAt": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "membershipId",
-                        "userId",
-                        "email",
-                        "role",
-                        "status",
-                        "joinedAt"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Member"
                 }
               }
             }
@@ -3166,22 +2165,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/$defs/AcceptInvitationRequest",
-                "$defs": {
-                  "AcceptInvitationRequest": {
-                    "type": "object",
-                    "properties": {
-                      "token": {
-                        "type": "string",
-                        "pattern": "^[A-Za-z0-9_-]{43}$"
-                      }
-                    },
-                    "required": [
-                      "token"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
+                "$ref": "#/components/schemas/AcceptInvitationRequest"
               }
             }
           }
@@ -3192,43 +2176,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/InvitationAccepted",
-                  "$defs": {
-                    "InvitationAccepted": {
-                      "type": "object",
-                      "properties": {
-                        "organizationId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "membershipId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "role": {
-                          "type": "string",
-                          "enum": [
-                            "owner",
-                            "admin",
-                            "billing_admin",
-                            "event_manager",
-                            "content_editor",
-                            "registration_manager",
-                            "analyst",
-                            "viewer"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "organizationId",
-                        "membershipId",
-                        "role"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/InvitationAccepted"
                 }
               }
             }
@@ -3364,64 +2312,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/$defs/CreateEventRequest",
-                "$defs": {
-                  "CreateEventRequest": {
-                    "type": "object",
-                    "properties": {
-                      "name": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 200
-                      },
-                      "slug": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 64,
-                        "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$"
-                      },
-                      "timezone": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 64,
-                        "pattern": "^(UTC|[A-Za-z_]+(\\/[A-Za-z0-9_+-]+)+)$"
-                      },
-                      "startsAt": {
-                        "type": "string",
-                        "format": "date-time",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                      },
-                      "endsAt": {
-                        "type": "string",
-                        "format": "date-time",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                      },
-                      "venueMode": {
-                        "type": "string",
-                        "enum": [
-                          "in_person",
-                          "virtual",
-                          "hybrid"
-                        ]
-                      },
-                      "primaryLanguage": {
-                        "type": "string",
-                        "minLength": 2,
-                        "maxLength": 35
-                      }
-                    },
-                    "required": [
-                      "name",
-                      "slug",
-                      "timezone",
-                      "startsAt",
-                      "endsAt",
-                      "venueMode",
-                      "primaryLanguage"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
+                "$ref": "#/components/schemas/CreateEventRequest"
               }
             }
           }
@@ -3432,220 +2323,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Event",
-                  "$defs": {
-                    "Event": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "organizationId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "slug": {
-                          "type": "string"
-                        },
-                        "lifecycle": {
-                          "type": "string",
-                          "enum": [
-                            "draft",
-                            "scheduled",
-                            "published",
-                            "live",
-                            "ended",
-                            "archived"
-                          ]
-                        },
-                        "timezone": {
-                          "type": "string"
-                        },
-                        "startsAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "endsAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "venueMode": {
-                          "type": "string",
-                          "enum": [
-                            "in_person",
-                            "virtual",
-                            "hybrid"
-                          ]
-                        },
-                        "primaryLanguage": {
-                          "type": "string"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "version": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        },
-                        "settings": {
-                          "$ref": "#/$defs/EventSettings"
-                        },
-                        "lifecycleChangedAt": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "archivedFrom": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "enum": [
-                                "draft",
-                                "scheduled",
-                                "ended"
-                              ]
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "organizationId",
-                        "name",
-                        "slug",
-                        "lifecycle",
-                        "timezone",
-                        "startsAt",
-                        "endsAt",
-                        "venueMode",
-                        "primaryLanguage",
-                        "createdAt",
-                        "version",
-                        "settings",
-                        "lifecycleChangedAt",
-                        "archivedFrom"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "EventSettings": {
-                      "type": "object",
-                      "properties": {
-                        "visibility": {
-                          "type": "string",
-                          "enum": [
-                            "public",
-                            "unlisted",
-                            "private"
-                          ]
-                        },
-                        "registration": {
-                          "type": "object",
-                          "properties": {
-                            "opensAt": {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                            },
-                            "closesAt": {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                            },
-                            "capacity": {
-                              "type": "integer",
-                              "minimum": 1,
-                              "maximum": 1000000
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "sharing": {
-                          "type": "object",
-                          "properties": {
-                            "title": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 70
-                            },
-                            "description": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 200
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "contact": {
-                          "type": "object",
-                          "properties": {
-                            "email": {
-                              "type": "string",
-                              "maxLength": 254,
-                              "format": "email",
-                              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-                            },
-                            "phone": {
-                              "type": "string",
-                              "pattern": "^\\+[1-9]\\d{6,14}$"
-                            },
-                            "url": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "legal": {
-                          "type": "object",
-                          "properties": {
-                            "privacyPolicyUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            },
-                            "termsUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            },
-                            "codeOfConductUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            }
-                          },
-                          "additionalProperties": false
-                        }
-                      },
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Event"
                 }
               }
             }
@@ -3807,242 +2485,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/EventList",
-                  "$defs": {
-                    "EventList": {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/$defs/Event"
-                          }
-                        },
-                        "nextCursor": {
-                          "type": [
-                            "string",
-                            "null"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "data",
-                        "nextCursor"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "Event": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "organizationId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "slug": {
-                          "type": "string"
-                        },
-                        "lifecycle": {
-                          "type": "string",
-                          "enum": [
-                            "draft",
-                            "scheduled",
-                            "published",
-                            "live",
-                            "ended",
-                            "archived"
-                          ]
-                        },
-                        "timezone": {
-                          "type": "string"
-                        },
-                        "startsAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "endsAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "venueMode": {
-                          "type": "string",
-                          "enum": [
-                            "in_person",
-                            "virtual",
-                            "hybrid"
-                          ]
-                        },
-                        "primaryLanguage": {
-                          "type": "string"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "version": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        },
-                        "settings": {
-                          "$ref": "#/$defs/EventSettings"
-                        },
-                        "lifecycleChangedAt": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "archivedFrom": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "enum": [
-                                "draft",
-                                "scheduled",
-                                "ended"
-                              ]
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "organizationId",
-                        "name",
-                        "slug",
-                        "lifecycle",
-                        "timezone",
-                        "startsAt",
-                        "endsAt",
-                        "venueMode",
-                        "primaryLanguage",
-                        "createdAt",
-                        "version",
-                        "settings",
-                        "lifecycleChangedAt",
-                        "archivedFrom"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "EventSettings": {
-                      "type": "object",
-                      "properties": {
-                        "visibility": {
-                          "type": "string",
-                          "enum": [
-                            "public",
-                            "unlisted",
-                            "private"
-                          ]
-                        },
-                        "registration": {
-                          "type": "object",
-                          "properties": {
-                            "opensAt": {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                            },
-                            "closesAt": {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                            },
-                            "capacity": {
-                              "type": "integer",
-                              "minimum": 1,
-                              "maximum": 1000000
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "sharing": {
-                          "type": "object",
-                          "properties": {
-                            "title": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 70
-                            },
-                            "description": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 200
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "contact": {
-                          "type": "object",
-                          "properties": {
-                            "email": {
-                              "type": "string",
-                              "maxLength": 254,
-                              "format": "email",
-                              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-                            },
-                            "phone": {
-                              "type": "string",
-                              "pattern": "^\\+[1-9]\\d{6,14}$"
-                            },
-                            "url": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "legal": {
-                          "type": "object",
-                          "properties": {
-                            "privacyPolicyUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            },
-                            "termsUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            },
-                            "codeOfConductUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            }
-                          },
-                          "additionalProperties": false
-                        }
-                      },
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/EventList"
                 }
               }
             }
@@ -4180,220 +2623,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Event",
-                  "$defs": {
-                    "Event": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "organizationId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "slug": {
-                          "type": "string"
-                        },
-                        "lifecycle": {
-                          "type": "string",
-                          "enum": [
-                            "draft",
-                            "scheduled",
-                            "published",
-                            "live",
-                            "ended",
-                            "archived"
-                          ]
-                        },
-                        "timezone": {
-                          "type": "string"
-                        },
-                        "startsAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "endsAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "venueMode": {
-                          "type": "string",
-                          "enum": [
-                            "in_person",
-                            "virtual",
-                            "hybrid"
-                          ]
-                        },
-                        "primaryLanguage": {
-                          "type": "string"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "version": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        },
-                        "settings": {
-                          "$ref": "#/$defs/EventSettings"
-                        },
-                        "lifecycleChangedAt": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "archivedFrom": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "enum": [
-                                "draft",
-                                "scheduled",
-                                "ended"
-                              ]
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "organizationId",
-                        "name",
-                        "slug",
-                        "lifecycle",
-                        "timezone",
-                        "startsAt",
-                        "endsAt",
-                        "venueMode",
-                        "primaryLanguage",
-                        "createdAt",
-                        "version",
-                        "settings",
-                        "lifecycleChangedAt",
-                        "archivedFrom"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "EventSettings": {
-                      "type": "object",
-                      "properties": {
-                        "visibility": {
-                          "type": "string",
-                          "enum": [
-                            "public",
-                            "unlisted",
-                            "private"
-                          ]
-                        },
-                        "registration": {
-                          "type": "object",
-                          "properties": {
-                            "opensAt": {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                            },
-                            "closesAt": {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                            },
-                            "capacity": {
-                              "type": "integer",
-                              "minimum": 1,
-                              "maximum": 1000000
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "sharing": {
-                          "type": "object",
-                          "properties": {
-                            "title": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 70
-                            },
-                            "description": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 200
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "contact": {
-                          "type": "object",
-                          "properties": {
-                            "email": {
-                              "type": "string",
-                              "maxLength": 254,
-                              "format": "email",
-                              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-                            },
-                            "phone": {
-                              "type": "string",
-                              "pattern": "^\\+[1-9]\\d{6,14}$"
-                            },
-                            "url": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "legal": {
-                          "type": "object",
-                          "properties": {
-                            "privacyPolicyUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            },
-                            "termsUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            },
-                            "codeOfConductUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            }
-                          },
-                          "additionalProperties": false
-                        }
-                      },
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Event"
                 }
               }
             }
@@ -4537,198 +2767,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/$defs/UpdateEventRequest",
-                "$defs": {
-                  "UpdateEventRequest": {
-                    "type": "object",
-                    "properties": {
-                      "expectedVersion": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 9007199254740991
-                      },
-                      "name": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 200
-                      },
-                      "slug": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 64,
-                        "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$"
-                      },
-                      "timezone": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 64,
-                        "pattern": "^(UTC|[A-Za-z_]+(\\/[A-Za-z0-9_+-]+)+)$"
-                      },
-                      "startsAt": {
-                        "type": "string",
-                        "format": "date-time",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                      },
-                      "endsAt": {
-                        "type": "string",
-                        "format": "date-time",
-                        "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                      },
-                      "venueMode": {
-                        "type": "string",
-                        "enum": [
-                          "in_person",
-                          "virtual",
-                          "hybrid"
-                        ]
-                      },
-                      "primaryLanguage": {
-                        "type": "string",
-                        "minLength": 2,
-                        "maxLength": 35
-                      },
-                      "settings": {
-                        "$ref": "#/$defs/EventSettingsPatch"
-                      }
-                    },
-                    "required": [
-                      "expectedVersion"
-                    ],
-                    "additionalProperties": false
-                  },
-                  "EventSettingsPatch": {
-                    "type": "object",
-                    "properties": {
-                      "visibility": {
-                        "anyOf": [
-                          {
-                            "type": "string",
-                            "enum": [
-                              "public",
-                              "unlisted",
-                              "private"
-                            ]
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "registration": {
-                        "anyOf": [
-                          {
-                            "type": "object",
-                            "properties": {
-                              "opensAt": {
-                                "type": "string",
-                                "format": "date-time",
-                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                              },
-                              "closesAt": {
-                                "type": "string",
-                                "format": "date-time",
-                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                              },
-                              "capacity": {
-                                "type": "integer",
-                                "minimum": 1,
-                                "maximum": 1000000
-                              }
-                            },
-                            "additionalProperties": false
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "sharing": {
-                        "anyOf": [
-                          {
-                            "type": "object",
-                            "properties": {
-                              "title": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 70
-                              },
-                              "description": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 200
-                              }
-                            },
-                            "additionalProperties": false
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "contact": {
-                        "anyOf": [
-                          {
-                            "type": "object",
-                            "properties": {
-                              "email": {
-                                "type": "string",
-                                "maxLength": 254,
-                                "format": "email",
-                                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-                              },
-                              "phone": {
-                                "type": "string",
-                                "pattern": "^\\+[1-9]\\d{6,14}$"
-                              },
-                              "url": {
-                                "type": "string",
-                                "maxLength": 2048,
-                                "format": "uri",
-                                "description": "HTTPS URL"
-                              }
-                            },
-                            "additionalProperties": false
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      },
-                      "legal": {
-                        "anyOf": [
-                          {
-                            "type": "object",
-                            "properties": {
-                              "privacyPolicyUrl": {
-                                "type": "string",
-                                "maxLength": 2048,
-                                "format": "uri",
-                                "description": "HTTPS URL"
-                              },
-                              "termsUrl": {
-                                "type": "string",
-                                "maxLength": 2048,
-                                "format": "uri",
-                                "description": "HTTPS URL"
-                              },
-                              "codeOfConductUrl": {
-                                "type": "string",
-                                "maxLength": 2048,
-                                "format": "uri",
-                                "description": "HTTPS URL"
-                              }
-                            },
-                            "additionalProperties": false
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                }
+                "$ref": "#/components/schemas/UpdateEventRequest"
               }
             }
           }
@@ -4739,220 +2778,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Event",
-                  "$defs": {
-                    "Event": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "organizationId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "slug": {
-                          "type": "string"
-                        },
-                        "lifecycle": {
-                          "type": "string",
-                          "enum": [
-                            "draft",
-                            "scheduled",
-                            "published",
-                            "live",
-                            "ended",
-                            "archived"
-                          ]
-                        },
-                        "timezone": {
-                          "type": "string"
-                        },
-                        "startsAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "endsAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "venueMode": {
-                          "type": "string",
-                          "enum": [
-                            "in_person",
-                            "virtual",
-                            "hybrid"
-                          ]
-                        },
-                        "primaryLanguage": {
-                          "type": "string"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "version": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        },
-                        "settings": {
-                          "$ref": "#/$defs/EventSettings"
-                        },
-                        "lifecycleChangedAt": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "archivedFrom": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "enum": [
-                                "draft",
-                                "scheduled",
-                                "ended"
-                              ]
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "organizationId",
-                        "name",
-                        "slug",
-                        "lifecycle",
-                        "timezone",
-                        "startsAt",
-                        "endsAt",
-                        "venueMode",
-                        "primaryLanguage",
-                        "createdAt",
-                        "version",
-                        "settings",
-                        "lifecycleChangedAt",
-                        "archivedFrom"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "EventSettings": {
-                      "type": "object",
-                      "properties": {
-                        "visibility": {
-                          "type": "string",
-                          "enum": [
-                            "public",
-                            "unlisted",
-                            "private"
-                          ]
-                        },
-                        "registration": {
-                          "type": "object",
-                          "properties": {
-                            "opensAt": {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                            },
-                            "closesAt": {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                            },
-                            "capacity": {
-                              "type": "integer",
-                              "minimum": 1,
-                              "maximum": 1000000
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "sharing": {
-                          "type": "object",
-                          "properties": {
-                            "title": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 70
-                            },
-                            "description": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 200
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "contact": {
-                          "type": "object",
-                          "properties": {
-                            "email": {
-                              "type": "string",
-                              "maxLength": 254,
-                              "format": "email",
-                              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-                            },
-                            "phone": {
-                              "type": "string",
-                              "pattern": "^\\+[1-9]\\d{6,14}$"
-                            },
-                            "url": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "legal": {
-                          "type": "object",
-                          "properties": {
-                            "privacyPolicyUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            },
-                            "termsUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            },
-                            "codeOfConductUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            }
-                          },
-                          "additionalProperties": false
-                        }
-                      },
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Event"
                 }
               }
             }
@@ -5090,92 +2916,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/EventChecklist",
-                  "$defs": {
-                    "EventChecklist": {
-                      "type": "object",
-                      "properties": {
-                        "eventId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "lifecycle": {
-                          "type": "string",
-                          "enum": [
-                            "draft",
-                            "scheduled",
-                            "published",
-                            "live",
-                            "ended",
-                            "archived"
-                          ]
-                        },
-                        "version": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        },
-                        "items": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "string"
-                              },
-                              "severity": {
-                                "type": "string",
-                                "enum": [
-                                  "blocking",
-                                  "recommended"
-                                ]
-                              },
-                              "complete": {
-                                "type": "boolean"
-                              },
-                              "message": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "id",
-                              "severity",
-                              "complete",
-                              "message"
-                            ],
-                            "additionalProperties": false
-                          }
-                        },
-                        "canSchedule": {
-                          "type": "boolean"
-                        },
-                        "availableTransitions": {
-                          "type": "array",
-                          "items": {
-                            "type": "string",
-                            "enum": [
-                              "draft",
-                              "scheduled",
-                              "published",
-                              "live",
-                              "ended",
-                              "archived"
-                            ]
-                          }
-                        }
-                      },
-                      "required": [
-                        "eventId",
-                        "lifecycle",
-                        "version",
-                        "items",
-                        "canSchedule",
-                        "availableTransitions"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/EventChecklist"
                 }
               }
             }
@@ -5321,44 +3062,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/$defs/EventTransitionRequest",
-                "$defs": {
-                  "EventTransitionRequest": {
-                    "type": "object",
-                    "properties": {
-                      "to": {
-                        "type": "string",
-                        "enum": [
-                          "draft",
-                          "scheduled",
-                          "published",
-                          "live",
-                          "ended",
-                          "archived"
-                        ]
-                      },
-                      "expectedVersion": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 9007199254740991
-                      },
-                      "acknowledgedWarnings": {
-                        "default": [],
-                        "maxItems": 20,
-                        "type": "array",
-                        "items": {
-                          "type": "string",
-                          "maxLength": 64
-                        }
-                      }
-                    },
-                    "required": [
-                      "to",
-                      "expectedVersion"
-                    ],
-                    "additionalProperties": false
-                  }
-                }
+                "$ref": "#/components/schemas/EventTransitionRequest"
               }
             }
           }
@@ -5369,220 +3073,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/Event",
-                  "$defs": {
-                    "Event": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "organizationId": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "name": {
-                          "type": "string"
-                        },
-                        "slug": {
-                          "type": "string"
-                        },
-                        "lifecycle": {
-                          "type": "string",
-                          "enum": [
-                            "draft",
-                            "scheduled",
-                            "published",
-                            "live",
-                            "ended",
-                            "archived"
-                          ]
-                        },
-                        "timezone": {
-                          "type": "string"
-                        },
-                        "startsAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "endsAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "venueMode": {
-                          "type": "string",
-                          "enum": [
-                            "in_person",
-                            "virtual",
-                            "hybrid"
-                          ]
-                        },
-                        "primaryLanguage": {
-                          "type": "string"
-                        },
-                        "createdAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "version": {
-                          "type": "integer",
-                          "minimum": -9007199254740991,
-                          "maximum": 9007199254740991
-                        },
-                        "settings": {
-                          "$ref": "#/$defs/EventSettings"
-                        },
-                        "lifecycleChangedAt": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "archivedFrom": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "enum": [
-                                "draft",
-                                "scheduled",
-                                "ended"
-                              ]
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "organizationId",
-                        "name",
-                        "slug",
-                        "lifecycle",
-                        "timezone",
-                        "startsAt",
-                        "endsAt",
-                        "venueMode",
-                        "primaryLanguage",
-                        "createdAt",
-                        "version",
-                        "settings",
-                        "lifecycleChangedAt",
-                        "archivedFrom"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "EventSettings": {
-                      "type": "object",
-                      "properties": {
-                        "visibility": {
-                          "type": "string",
-                          "enum": [
-                            "public",
-                            "unlisted",
-                            "private"
-                          ]
-                        },
-                        "registration": {
-                          "type": "object",
-                          "properties": {
-                            "opensAt": {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                            },
-                            "closesAt": {
-                              "type": "string",
-                              "format": "date-time",
-                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
-                            },
-                            "capacity": {
-                              "type": "integer",
-                              "minimum": 1,
-                              "maximum": 1000000
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "sharing": {
-                          "type": "object",
-                          "properties": {
-                            "title": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 70
-                            },
-                            "description": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 200
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "contact": {
-                          "type": "object",
-                          "properties": {
-                            "email": {
-                              "type": "string",
-                              "maxLength": 254,
-                              "format": "email",
-                              "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-                            },
-                            "phone": {
-                              "type": "string",
-                              "pattern": "^\\+[1-9]\\d{6,14}$"
-                            },
-                            "url": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            }
-                          },
-                          "additionalProperties": false
-                        },
-                        "legal": {
-                          "type": "object",
-                          "properties": {
-                            "privacyPolicyUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            },
-                            "termsUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            },
-                            "codeOfConductUrl": {
-                              "type": "string",
-                              "maxLength": 2048,
-                              "format": "uri",
-                              "description": "HTTPS URL"
-                            }
-                          },
-                          "additionalProperties": false
-                        }
-                      },
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/Event"
                 }
               }
             }
@@ -5804,122 +3295,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/$defs/AuditEventList",
-                  "$defs": {
-                    "AuditEventList": {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "array",
-                          "items": {
-                            "$ref": "#/$defs/AuditEvent"
-                          }
-                        },
-                        "nextCursor": {
-                          "type": [
-                            "string",
-                            "null"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "data",
-                        "nextCursor"
-                      ],
-                      "additionalProperties": false
-                    },
-                    "AuditEvent": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "format": "uuid",
-                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                        },
-                        "occurredAt": {
-                          "type": "string",
-                          "format": "date-time",
-                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
-                        },
-                        "actor": {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "enum": [
-                                "user",
-                                "system",
-                                "platform_support"
-                              ]
-                            },
-                            "id": {
-                              "anyOf": [
-                                {
-                                  "type": "string",
-                                  "format": "uuid",
-                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                                },
-                                {
-                                  "type": "null"
-                                }
-                              ]
-                            },
-                            "email": {
-                              "type": [
-                                "string",
-                                "null"
-                              ]
-                            }
-                          },
-                          "required": [
-                            "type",
-                            "id",
-                            "email"
-                          ],
-                          "additionalProperties": false
-                        },
-                        "action": {
-                          "type": "string"
-                        },
-                        "targetType": {
-                          "type": "string"
-                        },
-                        "targetId": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "format": "uuid",
-                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ]
-                        },
-                        "correlationId": {
-                          "type": "string"
-                        },
-                        "metadata": {
-                          "type": "object",
-                          "propertyNames": {
-                            "type": "string"
-                          },
-                          "additionalProperties": {}
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "occurredAt",
-                        "actor",
-                        "action",
-                        "targetType",
-                        "targetId",
-                        "correlationId",
-                        "metadata"
-                      ],
-                      "additionalProperties": false
-                    }
-                  }
+                  "$ref": "#/components/schemas/AuditEventList"
                 }
               }
             }
@@ -6017,87 +3393,1407 @@
       }
     },
     "schemas": {
-      "ErrorBody": {
-        "$ref": "#/$defs/ErrorBody",
-        "$defs": {
-          "ErrorBody": {
+      "Accepted": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "accepted"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "message"
+        ],
+        "additionalProperties": false
+      },
+      "AcceptInvitationRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "additionalProperties": false
+      },
+      "AuditEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "actor": {
             "type": "object",
             "properties": {
-              "error": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "system",
+                  "platform_support"
+                ]
+              },
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "type",
+              "id",
+              "email"
+            ],
+            "additionalProperties": false
+          },
+          "action": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string"
+          },
+          "targetId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          }
+        },
+        "required": [
+          "id",
+          "occurredAt",
+          "actor",
+          "action",
+          "targetType",
+          "targetId",
+          "correlationId",
+          "metadata"
+        ],
+        "additionalProperties": false
+      },
+      "AuditEventList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEvent"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "ChangeMemberRoleRequest": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "billing_admin",
+              "event_manager",
+              "content_editor",
+              "registration_manager",
+              "analyst",
+              "viewer"
+            ]
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "CreateEventRequest": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$"
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^(UTC|[A-Za-z_]+(\\/[A-Za-z0-9_+-]+)+)$"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "venueMode": {
+            "type": "string",
+            "enum": [
+              "in_person",
+              "virtual",
+              "hybrid"
+            ]
+          },
+          "primaryLanguage": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 35
+          }
+        },
+        "required": [
+          "name",
+          "slug",
+          "timezone",
+          "startsAt",
+          "endsAt",
+          "venueMode",
+          "primaryLanguage"
+        ],
+        "additionalProperties": false
+      },
+      "CreateInvitationRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "billing_admin",
+              "event_manager",
+              "content_editor",
+              "registration_manager",
+              "analyst",
+              "viewer"
+            ]
+          }
+        },
+        "required": [
+          "email",
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "CreateOrganizationRequest": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "legalName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "locale": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 35
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^(UTC|[A-Za-z_]+(\\/[A-Za-z0-9_+-]+)+)$"
+          }
+        },
+        "required": [
+          "displayName",
+          "locale",
+          "timezone"
+        ],
+        "additionalProperties": false
+      },
+      "CurrentUser": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "email": {
+            "type": "string"
+          },
+          "emailVerified": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "userId",
+          "email",
+          "emailVerified"
+        ],
+        "additionalProperties": false
+      },
+      "EmailVerified": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "verified"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "additionalProperties": false
+      },
+      "ErrorBody": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "validation_failed",
+                  "idempotency_key_required",
+                  "unauthenticated",
+                  "invalid_credentials",
+                  "email_not_verified",
+                  "forbidden",
+                  "not_found",
+                  "conflict",
+                  "idempotency_key_reused",
+                  "payload_too_large",
+                  "unsupported_media_type",
+                  "rate_limited",
+                  "internal_error",
+                  "service_unavailable"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              },
+              "correlationId": {
+                "type": "string"
+              },
+              "details": {
                 "type": "object",
                 "properties": {
-                  "code": {
-                    "type": "string",
-                    "enum": [
-                      "validation_failed",
-                      "idempotency_key_required",
-                      "unauthenticated",
-                      "invalid_credentials",
-                      "email_not_verified",
-                      "forbidden",
-                      "not_found",
-                      "conflict",
-                      "idempotency_key_reused",
-                      "payload_too_large",
-                      "unsupported_media_type",
-                      "rate_limited",
-                      "internal_error",
-                      "service_unavailable"
-                    ]
-                  },
-                  "message": {
+                  "reason": {
                     "type": "string"
                   },
-                  "retryable": {
-                    "type": "boolean"
-                  },
-                  "correlationId": {
-                    "type": "string"
-                  },
-                  "details": {
-                    "type": "object",
-                    "properties": {
-                      "reason": {
-                        "type": "string"
-                      },
-                      "fields": {
-                        "type": "array",
-                        "items": {
-                          "type": "object",
-                          "properties": {
-                            "path": {
-                              "type": "string"
-                            },
-                            "message": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "path",
-                            "message"
-                          ],
-                          "additionalProperties": false
+                  "fields": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "path": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
                         }
-                      }
-                    },
-                    "additionalProperties": false
+                      },
+                      "required": [
+                        "path",
+                        "message"
+                      ],
+                      "additionalProperties": false
+                    }
                   }
                 },
-                "required": [
-                  "code",
-                  "message",
-                  "retryable",
-                  "correlationId"
-                ],
                 "additionalProperties": false
               }
             },
             "required": [
-              "error"
+              "code",
+              "message",
+              "retryable",
+              "correlationId"
             ],
             "additionalProperties": false
           }
-        }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "Event": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "scheduled",
+              "published",
+              "live",
+              "ended",
+              "archived"
+            ]
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "venueMode": {
+            "type": "string",
+            "enum": [
+              "in_person",
+              "virtual",
+              "hybrid"
+            ]
+          },
+          "primaryLanguage": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "settings": {
+            "$ref": "#/components/schemas/EventSettings"
+          },
+          "lifecycleChangedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "archivedFrom": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "draft",
+                  "scheduled",
+                  "ended"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "organizationId",
+          "name",
+          "slug",
+          "lifecycle",
+          "timezone",
+          "startsAt",
+          "endsAt",
+          "venueMode",
+          "primaryLanguage",
+          "createdAt",
+          "version",
+          "settings",
+          "lifecycleChangedAt",
+          "archivedFrom"
+        ],
+        "additionalProperties": false
+      },
+      "EventChecklist": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "scheduled",
+              "published",
+              "live",
+              "ended",
+              "archived"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "blocking",
+                    "recommended"
+                  ]
+                },
+                "complete": {
+                  "type": "boolean"
+                },
+                "message": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "severity",
+                "complete",
+                "message"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "canSchedule": {
+            "type": "boolean"
+          },
+          "availableTransitions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "draft",
+                "scheduled",
+                "published",
+                "live",
+                "ended",
+                "archived"
+              ]
+            }
+          }
+        },
+        "required": [
+          "eventId",
+          "lifecycle",
+          "version",
+          "items",
+          "canSchedule",
+          "availableTransitions"
+        ],
+        "additionalProperties": false
+      },
+      "EventList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Event"
+            }
+          },
+          "nextCursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data",
+          "nextCursor"
+        ],
+        "additionalProperties": false
+      },
+      "EventSettings": {
+        "type": "object",
+        "properties": {
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "unlisted",
+              "private"
+            ]
+          },
+          "registration": {
+            "type": "object",
+            "properties": {
+              "opensAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "closesAt": {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+              },
+              "capacity": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000000
+              }
+            },
+            "additionalProperties": false
+          },
+          "sharing": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 70
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "additionalProperties": false
+          },
+          "contact": {
+            "type": "object",
+            "properties": {
+              "email": {
+                "type": "string",
+                "maxLength": 254,
+                "format": "email",
+                "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              },
+              "phone": {
+                "type": "string",
+                "pattern": "^\\+[1-9]\\d{6,14}$"
+              },
+              "url": {
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri",
+                "description": "HTTPS URL"
+              }
+            },
+            "additionalProperties": false
+          },
+          "legal": {
+            "type": "object",
+            "properties": {
+              "privacyPolicyUrl": {
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri",
+                "description": "HTTPS URL"
+              },
+              "termsUrl": {
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri",
+                "description": "HTTPS URL"
+              },
+              "codeOfConductUrl": {
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri",
+                "description": "HTTPS URL"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventSettingsPatch": {
+        "type": "object",
+        "properties": {
+          "visibility": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "public",
+                  "unlisted",
+                  "private"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "registration": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "opensAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  "closesAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                  },
+                  "capacity": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 1000000
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sharing": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 70
+                  },
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "contact": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "maxLength": 254,
+                    "format": "email",
+                    "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+                  },
+                  "phone": {
+                    "type": "string",
+                    "pattern": "^\\+[1-9]\\d{6,14}$"
+                  },
+                  "url": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "format": "uri",
+                    "description": "HTTPS URL"
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "legal": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "privacyPolicyUrl": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "format": "uri",
+                    "description": "HTTPS URL"
+                  },
+                  "termsUrl": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "format": "uri",
+                    "description": "HTTPS URL"
+                  },
+                  "codeOfConductUrl": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "format": "uri",
+                    "description": "HTTPS URL"
+                  }
+                },
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "EventTransitionRequest": {
+        "type": "object",
+        "properties": {
+          "to": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "scheduled",
+              "published",
+              "live",
+              "ended",
+              "archived"
+            ]
+          },
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "acknowledgedWarnings": {
+            "default": [],
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        },
+        "required": [
+          "to",
+          "expectedVersion"
+        ],
+        "additionalProperties": false
+      },
+      "Invitation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "billing_admin",
+              "event_manager",
+              "content_editor",
+              "registration_manager",
+              "analyst",
+              "viewer"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "revoked",
+              "expired"
+            ]
+          },
+          "invitedBy": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          }
+        },
+        "required": [
+          "id",
+          "organizationId",
+          "email",
+          "role",
+          "status",
+          "invitedBy",
+          "createdAt",
+          "expiresAt"
+        ],
+        "additionalProperties": false
+      },
+      "InvitationAccepted": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "membershipId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "billing_admin",
+              "event_manager",
+              "content_editor",
+              "registration_manager",
+              "analyst",
+              "viewer"
+            ]
+          }
+        },
+        "required": [
+          "organizationId",
+          "membershipId",
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "InvitationList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Invitation"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "LoginRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "Member": {
+        "type": "object",
+        "properties": {
+          "membershipId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "billing_admin",
+              "event_manager",
+              "content_editor",
+              "registration_manager",
+              "analyst",
+              "viewer"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "suspended",
+              "removed"
+            ]
+          },
+          "joinedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "membershipId",
+          "userId",
+          "email",
+          "role",
+          "status",
+          "joinedAt"
+        ],
+        "additionalProperties": false
+      },
+      "MemberList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Member"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "MyOrganizationList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationMembershipSummary"
+            }
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "additionalProperties": false
+      },
+      "Organization": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "legalName": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "locale": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "suspended",
+              "pending_deletion"
+            ]
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "billing_admin",
+              "event_manager",
+              "content_editor",
+              "registration_manager",
+              "analyst",
+              "viewer"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "billingContact": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "email": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "email"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "displayName",
+          "legalName",
+          "locale",
+          "timezone",
+          "status",
+          "role",
+          "createdAt",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "OrganizationMembershipSummary": {
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "admin",
+              "billing_admin",
+              "event_manager",
+              "content_editor",
+              "registration_manager",
+              "analyst",
+              "viewer"
+            ]
+          }
+        },
+        "required": [
+          "organizationId",
+          "displayName",
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "Session": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "tokenType": {
+            "type": "string",
+            "const": "Bearer"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+          },
+          "emailVerified": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "token",
+          "tokenType",
+          "expiresAt",
+          "emailVerified"
+        ],
+        "additionalProperties": false
+      },
+      "SignUpRequest": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateEventRequest": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$"
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^(UTC|[A-Za-z_]+(\\/[A-Za-z0-9_+-]+)+)$"
+          },
+          "startsAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "endsAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "venueMode": {
+            "type": "string",
+            "enum": [
+              "in_person",
+              "virtual",
+              "hybrid"
+            ]
+          },
+          "primaryLanguage": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 35
+          },
+          "settings": {
+            "$ref": "#/components/schemas/EventSettingsPatch"
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateOrganizationRequest": {
+        "type": "object",
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "legalName": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locale": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 35
+          },
+          "timezone": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^(UTC|[A-Za-z_]+(\\/[A-Za-z0-9_+-]+)+)$"
+          },
+          "billingContact": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "email": {
+                    "type": "string",
+                    "maxLength": 254
+                  }
+                },
+                "required": [
+                  "name",
+                  "email"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ],
+        "additionalProperties": false
+      },
+      "VerifyEmailRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "additionalProperties": false
       }
     }
   }

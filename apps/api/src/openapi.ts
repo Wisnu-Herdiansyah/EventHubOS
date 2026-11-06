@@ -5,22 +5,54 @@ import { errorBodySchema } from './http/schemas.ts';
 
 type Json = Record<string, unknown>;
 
-function jsonSchema(schema: z.ZodType, io: 'input' | 'output'): Json {
-  const { $schema: _schema, ...rest } = z.toJSONSchema(schema, {
-    io,
-    unrepresentable: 'any',
-  }) as Json;
-  return rest;
+/** Rewrites Zod's local `#/$defs/X` references to `#/components/schemas/X`. */
+function rewriteRefs(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(rewriteRefs);
+  if (node === null || typeof node !== 'object') return node;
+  return Object.fromEntries(
+    Object.entries(node as Json).map(([k, v]) =>
+      k === '$ref' && typeof v === 'string' && v.startsWith('#/$defs/')
+        ? [k, `#/components/schemas/${v.slice('#/$defs/'.length)}`]
+        : [k, rewriteRefs(v)],
+    ),
+  );
 }
 
-function parameters(schema: z.ZodType | undefined, location: 'path' | 'query'): Json[] {
+/**
+ * Converts a Zod schema to JSON Schema for embedding in the OpenAPI document. Named schemas
+ * (`.meta({ id })`) are hoisted into `components.schemas` so every `$ref` resolves against the
+ * document root; two different shapes under one name are a contract error.
+ */
+function jsonSchema(
+  schema: z.ZodType,
+  io: 'input' | 'output',
+  components: Record<string, Json>,
+): Json {
+  const raw = z.toJSONSchema(schema, { io, unrepresentable: 'any' }) as Json;
+  const { $schema: _schema, $defs, ...rest } = raw;
+  for (const [name, def] of Object.entries(($defs ?? {}) as Record<string, Json>)) {
+    const rewritten = rewriteRefs(def) as Json;
+    const existing = components[name];
+    if (existing && JSON.stringify(existing) !== JSON.stringify(rewritten)) {
+      throw new Error(`OpenAPI: conflicting definitions for schema "${name}"`);
+    }
+    components[name] = rewritten;
+  }
+  return rewriteRefs(rest) as Json;
+}
+
+function parameters(
+  schema: z.ZodType | undefined,
+  location: 'path' | 'query',
+  components: Record<string, Json>,
+): Json[] {
   if (!(schema instanceof z.ZodObject)) return [];
   const shape = schema.shape as Record<string, z.ZodType>;
   return Object.entries(shape).map(([name, field]) => ({
     name,
     in: location,
     required: location === 'path' ? true : !field.safeParse(undefined).success,
-    schema: jsonSchema(field, 'input'),
+    schema: jsonSchema(field, 'input', components),
   }));
 }
 
@@ -38,6 +70,8 @@ const ERROR_STATUSES: Record<string, string> = {
 /** Builds the OpenAPI 3.1 document from route definitions (single source of truth). */
 export function buildOpenApiDocument(routes: AnyRoute[]): Json {
   const paths: Record<string, Json> = {};
+  const components: Record<string, Json> = {};
+  const errorBodyRef = jsonSchema(errorBodySchema, 'output', components);
   for (const route of routes) {
     const path = route.path.replace(/:([A-Za-z0-9_]+)/g, '{$1}');
     const errorResponses = Object.fromEntries(
@@ -45,13 +79,13 @@ export function buildOpenApiDocument(routes: AnyRoute[]): Json {
         status,
         {
           description,
-          content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorBody' } } },
+          content: { 'application/json': { schema: errorBodyRef } },
         },
       ]),
     );
     const params: Json[] = [
-      ...parameters(route.schemas.params, 'path'),
-      ...parameters(route.schemas.query, 'query'),
+      ...parameters(route.schemas.params, 'path', components),
+      ...parameters(route.schemas.query, 'query', components),
       {
         name: 'X-Correlation-Id',
         in: 'header',
@@ -83,7 +117,9 @@ export function buildOpenApiDocument(routes: AnyRoute[]): Json {
         ? {
             requestBody: {
               required: true,
-              content: { 'application/json': { schema: jsonSchema(route.schemas.body, 'input') } },
+              content: {
+                'application/json': { schema: jsonSchema(route.schemas.body, 'input', components) },
+              },
             },
           }
         : {}),
@@ -92,7 +128,9 @@ export function buildOpenApiDocument(routes: AnyRoute[]): Json {
           ? {
               description: 'Success',
               content: {
-                'application/json': { schema: jsonSchema(route.schemas.response.schema, 'output') },
+                'application/json': {
+                  schema: jsonSchema(route.schemas.response.schema, 'output', components),
+                },
               },
             }
           : { description: 'Success (no content)' },
@@ -112,7 +150,9 @@ export function buildOpenApiDocument(routes: AnyRoute[]): Json {
       securitySchemes: {
         sessionToken: { type: 'http', scheme: 'bearer', description: 'Opaque session token' },
       },
-      schemas: { ErrorBody: jsonSchema(errorBodySchema, 'output') },
+      schemas: Object.fromEntries(
+        Object.entries(components).sort(([a], [b]) => a.localeCompare(b)),
+      ),
     },
   };
 }

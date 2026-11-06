@@ -4,7 +4,18 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['**/node_modules/**', '**/coverage/**', '**/dist/**'] },
+  {
+    ignores: [
+      '**/node_modules/**',
+      '**/coverage/**',
+      '**/dist/**',
+      '**/.next/**',
+      'apps/admin/next-env.d.ts',
+      'apps/admin/src/lib/api-types.ts',
+      'apps/admin/playwright-report/**',
+      'apps/admin/test-results/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {

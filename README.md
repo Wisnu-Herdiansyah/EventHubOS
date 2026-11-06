@@ -21,6 +21,9 @@ Phase 0 (foundation) plus Phase 1 slices:
 - **Organization settings** (ADR-0012): profile and billing contact with per-field permissions.
 - **Audit log** (ADR-0013): filterable, paginated history of who changed what, for Owners and Admins.
 - **Delivery** (ADR-0008, ADR-0009): Resend email through the PostgreSQL outbox broker.
+- **Admin web app** (ADR-0014): Next.js backend-for-frontend with sign-up, verification, sign-in,
+  invitation acceptance, organizations, and event creation, settings and lifecycle. Session in an
+  HttpOnly cookie, nonce-based CSP, API types generated from the OpenAPI contract.
 
 All of it sits behind server-resolved tenant context, deny-by-default permissions, PostgreSQL
 RLS, idempotency keys, and transactional audit/outbox records.
@@ -31,6 +34,7 @@ RLS, idempotency keys, and transactional audit/outbox records.
 apps/
   api/        Fastify control-plane API (modular monolith), OpenAPI contract in openapi.json
   worker/     Outbox relay, consumers (verification and invitation email), email adapters
+  admin/      Next.js admin web app (backend-for-frontend), Playwright e2e in admin/e2e
 packages/
   config/     Typed, fail-closed environment configuration
   kernel/     Errors, permission catalog, domain-event envelope, provider ports + contract tests
@@ -56,6 +60,8 @@ TEST_DATABASE_ADMIN_URL=postgres://postgres:<pw>@localhost:5432/postgres pnpm te
 pnpm openapi:generate    # regenerate apps/api/openapi.json after changing routes
 pnpm test:live           # opt-in live provider contracts (needs RESEND_* credentials)
 pnpm outbox:replay       # return dead-lettered events to the queue (see docs/operations)
+TEST_DATABASE_ADMIN_URL=... pnpm --filter @eventhub/admin e2e   # browser end-to-end tests
+pnpm --filter @eventhub/admin generate:api-types              # after openapi:generate
 ```
 
 ## Running locally
@@ -69,6 +75,13 @@ cp .env.example .env                                 # fill in the three role UR
 pnpm db:migrate
 node --env-file=.env apps/api/src/main.ts
 node --env-file=.env apps/worker/src/main.ts
+```
+
+Admin web app (in another terminal, with the API on port 3000 and `APP_BASE_URL=http://localhost:3001`
+for the worker):
+
+```bash
+ADMIN_API_URL=http://127.0.0.1:3000 pnpm --filter @eventhub/admin dev   # http://localhost:3001
 ```
 
 With `EMAIL_SENDER=local_file`, verification emails are written as JSON files to
