@@ -148,6 +148,8 @@ export async function signIn(page: Page, email: string, next?: string): Promise<
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
+  // Signed in once the browser has left the sign-in page (the session cookie is set by then).
+  await page.waitForURL((url) => url.pathname !== '/login');
 }
 
 /** WCAG 2.x A/AA automated checks. Automated scans catch only part of the issues. */
@@ -176,4 +178,22 @@ export async function joinAs(
   await inviteViaApi(ownerToken, orgId, member.email, role);
   await acceptInvitationViaApi(member.email, member.token);
   return member;
+}
+
+/** Changes an organization through the API, as another person editing at the same time would. */
+export async function patchOrgViaApi(
+  token: string,
+  orgId: string,
+  changes: Record<string, unknown>,
+): Promise<void> {
+  const res = await fetch(`${API_URL}/v1/organizations/${orgId}`, {
+    headers: { authorization: `Bearer ${token}`, 'x-forwarded-for': testClientIp() },
+  });
+  const { version } = (await res.json()) as { version: number };
+  await apiCall(
+    'PATCH',
+    `/v1/organizations/${orgId}`,
+    { expectedVersion: version, ...changes },
+    token,
+  );
 }
