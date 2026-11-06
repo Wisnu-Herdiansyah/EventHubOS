@@ -81,6 +81,9 @@ const apiSchema = baseSchema.extend({
     .default('false')
     .transform((v) => v === 'true'),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(100_000).default(300),
+  SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(12),
+  LOGIN_MAX_FAILURES: z.coerce.number().int().min(3).max(50).default(5),
+  LOGIN_LOCK_SECONDS: z.coerce.number().int().min(60).max(86_400).default(900),
 });
 
 export interface ApiConfig {
@@ -89,6 +92,7 @@ export interface ApiConfig {
   http: { host: string; port: number; trustProxy: boolean };
   database: { appUrl: string };
   rateLimitPerMinute: number;
+  auth: { sessionTtlSeconds: number; loginMaxFailures: number; loginLockSeconds: number };
 }
 
 export function loadApiConfig(env: Readonly<Record<string, string | undefined>>): ApiConfig {
@@ -100,11 +104,25 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
     http: { host: c.HTTP_HOST, port: c.HTTP_PORT, trustProxy: c.TRUST_PROXY },
     database: { appUrl: c.DATABASE_APP_URL },
     rateLimitPerMinute: c.RATE_LIMIT_PER_MINUTE,
+    auth: {
+      sessionTtlSeconds: c.SESSION_TTL_HOURS * 3600,
+      loginMaxFailures: c.LOGIN_MAX_FAILURES,
+      loginLockSeconds: c.LOGIN_LOCK_SECONDS,
+    },
   };
 }
 
-/** Event broker adapters. Only the in-memory fake exists until the broker decision is made. */
-export const EVENT_PUBLISHER_ADAPTERS = ['in_memory'] as const;
+/**
+ * Event broker adapters. Only `local_dispatch` (in-process delivery to this worker's consumers)
+ * exists until the broker decision (D5) is made; it is refused in staging/production.
+ */
+export const EVENT_PUBLISHER_ADAPTERS = ['local_dispatch'] as const;
+
+/**
+ * Email adapters (provider decision D4 open): `in_memory` (CI) and `local_file` (writes .eml-like
+ * JSON files for local development). Both are refused in staging/production.
+ */
+export const EMAIL_SENDER_ADAPTERS = ['in_memory', 'local_file'] as const;
 
 const workerSchema = baseSchema.extend({
   DATABASE_WORKER_URL: postgresUrl,
@@ -112,6 +130,10 @@ const workerSchema = baseSchema.extend({
   OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().min(50).max(60_000).default(1000),
   OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(50),
   OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(12),
+  EMAIL_SENDER: z.enum(EMAIL_SENDER_ADAPTERS),
+  EMAIL_LOCAL_DIR: z.string().min(1).optional(),
+  APP_BASE_URL: z.url({ protocol: /^https?$/ }),
+  EMAIL_VERIFICATION_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(24),
 });
 
 export interface WorkerConfig {
@@ -120,16 +142,23 @@ export interface WorkerConfig {
   database: { workerUrl: string };
   eventPublisher: (typeof EVENT_PUBLISHER_ADAPTERS)[number];
   outbox: { pollIntervalMs: number; batchSize: number; maxAttempts: number };
+  email: { sender: (typeof EMAIL_SENDER_ADAPTERS)[number]; localDir: string | undefined };
+  appBaseUrl: string;
+  emailVerificationTtlSeconds: number;
 }
 
 export function loadWorkerConfig(env: Readonly<Record<string, string | undefined>>): WorkerConfig {
   const c = parse(workerSchema, env);
   assertDatabaseTls(c.EVENTHUB_ENV, { DATABASE_WORKER_URL: c.DATABASE_WORKER_URL });
-  if (c.EVENT_PUBLISHER === 'in_memory' && isRemoteEnvironment(c.EVENTHUB_ENV)) {
+  if (isRemoteEnvironment(c.EVENTHUB_ENV)) {
+    // Every adapter that exists today is a local fake; remote environments must fail closed.
     throw new ConfigError(
-      ['EVENT_PUBLISHER'],
-      `in_memory publisher is not durable and is refused in ${c.EVENTHUB_ENV}; a broker adapter decision is required`,
+      ['EVENT_PUBLISHER', 'EMAIL_SENDER'],
+      `local-only adapters are refused in ${c.EVENTHUB_ENV}; broker (D5) and email provider (D4) decisions are required`,
     );
+  }
+  if (c.EMAIL_SENDER === 'local_file' && !c.EMAIL_LOCAL_DIR) {
+    throw new ConfigError(['EMAIL_LOCAL_DIR'], 'required when EMAIL_SENDER=local_file');
   }
   return {
     environment: c.EVENTHUB_ENV,
@@ -141,6 +170,9 @@ export function loadWorkerConfig(env: Readonly<Record<string, string | undefined
       batchSize: c.OUTBOX_BATCH_SIZE,
       maxAttempts: c.OUTBOX_MAX_ATTEMPTS,
     },
+    email: { sender: c.EMAIL_SENDER, localDir: c.EMAIL_LOCAL_DIR },
+    appBaseUrl: c.APP_BASE_URL.replace(/\/+$/, ''),
+    emailVerificationTtlSeconds: c.EMAIL_VERIFICATION_TTL_HOURS * 3600,
   };
 }
 

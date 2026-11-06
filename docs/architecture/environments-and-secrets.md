@@ -4,12 +4,12 @@
 
 `EVENTHUB_ENV` ∈ `local | ci | staging | production` (validated at startup).
 
-| Rule                                   | local     | ci                          | staging      | production   |
-| -------------------------------------- | --------- | --------------------------- | ------------ | ------------ |
-| Data                                   | synthetic | synthetic, per-run database | synthetic    | customer     |
-| DB TLS (`sslmode=require` or stricter) | optional  | optional                    | **required** | **required** |
-| `EVENT_PUBLISHER=in_memory`            | allowed   | allowed                     | **refused**  | **refused**  |
-| Response contract validation           | on        | on                          | on           | off          |
+| Rule                                                                                        | local     | ci                          | staging      | production   |
+| ------------------------------------------------------------------------------------------- | --------- | --------------------------- | ------------ | ------------ |
+| Data                                                                                        | synthetic | synthetic, per-run database | synthetic    | customer     |
+| DB TLS (`sslmode=require` or stricter)                                                      | optional  | optional                    | **required** | **required** |
+| Local adapters (`EVENT_PUBLISHER=local_dispatch`, `EMAIL_SENDER=in_memory` or `local_file`) | allowed   | allowed                     | **refused**  | **refused**  |
+| Response contract validation                                                                | on        | on                          | on           | off          |
 
 ## Variables
 
@@ -18,10 +18,13 @@
 | `EVENTHUB_ENV`                                                   | all                        | no            |                                                       |
 | `LOG_LEVEL`                                                      | all                        | no            | default `info`                                        |
 | `HTTP_HOST`, `HTTP_PORT`, `TRUST_PROXY`, `RATE_LIMIT_PER_MINUTE` | api                        | no            | `TRUST_PROXY=true` only behind a trusted edge         |
+| `SESSION_TTL_HOURS`, `LOGIN_MAX_FAILURES`, `LOGIN_LOCK_SECONDS`  | api                        | no            | defaults 12 h / 5 / 900 s                             |
 | `DATABASE_APP_URL`                                               | api                        | **yes**       | `eventhub_app` role                                   |
 | `DATABASE_WORKER_URL`                                            | worker                     | **yes**       | `eventhub_worker` role                                |
 | `DATABASE_MIGRATOR_URL`                                          | migration job              | **yes**       | `eventhub_migrator`; never given to runtime workloads |
-| `EVENT_PUBLISHER`, `OUTBOX_*`                                    | worker                     | no            |                                                       |
+| `EVENT_PUBLISHER`, `OUTBOX_*`                                    | worker                     | no            | `local_dispatch` only (refused remotely)              |
+| `EMAIL_SENDER`, `EMAIL_LOCAL_DIR`                                | worker                     | no            | `in_memory` / `local_file` (refused remotely)         |
+| `APP_BASE_URL`, `EMAIL_VERIFICATION_TTL_HOURS`                   | worker                     | no            | base for verification links; default 24 h             |
 | `DATABASE_ADMIN_URL`, `EVENTHUB_{MIGRATOR,APP,WORKER}_PASSWORD`  | bootstrap (operator, once) | **yes**       |                                                       |
 | `TEST_DATABASE_ADMIN_URL`                                        | integration tests          | local/CI only | disposable instance                                   |
 

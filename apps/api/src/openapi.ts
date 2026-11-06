@@ -26,7 +26,7 @@ function parameters(schema: z.ZodType | undefined, location: 'path' | 'query'): 
 
 const ERROR_STATUSES: Record<string, string> = {
   '400': 'Validation failed or Idempotency-Key missing',
-  '401': 'Unauthenticated',
+  '401': 'Unauthenticated, or invalid credentials on login',
   '403': 'Forbidden (missing permission or unverified email)',
   '404': 'Not found (also returned for resources in other organizations)',
   '409': 'Conflict',
@@ -72,8 +72,12 @@ export function buildOpenApiDocument(routes: AnyRoute[]): Json {
       operationId: route.operationId,
       summary: route.summary,
       tags: route.tags,
-      security: [{ sessionToken: [] }],
+      security: route.auth === 'public' ? [] : [{ sessionToken: [] }],
       'x-eventhub-requires': route.requires,
+      ...(route.idempotencyExempt
+        ? { 'x-eventhub-idempotency-exempt': route.idempotencyExempt }
+        : {}),
+      ...(route.rateLimit ? { 'x-eventhub-rate-limit': route.rateLimit } : {}),
       parameters: params,
       ...(route.schemas.body
         ? {
@@ -84,12 +88,14 @@ export function buildOpenApiDocument(routes: AnyRoute[]): Json {
           }
         : {}),
       responses: {
-        [String(route.schemas.response.status)]: {
-          description: 'Success',
-          content: {
-            'application/json': { schema: jsonSchema(route.schemas.response.schema, 'output') },
-          },
-        },
+        [String(route.schemas.response.status)]: route.schemas.response.schema
+          ? {
+              description: 'Success',
+              content: {
+                'application/json': { schema: jsonSchema(route.schemas.response.schema, 'output') },
+              },
+            }
+          : { description: 'Success (no content)' },
         ...errorResponses,
       },
     };

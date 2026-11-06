@@ -8,15 +8,21 @@ import Fastify, {
 } from 'fastify';
 import { AppError, internalErrorBody, LOG_REDACT_PATHS } from '@eventhub/kernel';
 import { canonicalJson, type Pool } from '@eventhub/db';
-import { parseInput, type AnyRoute } from './http/route.ts';
+import { parseInput, type AnyRoute, type RouteResult } from './http/route.ts';
 import { parseBearerToken, type SessionAuthenticator } from './modules/identity/authenticator.ts';
+import type { PasswordHasher } from './modules/identity/password.ts';
+import { identityRoutes, type IdentitySettings } from './modules/identity/routes.ts';
 import { eventRoutes } from './modules/event/routes.ts';
 import { organizationRoutes } from './modules/organization/routes.ts';
 
 export interface AppDependencies {
   pool: Pool;
   authenticator: SessionAuthenticator;
+  passwordHasher: PasswordHasher;
+  identity: IdentitySettings;
   logger: FastifyServerOptions['logger'];
+  /** Custom logger instance (tests capture output to assert redaction). */
+  loggerInstance?: FastifyServerOptions['loggerInstance'];
   trustProxy?: boolean;
   rateLimitPerMinute?: number;
   /** Validate responses against their contract (enable outside production). */
@@ -26,13 +32,25 @@ export interface AppDependencies {
 const CORRELATION_RE = /^[A-Za-z0-9._:-]{8,128}$/;
 const BODY_LIMIT_BYTES = 64 * 1024;
 
-export function allRoutes(pool: Pool): AnyRoute[] {
-  return [...organizationRoutes(pool), ...eventRoutes(pool)];
+export interface RouteFactoryDeps {
+  pool: Pool;
+  passwordHasher: PasswordHasher;
+  identity: IdentitySettings;
+}
+
+export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
+  return [
+    ...identityRoutes(deps.pool, deps.passwordHasher, deps.identity),
+    ...organizationRoutes(deps.pool),
+    ...eventRoutes(deps.pool),
+  ];
 }
 
 export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: deps.logger ?? false,
+    ...(deps.loggerInstance
+      ? { loggerInstance: deps.loggerInstance }
+      : { logger: deps.logger ?? false }),
     trustProxy: deps.trustProxy ?? false,
     bodyLimit: BODY_LIMIT_BYTES,
     requestIdHeader: false,
@@ -48,7 +66,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   await app.register(rateLimit, {
     max: deps.rateLimitPerMinute ?? 300,
     timeWindow: '1 minute',
-    // TODO(platform): move to a shared Redis store once the cache provider is approved.
+    // TODO(platform): move to a shared Redis store once the cache provider is approved (D11).
     errorResponseBuilder: () => new AppError('rate_limited', 'Too many requests. Retry later.'),
   });
 
@@ -99,7 +117,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
     }
   });
 
-  for (const route of allRoutes(deps.pool)) registerRoute(app, route, deps);
+  for (const route of allRoutes(deps)) registerRoute(app, route, deps);
   return app;
 }
 
@@ -107,47 +125,58 @@ function registerRoute(app: FastifyInstance, route: AnyRoute, deps: AppDependenc
   app.route({
     method: route.method,
     url: route.path,
+    ...(route.rateLimit ? { config: { rateLimit: route.rateLimit } } : {}),
     handler: async (request, reply) => {
-      const token = parseBearerToken(request.headers.authorization);
-      const principal = token ? await deps.authenticator.authenticate(token) : null;
-      if (!principal) {
-        throw new AppError('unauthenticated', 'A valid session is required.');
-      }
-
-      let idempotencyKey: string | undefined;
-      if (route.idempotent) {
-        const header = request.headers['idempotency-key'];
-        if (typeof header !== 'string' || header.length === 0) {
-          throw new AppError(
-            'idempotency_key_required',
-            'This operation requires an Idempotency-Key header.',
-          );
+      let result: RouteResult;
+      if (route.auth === 'public') {
+        const params = parseInput(route.schemas.params, request.params, 'params');
+        const query = parseInput(route.schemas.query, request.query, 'query');
+        const body = parseInput(route.schemas.body, request.body ?? {}, 'body');
+        result = await route.handler({ params, query, body, correlationId: request.id });
+      } else {
+        const token = parseBearerToken(request.headers.authorization);
+        const principal = token ? await deps.authenticator.authenticate(token) : null;
+        if (!principal) {
+          throw new AppError('unauthenticated', 'A valid session is required.');
         }
-        idempotencyKey = header;
+
+        let idempotencyKey: string | undefined;
+        if (route.idempotent) {
+          const header = request.headers['idempotency-key'];
+          if (typeof header !== 'string' || header.length === 0) {
+            throw new AppError(
+              'idempotency_key_required',
+              'This operation requires an Idempotency-Key header.',
+            );
+          }
+          idempotencyKey = header;
+        }
+
+        const params = parseInput(route.schemas.params, request.params, 'params');
+        const query = parseInput(route.schemas.query, request.query, 'query');
+        const body = parseInput(route.schemas.body, request.body ?? {}, 'body');
+        result = await route.handler({
+          params,
+          query,
+          body,
+          principal,
+          correlationId: request.id,
+          idempotencyKey,
+          idempotencyScope: `${route.operationId}:${canonicalJson(params ?? {})}`,
+        });
       }
 
-      const params = parseInput(route.schemas.params, request.params, 'params');
-      const query = parseInput(route.schemas.query, request.query, 'query');
-      const body = parseInput(route.schemas.body, request.body ?? {}, 'body');
-
-      const result = await route.handler({
-        params,
-        query,
-        body,
-        principal,
-        correlationId: request.id,
-        idempotencyKey,
-        idempotencyScope: `${route.operationId}:${canonicalJson(params ?? {})}`,
-      });
-
+      const responseSchema = route.schemas.response.schema;
       if (
         deps.validateResponses &&
+        responseSchema &&
         !result.replayed &&
         result.status === route.schemas.response.status
       ) {
-        route.schemas.response.schema.parse(result.body);
+        responseSchema.parse(result.body);
       }
       if (result.replayed) reply.header('idempotent-replayed', 'true');
+      if (result.status === 204) return reply.status(204).send();
       return reply.status(result.status).send(result.body);
     },
   });

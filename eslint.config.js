@@ -40,7 +40,7 @@ export default tseslint.config(
     rules: { 'no-restricted-imports': 'off' },
   },
   {
-    files: ['**/*.test.ts', '**/test/**', 'vitest.*.ts', '**/testing/**'],
+    files: ['**/*.test.ts', '**/test/**', 'tests/**', 'vitest.*.ts', '**/testing/**'],
     rules: {
       '@typescript-eslint/no-non-null-assertion': 'off',
       '@typescript-eslint/no-unsafe-member-access': 'off',

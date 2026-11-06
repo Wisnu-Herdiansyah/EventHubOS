@@ -8,6 +8,7 @@ export const ERROR_DEFINITIONS = {
   validation_failed: { status: 400, retryable: false },
   idempotency_key_required: { status: 400, retryable: false },
   unauthenticated: { status: 401, retryable: false },
+  invalid_credentials: { status: 401, retryable: false },
   email_not_verified: { status: 403, retryable: false },
   forbidden: { status: 403, retryable: false },
   not_found: { status: 404, retryable: false },

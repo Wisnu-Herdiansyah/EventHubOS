@@ -2,13 +2,13 @@ import { createHash } from 'node:crypto';
 import type { Pool } from '@eventhub/db';
 
 /**
- * Identity boundary. The identity vendor/library (password, MFA, SSO/SCIM) is an open
- * decision (docs/architecture/open-decisions.md). The API depends only on this port.
- * Session *issuance* belongs to the future identity adapter; this slice verifies sessions.
+ * Identity boundary (ADR-0005, ADR-0007). Sessions are issued by the password login flow in
+ * `routes.ts`; enterprise SSO/SCIM will add further issuers behind the same principal shape.
  */
 export interface Principal {
   type: 'user';
   userId: string;
+  sessionId: string;
   emailVerified: boolean;
 }
 
@@ -39,11 +39,22 @@ export class DatabaseSessionAuthenticator implements SessionAuthenticator {
   async authenticate(rawToken: string): Promise<Principal | null> {
     if (!TOKEN_RE.test(rawToken)) return null;
     const hash = createHash('sha256').update(rawToken).digest();
-    const { rows } = await this.#pool.query<{ user_id: string; email_verified: boolean }>(
-      'SELECT user_id, email_verified FROM eventhub.resolve_session($1)',
+    const { rows } = await this.#pool.query<{
+      out_session_id: string;
+      out_user_id: string;
+      out_email_verified: boolean;
+    }>(
+      'SELECT out_session_id, out_user_id, out_email_verified FROM eventhub.auth_resolve_session($1)',
       [hash],
     );
     const row = rows[0];
-    return row ? { type: 'user', userId: row.user_id, emailVerified: row.email_verified } : null;
+    return row
+      ? {
+          type: 'user',
+          userId: row.out_user_id,
+          sessionId: row.out_session_id,
+          emailVerified: row.out_email_verified,
+        }
+      : null;
   }
 }

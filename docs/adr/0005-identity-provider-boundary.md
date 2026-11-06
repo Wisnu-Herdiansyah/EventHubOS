@@ -1,6 +1,6 @@
 # ADR-0005: Identity provider boundary (interim)
 
-- Status: accepted (interim, pending identity decision)
+- Status: accepted; amended by ADR-0007 (password sessions are now issued first-party)
 - Date: 2026-11-06
 
 ## Context
