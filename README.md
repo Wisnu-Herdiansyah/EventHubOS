@@ -14,7 +14,8 @@ Phase 0 (foundation) plus Phase 1 slices:
 - **Identity** (ADR-0007): email/password sign-up with Argon2id, email verification, login with
   lockout, logout, and `GET /v1/me`.
 - **Tenancy and events**: organization creation with Owner membership, listing a user's
-  organizations, and creating, reading, and listing draft events.
+  organizations; events with validated settings, a setup checklist, and lifecycle transitions
+  (schedule, unschedule, archive, restore; ADR-0011).
 - **Team** (ADR-0010): email invitations with role ceiling, acceptance bound to the invited
   address, revocation, member listing and removal with a last-Owner guard.
 - **Delivery** (ADR-0008, ADR-0009): Resend email through the PostgreSQL outbox broker.

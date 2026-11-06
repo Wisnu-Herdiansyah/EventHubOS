@@ -12,6 +12,8 @@ import { runIdempotentCommand } from '../../http/idempotent-command.ts';
 import { defineRoute, type AnyRoute } from '../../http/route.ts';
 import { ianaTimeZone, languageTag, uuid } from '../../http/schemas.ts';
 import { withOrganization } from '../tenancy/access.ts';
+import type { ArchivableFrom } from './lifecycle.ts';
+import { eventSettingsSchema, type EventSettings } from './settings.ts';
 
 export const EVENT_LIFECYCLES = [
   'draft',
@@ -54,7 +56,7 @@ export const RESERVED_EVENT_SLUGS = new Set([
   'status',
 ]);
 
-const slugSchema = z
+export const slugSchema = z
   .string()
   .min(1)
   .max(64)
@@ -81,7 +83,7 @@ const createEventBody = z
   })
   .meta({ id: 'CreateEventRequest' });
 
-const eventSchema = z
+export const eventSchema = z
   .object({
     id: uuid,
     organizationId: uuid,
@@ -95,6 +97,9 @@ const eventSchema = z
     primaryLanguage: z.string(),
     createdAt: z.iso.datetime(),
     version: z.number().int(),
+    settings: eventSettingsSchema,
+    lifecycleChangedAt: z.iso.datetime().nullable(),
+    archivedFrom: z.enum(['draft', 'scheduled', 'ended']).nullable(),
   })
   .meta({ id: 'Event' });
 
@@ -106,10 +111,11 @@ const listQuery = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).default(25),
     cursor: z.string().regex(CURSOR_RE).optional(),
+    lifecycle: z.enum(EVENT_LIFECYCLES).optional(),
   })
   .strict();
 
-interface EventRow {
+export interface EventRow {
   id: string;
   organization_id: string;
   name: string;
@@ -123,13 +129,16 @@ interface EventRow {
   created_at: Date;
   created_us: string;
   version: number;
+  settings: EventSettings;
+  lifecycle_changed_at: Date | null;
+  archived_from: ArchivableFrom | null;
 }
 
-const EVENT_COLUMNS = `id, organization_id, name, slug, lifecycle, timezone, starts_at, ends_at, venue_mode,
-  primary_language, created_at, version,
+export const EVENT_COLUMNS = `id, organization_id, name, slug, lifecycle, timezone, starts_at, ends_at, venue_mode,
+  primary_language, created_at, version, settings, lifecycle_changed_at, archived_from,
   (extract(epoch from created_at) * 1000000)::bigint::text AS created_us`;
 
-function toEventDto(r: EventRow) {
+export function toEventDto(r: EventRow) {
   return {
     id: r.id,
     organizationId: r.organization_id,
@@ -143,6 +152,9 @@ function toEventDto(r: EventRow) {
     primaryLanguage: r.primary_language,
     createdAt: r.created_at.toISOString(),
     version: r.version,
+    settings: r.settings,
+    lifecycleChangedAt: r.lifecycle_changed_at?.toISOString() ?? null,
+    archivedFrom: r.archived_from,
   };
 }
 
@@ -288,6 +300,7 @@ export function eventRoutes(pool: Pool): AnyRoute[] {
               WHERE organization_id = $1
                 AND ($2::bigint IS NULL
                      OR (created_at, id) < (timestamptz 'epoch' + $2::bigint * interval '1 microsecond', $3::uuid))
+                AND ($5::text IS NULL OR lifecycle = $5)
               ORDER BY created_at DESC, id DESC
               LIMIT $4`,
               [
@@ -295,6 +308,7 @@ export function eventRoutes(pool: Pool): AnyRoute[] {
                 cursor?.createdUs ?? null,
                 cursor?.id ?? null,
                 query.limit + 1,
+                query.lifecycle ?? null,
               ],
             );
             const page = rows.slice(0, query.limit);
