@@ -24,9 +24,22 @@ describe('loadApiConfig', () => {
     expect(c.invitations).toEqual({ ttlSeconds: 7 * 24 * 3600 });
     expect(c.auth).toEqual({
       sessionTtlSeconds: 43_200,
+      sessionIdleSeconds: 3_600,
       loginMaxFailures: 5,
       loginLockSeconds: 900,
     });
+  });
+
+  it('bounds the idle session timeout (15 minutes to 24 hours)', () => {
+    const base = { EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl };
+    expect(loadApiConfig({ ...base, SESSION_IDLE_MINUTES: '30' }).auth.sessionIdleSeconds).toBe(
+      1_800,
+    );
+    for (const bad of ['10', '1441', 'forever']) {
+      expect(
+        captureError(() => loadApiConfig({ ...base, SESSION_IDLE_MINUTES: bad })).keys,
+      ).toEqual(['SESSION_IDLE_MINUTES']);
+    }
   });
 
   it('trusts only listed proxies remotely', () => {

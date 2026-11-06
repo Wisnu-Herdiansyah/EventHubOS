@@ -11,7 +11,9 @@ const pool = createPool({
 });
 const app = await buildApp({
   pool,
-  authenticator: new DatabaseSessionAuthenticator(pool),
+  authenticator: new DatabaseSessionAuthenticator(pool, {
+    idleSeconds: config.auth.sessionIdleSeconds,
+  }),
   passwordHasher: new Argon2idPasswordHasher(),
   identity: config.auth,
   invitationTtlSeconds: config.invitations.ttlSeconds,

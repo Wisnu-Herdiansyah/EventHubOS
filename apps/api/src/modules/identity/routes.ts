@@ -11,6 +11,7 @@ import {
 import { runIdempotentCommand } from '../../http/idempotent-command.ts';
 import { definePublicRoute, defineRoute, type AnyRoute } from '../../http/route.ts';
 import { uuid } from '../../http/schemas.ts';
+import { DEFAULT_SESSION_IDLE_SECONDS } from './authenticator.ts';
 import {
   emailSchema,
   loginPasswordSchema,
@@ -20,6 +21,8 @@ import {
 
 export interface IdentitySettings {
   sessionTtlSeconds: number;
+  /** Idle timeout (ADR-0018); defaults to DEFAULT_SESSION_IDLE_SECONDS. */
+  sessionIdleSeconds?: number;
   loginMaxFailures: number;
   loginLockSeconds: number;
 }
@@ -171,6 +174,7 @@ export function identityRoutes(
   hasher: PasswordHasher,
   settings: IdentitySettings,
 ): AnyRoute[] {
+  const idleSeconds = settings.sessionIdleSeconds ?? DEFAULT_SESSION_IDLE_SECONDS;
   // Verifying against a real hash when the account is unknown keeps response timing uniform.
   const dummyHash = hasher.hash(randomBytes(24).toString('base64url'));
 
@@ -704,7 +708,11 @@ export function identityRoutes(
         response: {
           status: 200,
           schema: z
-            .object({ data: z.array(activeSessionSchema) })
+            .object({
+              data: z.array(activeSessionSchema),
+              /** When sessions end, so the UI can tell people (ADR-0018). */
+              policy: z.object({ idleMinutes: z.number().int(), maxHours: z.number() }),
+            })
             .meta({ id: 'ActiveSessionList' }),
         },
       },
@@ -716,8 +724,8 @@ export function identityRoutes(
           out_expires_at: Date;
           out_user_agent: string | null;
         }>(
-          'SELECT out_session_id, out_created_at, out_last_seen_at, out_expires_at, out_user_agent FROM eventhub.auth_list_sessions($1)',
-          [principal.userId],
+          'SELECT out_session_id, out_created_at, out_last_seen_at, out_expires_at, out_user_agent FROM eventhub.auth_list_sessions($1, $2)',
+          [principal.userId, idleSeconds],
         );
         return {
           status: 200,
@@ -730,6 +738,10 @@ export function identityRoutes(
               userAgent: r.out_user_agent,
               current: r.out_session_id === principal.sessionId,
             })),
+            policy: {
+              idleMinutes: Math.round(idleSeconds / 60),
+              maxHours: settings.sessionTtlSeconds / 3600,
+            },
           },
         };
       },

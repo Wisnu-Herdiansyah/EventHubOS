@@ -20,6 +20,7 @@
 | `LOG_LEVEL`                                                      | all                        | no            | default `info`                                                          |
 | `HTTP_HOST`, `HTTP_PORT`, `TRUST_PROXY`, `RATE_LIMIT_PER_MINUTE` | api                        | no            | `TRUST_PROXY`: `false` or a list of IPs/CIDRs (`true` refused remotely) |
 | `SESSION_TTL_HOURS`, `LOGIN_MAX_FAILURES`, `LOGIN_LOCK_SECONDS`  | api                        | no            | defaults 12 h / 5 / 900 s                                               |
+| `SESSION_IDLE_MINUTES`                                           | api                        | no            | idle timeout (ADR-0018); default 60, range 15–1440                      |
 | `INVITATION_TTL_HOURS`                                           | api                        | no            | default 168 h (7 days)                                                  |
 | `DATABASE_APP_URL`                                               | api                        | **yes**       | `eventhub_app` role                                                     |
 | `DATABASE_WORKER_URL`                                            | worker                     | **yes**       | `eventhub_worker` role                                                  |

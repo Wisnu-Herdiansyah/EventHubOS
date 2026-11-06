@@ -4224,10 +4224,29 @@
             "items": {
               "$ref": "#/components/schemas/ActiveSession"
             }
+          },
+          "policy": {
+            "type": "object",
+            "properties": {
+              "idleMinutes": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              "maxHours": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "idleMinutes",
+              "maxHours"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
-          "data"
+          "data",
+          "policy"
         ],
         "additionalProperties": false
       },

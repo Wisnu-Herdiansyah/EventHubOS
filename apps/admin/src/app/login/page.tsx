@@ -14,6 +14,12 @@ export default async function LoginPage({
     <div className="narrow card accent">
       <p className="eyebrow">Welcome back</p>
       <h1>Sign in</h1>
+      {params.ended === '1' ? (
+        <div className="message info" role="status">
+          Your session has ended, for example after a period of inactivity. Sign in again to
+          continue where you left off.
+        </div>
+      ) : null}
       <LoginForm next={safeNext(params.next)} />
     </div>
   );

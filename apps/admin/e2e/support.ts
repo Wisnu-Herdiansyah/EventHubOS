@@ -227,3 +227,20 @@ export async function mailLinks(to: string, template: string, count: number): Pr
     await new Promise((r) => setTimeout(r, 200));
   }
 }
+
+/** Pretends every session of `email` last made a request `minutes` ago (test database only). */
+export async function lastActiveMinutesAgo(email: string, minutes: number): Promise<void> {
+  const { default: pg } = await import('pg');
+  const client = new pg.Client({ connectionString: process.env.E2E_FIXTURE_DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(
+      `UPDATE eventhub.auth_session s SET last_seen_at = now() - make_interval(mins => $2)
+         FROM eventhub.app_user u
+        WHERE u.id = s.user_id AND u.email = $1 AND s.revoked_at IS NULL`,
+      [email, minutes],
+    );
+  } finally {
+    await client.end();
+  }
+}

@@ -47,7 +47,7 @@ People can see where they are signed in and end any of those sessions.
 
 ## Consequences
 
-- Threat model T5 now has revoke-all. Idle timeout and MFA remain open.
+- Threat model T5 now has revoke-all. Idle timeout: ADR-0018. MFA remains open.
 - Session rows created before 0009 keep working. They show as "Unknown browser" until the user
   signs in again.
 - A future security-events page could reuse the audit records. No new tables would be needed.
