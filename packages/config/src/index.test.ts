@@ -77,7 +77,7 @@ describe('loadApiConfig', () => {
 describe('loadWorkerConfig', () => {
   const base = {
     DATABASE_WORKER_URL: localUrl,
-    EVENT_PUBLISHER: 'local_dispatch',
+    EVENT_PUBLISHER: 'postgres_outbox',
     EMAIL_SENDER: 'in_memory',
     APP_BASE_URL: 'http://localhost:3001/',
     EMAIL_TOKEN_SECRET: 'x'.repeat(32),
@@ -85,7 +85,14 @@ describe('loadWorkerConfig', () => {
 
   it('accepts local adapters locally and normalises the base URL', () => {
     const c = loadWorkerConfig({ ...base, EVENTHUB_ENV: 'ci' });
-    expect(c.eventPublisher).toBe('local_dispatch');
+    expect(c.eventPublisher).toBe('postgres_outbox');
+    expect(c.outbox).toEqual({
+      pollIntervalMs: 1000,
+      batchSize: 50,
+      maxAttempts: 12,
+      healthIntervalMs: 60_000,
+      lagWarnSeconds: 300,
+    });
     expect(c.appBaseUrl).toBe('http://localhost:3001');
     expect(c.emailVerificationTtlSeconds).toBe(86_400);
   });
@@ -107,7 +114,7 @@ describe('loadWorkerConfig', () => {
           DATABASE_WORKER_URL: `${localUrl}?sslmode=require`,
         }),
       );
-      expect(e.keys).toEqual(['EVENT_PUBLISHER', 'EMAIL_SENDER', 'APP_BASE_URL']);
+      expect(e.keys).toEqual(['EMAIL_SENDER', 'APP_BASE_URL']);
     }
   });
 
@@ -147,17 +154,29 @@ describe('loadWorkerConfig', () => {
       expect(e.keys).toEqual(['EMAIL_FROM']);
     });
 
-    it('is the only email adapter allowed remotely; the broker remains the sole blocker', () => {
+    it('a complete production worker configuration loads (ADR-0009)', () => {
+      const c = loadWorkerConfig({
+        ...resend,
+        EVENTHUB_ENV: 'production',
+        DATABASE_WORKER_URL: `${localUrl}?sslmode=verify-full`,
+        APP_BASE_URL: 'https://app.eventhub.example',
+      });
+      expect(c.environment).toBe('production');
+      expect(c.eventPublisher).toBe('postgres_outbox');
+      expect(c.email.sender).toBe('resend');
+    });
+
+    it('still refuses local email adapters in production', () => {
       const e = captureError(() =>
         loadWorkerConfig({
           ...resend,
+          EMAIL_SENDER: 'in_memory',
           EVENTHUB_ENV: 'production',
           DATABASE_WORKER_URL: `${localUrl}?sslmode=verify-full`,
           APP_BASE_URL: 'https://app.eventhub.example',
         }),
       );
-      expect(e.keys).toEqual(['EVENT_PUBLISHER']);
-      expect(e.message).not.toContain(API_KEY);
+      expect(e.keys).toEqual(['EMAIL_SENDER']);
     });
 
     it('requires HTTPS for the Resend endpoint remotely', () => {

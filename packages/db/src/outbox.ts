@@ -145,3 +145,64 @@ export async function processOnce(
   await fn();
   return 'processed';
 }
+
+/**
+ * Dead-letters an event immediately (permanent failure, e.g. a provider rejecting the sender
+ * domain). Retrying such failures only delays the alert.
+ */
+export async function markDead(
+  client: Queryable,
+  eventId: string,
+  attemptsSoFar: number,
+  errorSummary: string,
+): Promise<void> {
+  await client.query(
+    `UPDATE eventhub.outbox_event
+        SET attempts = $2, status = 'dead', last_error = left($3, 500)
+      WHERE id = $1`,
+    [eventId, attemptsSoFar + 1, errorSummary],
+  );
+}
+
+export interface OutboxHealth {
+  pending: number;
+  /** Seconds since the oldest due pending event became available (0 when none are due). */
+  oldestDueAgeSeconds: number;
+  dead: number;
+}
+
+/** Cheap health snapshot for lag and dead-letter alerting (uses the partial pending index). */
+export async function outboxHealth(client: Queryable): Promise<OutboxHealth> {
+  const { rows } = await client.query<{ pending: string; oldest: string | null; dead: string }>(
+    `SELECT (SELECT count(*) FROM eventhub.outbox_event WHERE status = 'pending')::text AS pending,
+            (SELECT extract(epoch FROM now() - min(available_at))::text
+               FROM eventhub.outbox_event WHERE status = 'pending' AND available_at <= now()) AS oldest,
+            (SELECT count(*) FROM eventhub.outbox_event WHERE status = 'dead')::text AS dead`,
+  );
+  const r = rows[0]!;
+  return {
+    pending: Number(r.pending),
+    oldestDueAgeSeconds: r.oldest === null ? 0 : Math.max(0, Math.floor(Number(r.oldest))),
+    dead: Number(r.dead),
+  };
+}
+
+/**
+ * Operator replay (runbook: docs/operations/outbox-runbook.md). Returns dead-lettered events to
+ * the queue with a fresh attempt budget. Consumers that already succeeded for an event are
+ * skipped by the `processed_event` ledger, so only the failed work re-runs.
+ * `eventIds = null` replays every dead event.
+ */
+export async function replayDeadEvents(
+  client: Queryable,
+  eventIds: string[] | null,
+): Promise<string[]> {
+  const { rows } = await client.query<{ id: string }>(
+    `UPDATE eventhub.outbox_event
+        SET status = 'pending', attempts = 0, available_at = now(), last_error = NULL
+      WHERE status = 'dead' AND ($1::uuid[] IS NULL OR id = ANY($1::uuid[]))
+      RETURNING id`,
+    [eventIds],
+  );
+  return rows.map((r) => r.id);
+}
