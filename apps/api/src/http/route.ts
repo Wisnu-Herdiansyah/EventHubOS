@@ -14,6 +14,8 @@ export interface RouteContext<TParams, TQuery, TBody> {
   body: TBody;
   principal: Principal;
   correlationId: string;
+  /** Self-reported by the client; informational only (e.g. naming sessions). */
+  userAgent: string | undefined;
   idempotencyKey: string | undefined;
   /** Operation + validated params; scopes idempotency keys independent of URL spelling. */
   idempotencyScope: string;
@@ -25,6 +27,8 @@ export interface PublicRouteContext<TParams, TQuery, TBody> {
   query: TQuery;
   body: TBody;
   correlationId: string;
+  /** Self-reported by the client; informational only (e.g. naming sessions). */
+  userAgent: string | undefined;
 }
 
 export interface RouteResult {

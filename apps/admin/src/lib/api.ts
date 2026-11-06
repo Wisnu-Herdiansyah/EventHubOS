@@ -17,16 +17,18 @@ import { readSessionToken } from './session';
 export async function api() {
   const config = adminConfig();
   const token = await readSessionToken();
-  const forwarded = clientIpFromForwarded(
-    (await headers()).get('x-forwarded-for'),
-    config.trustedProxyHops,
-  );
+  const incoming = await headers();
+  const forwarded = clientIpFromForwarded(incoming.get('x-forwarded-for'), config.trustedProxyHops);
+  // The browser's own user-agent, so sessions can be named "Firefox on Windows" (ADR-0017).
+  // Self-reported and informational only; never used for security decisions.
+  const userAgent = incoming.get('user-agent')?.slice(0, 256);
   return createClient<paths>({
     baseUrl: config.apiUrl,
     headers: {
       'x-correlation-id': `admin-${randomUUID()}`,
       ...(token ? { authorization: `Bearer ${token}` } : {}),
       ...(forwarded ? { 'x-forwarded-for': forwarded } : {}),
+      ...(userAgent ? { 'user-agent': userAgent } : {}),
     },
   });
 }

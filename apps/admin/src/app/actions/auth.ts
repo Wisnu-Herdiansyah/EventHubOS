@@ -176,3 +176,36 @@ export async function changePasswordAction(_prev: FormState, form: FormData): Pr
     return errorToFormState(error);
   }
 }
+
+const SESSION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Signs out one of the user's sessions; the row disappears, so the notice is page-level. */
+export async function revokeSessionAction(_prev: FormState, form: FormData): Promise<FormState> {
+  const sessionId = formText(form, 'sessionId');
+  if (!SESSION_ID.test(sessionId))
+    return { ok: false, message: 'Something went wrong. Please try again.' };
+  try {
+    const client = await api();
+    unwrap(
+      await client.POST('/v1/auth/sessions/{sessionId}/revoke', {
+        params: { path: { sessionId } },
+      }),
+    );
+  } catch (error) {
+    return errorToFormState(error);
+  }
+  redirect('/account?notice=session_signed_out');
+}
+
+export async function revokeOtherSessionsAction(
+  _prev: FormState,
+  _form: FormData,
+): Promise<FormState> {
+  try {
+    const client = await api();
+    unwrap(await client.POST('/v1/auth/sessions/revoke-others'));
+  } catch (error) {
+    return errorToFormState(error);
+  }
+  redirect('/account?notice=others_signed_out');
+}

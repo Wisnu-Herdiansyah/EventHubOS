@@ -44,7 +44,8 @@ export class DatabaseSessionAuthenticator implements SessionAuthenticator {
       out_user_id: string;
       out_email_verified: boolean;
     }>(
-      'SELECT out_session_id, out_user_id, out_email_verified FROM eventhub.auth_resolve_session($1)',
+      // Also records "last active", at most every 5 minutes (ADR-0017).
+      'SELECT out_session_id, out_user_id, out_email_verified FROM eventhub.auth_resolve_and_touch_session($1)',
       [hash],
     );
     const row = rows[0];
