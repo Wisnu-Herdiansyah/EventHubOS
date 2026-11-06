@@ -1,0 +1,21 @@
+{
+  "name": "@eventhub/db",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@eventhub/config": "workspace:*",
+    "@eventhub/kernel": "workspace:*",
+    "pg": "8.23.1"
+  },
+  "devDependencies": {
+    "@types/pg": "8.23.1",
+    "vitest": "5.1.0"
+  }
+}
