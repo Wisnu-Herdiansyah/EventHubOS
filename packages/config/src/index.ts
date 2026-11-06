@@ -99,6 +99,8 @@ const apiSchema = baseSchema.extend({
     }),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(100_000).default(300),
   SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(12),
+  // Idle timeout (ADR-0018). Activity is recorded every 5 minutes, hence the 15-minute floor.
+  SESSION_IDLE_MINUTES: z.coerce.number().int().min(15).max(1440).default(60),
   LOGIN_MAX_FAILURES: z.coerce.number().int().min(3).max(50).default(5),
   LOGIN_LOCK_SECONDS: z.coerce.number().int().min(60).max(86_400).default(900),
   INVITATION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(168),
@@ -110,7 +112,12 @@ export interface ApiConfig {
   http: { host: string; port: number; trustProxy: boolean | string[] };
   database: { appUrl: string };
   rateLimitPerMinute: number;
-  auth: { sessionTtlSeconds: number; loginMaxFailures: number; loginLockSeconds: number };
+  auth: {
+    sessionTtlSeconds: number;
+    sessionIdleSeconds: number;
+    loginMaxFailures: number;
+    loginLockSeconds: number;
+  };
   invitations: { ttlSeconds: number };
 }
 
@@ -132,6 +139,7 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
     rateLimitPerMinute: c.RATE_LIMIT_PER_MINUTE,
     auth: {
       sessionTtlSeconds: c.SESSION_TTL_HOURS * 3600,
+      sessionIdleSeconds: c.SESSION_IDLE_MINUTES * 60,
       loginMaxFailures: c.LOGIN_MAX_FAILURES,
       loginLockSeconds: c.LOGIN_LOCK_SECONDS,
     },

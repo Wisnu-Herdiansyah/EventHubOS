@@ -476,6 +476,10 @@ export interface components {
         };
         ActiveSessionList: {
             data: components["schemas"]["ActiveSession"][];
+            policy: {
+                idleMinutes: number;
+                maxHours: number;
+            };
         };
         AuditEvent: {
             /** Format: uuid */

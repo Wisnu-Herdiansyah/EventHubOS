@@ -192,13 +192,37 @@ function registerRoute(app: FastifyInstance, route: AnyRoute, deps: AppDependenc
         !result.replayed &&
         result.status === route.schemas.response.status
       ) {
-        responseSchema.parse(result.body);
+        const parsed: unknown = responseSchema.parse(result.body);
+        // Zod drops unknown keys silently; an undocumented field means the OpenAPI contract
+        // (and the clients generated from it) no longer describe what the API sends.
+        const extra = undocumentedPaths(result.body, parsed);
+        if (extra.length > 0) {
+          throw new Error(`Response has fields missing from its schema: ${extra.join(', ')}`);
+        }
       }
       if (result.replayed) reply.header('idempotent-replayed', 'true');
       if (result.status === 204) return reply.status(204).send();
       return reply.status(result.status).send(result.body);
     },
   });
+}
+
+/** Paths present in `actual` but absent from the schema-parsed `documented` value. */
+export function undocumentedPaths(actual: unknown, documented: unknown, path = '$'): string[] {
+  if (Array.isArray(actual) && Array.isArray(documented)) {
+    return actual.flatMap((item, i) => undocumentedPaths(item, documented[i], `${path}[${i}]`));
+  }
+  if (actual && typeof actual === 'object' && documented && typeof documented === 'object') {
+    const doc = documented as Record<string, unknown>;
+    return Object.entries(actual as Record<string, unknown>).flatMap(([key, value]) =>
+      key in doc
+        ? undocumentedPaths(value, doc[key], `${path}.${key}`)
+        : value === undefined
+          ? []
+          : [`${path}.${key}`],
+    );
+  }
+  return [];
 }
 
 export function loggerOptions(level: string): FastifyServerOptions['logger'] {

@@ -39,10 +39,13 @@ export function unwrap<T>(result: { data?: T; error?: unknown; response: Respons
   throw new ApiError(result.response.status, result.error);
 }
 
-/** For pages: an expired or missing session sends the user to sign in, then back here. */
+/**
+ * For pages: a session the API no longer accepts (idle, expired or signed out elsewhere) sends the
+ * user to sign in, then back here. The sign-in page says the session ended, without the reason.
+ */
 export function signInOn401(error: unknown, returnTo: string): never {
   if (error instanceof ApiError && error.status === 401) {
-    redirect(`/login?next=${encodeURIComponent(returnTo)}`);
+    redirect(`/login?next=${encodeURIComponent(returnTo)}&ended=1`);
   }
   throw error;
 }

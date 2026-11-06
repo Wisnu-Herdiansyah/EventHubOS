@@ -19,6 +19,14 @@ const NOTICES: Record<string, string> = {
   others_signed_out: 'All other sessions were signed out. This one stays signed in.',
 };
 
+function duration(minutes: number): string {
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60;
+    return hours === 1 ? '1 hour' : `${hours} hours`;
+  }
+  return `${minutes} minutes`;
+}
+
 export default async function AccountPage({
   searchParams,
 }: {
@@ -27,11 +35,11 @@ export default async function AccountPage({
   if (!(await readSessionToken())) redirect('/login?next=%2Faccount');
   const code = (await searchParams).notice;
   const notice = typeof code === 'string' ? NOTICES[code] : undefined;
-  let me, sessions;
+  let me, sessions, policy;
   try {
     const client = await api();
     me = unwrap(await client.GET('/v1/me'));
-    sessions = unwrap(await client.GET('/v1/auth/sessions')).data;
+    ({ data: sessions, policy } = unwrap(await client.GET('/v1/auth/sessions')));
   } catch (error) {
     signInOn401(error, '/account');
   }
@@ -56,6 +64,10 @@ export default async function AccountPage({
         <p className="muted">
           Where you are signed in. If you do not recognise a session, sign it out and change your
           password.
+        </p>
+        <p className="hint">
+          For your security, a session ends after {duration(policy.idleMinutes)} without activity,
+          or {policy.maxHours} hours after signing in.
         </p>
         <ul className="member-list">
           {sessions.map((s) => {

@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import type { Pool } from '@eventhub/db';
 import { describe, expect, it } from 'vitest';
 import { ARGON2ID_BASELINE, Argon2idPasswordHasher } from './adapters/argon2id-password-hasher.ts';
-import { allRoutes } from './app.ts';
+import { allRoutes, undocumentedPaths } from './app.ts';
 import { decodeCursor, encodeCursor } from './modules/event/routes.ts';
 import { parseBearerToken } from './modules/identity/authenticator.ts';
 import { buildOpenApiDocument } from './openapi.ts';
@@ -109,5 +109,17 @@ describe('event list cursor', () => {
       id,
     });
     expect(() => decodeCursor(Buffer.from('1; DROP TABLE x').toString('base64url'))).toThrow();
+  });
+});
+
+describe('undocumentedPaths (responses must match their documented schema)', () => {
+  it('finds fields the schema does not describe, at any depth', () => {
+    const actual = { data: [{ id: 'a', secret: 'x' }], policy: { idle: 1 }, extra: true };
+    const documented = { data: [{ id: 'a' }], policy: { idle: 1 } };
+    expect(undocumentedPaths(actual, documented)).toEqual(['$.data[0].secret', '$.extra']);
+  });
+
+  it('accepts exact matches and undefined optional fields', () => {
+    expect(undocumentedPaths({ a: 1, b: undefined, c: [1, 2] }, { a: 1, c: [1, 2] })).toEqual([]);
   });
 });

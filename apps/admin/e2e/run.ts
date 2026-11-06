@@ -183,7 +183,13 @@ try {
   exitCode = await run(
     'pnpm',
     ['exec', 'playwright', 'test', ...process.argv.slice(2)],
-    { E2E_BASE_URL: baseUrl, E2E_API_URL: apiUrl, E2E_MAIL_DIR: mailDir },
+    {
+      E2E_BASE_URL: baseUrl,
+      E2E_API_URL: apiUrl,
+      E2E_MAIL_DIR: mailDir,
+      // Disposable test database, for fixtures that cannot wait in real time (e.g. idle timeout).
+      E2E_FIXTURE_DATABASE_URL: withCredentials(ROLE_NAMES.migrator, passwords.migrator, database),
+    },
     adminDir,
   );
 } catch (error) {

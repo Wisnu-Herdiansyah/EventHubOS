@@ -18,6 +18,9 @@ export interface SessionAuthenticator {
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{32,256}$/;
 
+/** Default idle timeout (ADR-0018); deployments set SESSION_IDLE_MINUTES. */
+export const DEFAULT_SESSION_IDLE_SECONDS = 3600;
+
 export function parseBearerToken(header: string | undefined): string | null {
   if (!header) return null;
   const match = /^Bearer (\S+)$/.exec(header);
@@ -32,8 +35,10 @@ export function parseBearerToken(header: string | undefined): string | null {
  */
 export class DatabaseSessionAuthenticator implements SessionAuthenticator {
   readonly #pool: Pool;
-  constructor(pool: Pool) {
+  readonly #idleSeconds: number;
+  constructor(pool: Pool, options: { idleSeconds?: number } = {}) {
     this.#pool = pool;
+    this.#idleSeconds = options.idleSeconds ?? DEFAULT_SESSION_IDLE_SECONDS;
   }
 
   async authenticate(rawToken: string): Promise<Principal | null> {
@@ -44,9 +49,10 @@ export class DatabaseSessionAuthenticator implements SessionAuthenticator {
       out_user_id: string;
       out_email_verified: boolean;
     }>(
-      // Also records "last active", at most every 5 minutes (ADR-0017).
-      'SELECT out_session_id, out_user_id, out_email_verified FROM eventhub.auth_resolve_and_touch_session($1)',
-      [hash],
+      // Records "last active" at most every 5 minutes (ADR-0017) and ends sessions idle for
+      // longer than the timeout (ADR-0018).
+      'SELECT out_session_id, out_user_id, out_email_verified FROM eventhub.auth_resolve_and_touch_session($1, $2)',
+      [hash, this.#idleSeconds],
     );
     const row = rows[0];
     return row
