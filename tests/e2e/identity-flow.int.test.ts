@@ -7,7 +7,7 @@ import { Argon2idPasswordHasher } from '../../apps/api/src/adapters/argon2id-pas
 import { buildApp } from '../../apps/api/src/app.ts';
 import { DatabaseSessionAuthenticator } from '../../apps/api/src/modules/identity/authenticator.ts';
 import { sendVerificationEmailConsumer } from '../../apps/worker/src/consumers/send-verification-email.ts';
-import { LocalDispatchPublisher } from '../../apps/worker/src/local-dispatch-publisher.ts';
+import { OutboxDispatchPublisher } from '../../apps/worker/src/outbox-dispatch-publisher.ts';
 import { relayOnce } from '../../apps/worker/src/outbox-relay.ts';
 
 /**
@@ -17,7 +17,7 @@ import { relayOnce } from '../../apps/worker/src/outbox-relay.ts';
 describe('identity journey end to end', () => {
   const pools = createTestPools();
   const inbox = new InMemoryEmailSender();
-  const publisher = new LocalDispatchPublisher(pools.worker, [
+  const publisher = new OutboxDispatchPublisher(pools.worker, [
     sendVerificationEmailConsumer(inbox, {
       appBaseUrl: 'https://app.example.test',
       ttlSeconds: 86_400,

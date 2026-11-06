@@ -12,7 +12,7 @@ import {
   sendVerificationEmailConsumer,
   EMAIL_VERIFICATION_REQUESTED,
 } from '../src/consumers/send-verification-email.ts';
-import { LocalDispatchPublisher } from '../src/local-dispatch-publisher.ts';
+import { OutboxDispatchPublisher } from '../src/outbox-dispatch-publisher.ts';
 
 const HASH =
   '$argon2id$v=19$m=19456,p=1,t=2$c2FsdHNhbHRzYWx0$aGFzaGhhc2hoYXNoaGFzaGhhc2hoYXNoaGFzaGhhc2g';
@@ -49,7 +49,7 @@ describe('send-verification-email consumer', () => {
       ttlSeconds: 86_400,
       tokenSecret: 'test-token-secret-0123456789abcdef', // pragma: allowlist secret
     });
-    return { sender, publisher: new LocalDispatchPublisher(pools.worker, [consumer]) };
+    return { sender, publisher: new OutboxDispatchPublisher(pools.worker, [consumer]) };
   };
 
   it('sends one email with a fragment link and stores only the token hash', async () => {
@@ -135,7 +135,7 @@ describe('send-verification-email consumer', () => {
         return Promise.resolve();
       },
     };
-    const publisher = new LocalDispatchPublisher(pools.worker, [
+    const publisher = new OutboxDispatchPublisher(pools.worker, [
       sendVerificationEmailConsumer(provider, {
         appBaseUrl: 'https://app.example.test',
         ttlSeconds: 86_400,

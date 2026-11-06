@@ -3,12 +3,13 @@ import type { DomainEvent, EventPublisher } from '@eventhub/kernel';
 import type { EventConsumer } from './consumers/consumer.ts';
 
 /**
- * Local/CI broker stand-in: delivers each event straight to this process's consumers. A failing
- * consumer rejects `publish`, so the relay retries with backoff; consumers that already
- * succeeded are skipped on retry by the dedupe ledger. Refused by config in staging/production.
+ * PostgreSQL outbox broker (ADR-0009): the durable queue is the `outbox_event` table; this
+ * publisher delivers each claimed event to the worker's in-process consumers. A failing consumer
+ * rejects `publish`, so the relay retries with backoff (or dead-letters a permanent failure);
+ * consumers that already succeeded are skipped on retry by the `processed_event` ledger.
  */
-export class LocalDispatchPublisher implements EventPublisher {
-  readonly name = 'local_dispatch';
+export class OutboxDispatchPublisher implements EventPublisher {
+  readonly name = 'postgres_outbox';
   readonly #pool: Pool;
   readonly #consumers: readonly EventConsumer[];
 

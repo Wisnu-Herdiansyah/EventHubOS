@@ -31,7 +31,7 @@ packages/
   db/         Pool, tenant transactions, audit/outbox/idempotency, migrations, role bootstrap,
               integration-test harness
 tests/        Cross-process end-to-end tests (API + worker)
-docs/         ADRs, open decisions, threat model, environment contract
+docs/         ADRs, open decisions, threat model, environment contract, operations runbooks
 infra/        IaC (blocked on cloud decision)
 ```
 
@@ -49,6 +49,7 @@ pnpm test:unit           # no database needed
 TEST_DATABASE_ADMIN_URL=postgres://postgres:<pw>@localhost:5432/postgres pnpm test:integration
 pnpm openapi:generate    # regenerate apps/api/openapi.json after changing routes
 pnpm test:live           # opt-in live provider contracts (needs RESEND_* credentials)
+pnpm outbox:replay       # return dead-lettered events to the queue (see docs/operations)
 ```
 
 ## Running locally

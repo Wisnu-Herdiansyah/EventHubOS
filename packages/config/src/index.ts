@@ -113,10 +113,10 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
 }
 
 /**
- * Event broker adapters. Only `local_dispatch` (in-process delivery to this worker's consumers)
- * exists until the broker decision (D5) is made; it is refused in staging/production.
+ * Event broker adapters. `postgres_outbox` (ADR-0009): the durable PostgreSQL outbox, delivered
+ * to this worker's in-process consumers. Allowed in every environment.
  */
-export const EVENT_PUBLISHER_ADAPTERS = ['local_dispatch'] as const;
+export const EVENT_PUBLISHER_ADAPTERS = ['postgres_outbox'] as const;
 
 /**
  * Email adapters (ADR-0008): `resend` (production provider), plus the local fakes `in_memory` (CI)
@@ -134,6 +134,8 @@ const workerSchema = baseSchema.extend({
   OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().min(50).max(60_000).default(1000),
   OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(50),
   OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(12),
+  OUTBOX_HEALTH_INTERVAL_MS: z.coerce.number().int().min(5_000).max(3_600_000).default(60_000),
+  OUTBOX_LAG_WARN_SECONDS: z.coerce.number().int().min(10).max(86_400).default(300),
   EMAIL_SENDER: z.enum(EMAIL_SENDER_ADAPTERS),
   EMAIL_LOCAL_DIR: z.string().min(1).optional(),
   EMAIL_FROM: z.string().regex(EMAIL_FROM_RE).optional(),
@@ -151,7 +153,13 @@ export interface WorkerConfig {
   logLevel: (typeof LOG_LEVELS)[number];
   database: { workerUrl: string };
   eventPublisher: (typeof EVENT_PUBLISHER_ADAPTERS)[number];
-  outbox: { pollIntervalMs: number; batchSize: number; maxAttempts: number };
+  outbox: {
+    pollIntervalMs: number;
+    batchSize: number;
+    maxAttempts: number;
+    healthIntervalMs: number;
+    lagWarnSeconds: number;
+  };
   email: {
     sender: (typeof EMAIL_SENDER_ADAPTERS)[number];
     localDir: string | undefined;
@@ -181,7 +189,6 @@ export function loadWorkerConfig(env: Readonly<Record<string, string | undefined
     // Local fakes must fail closed remotely. Each key is reported on its own so the remaining
     // blocker is explicit.
     const refused = [
-      ...(c.EVENT_PUBLISHER === 'local_dispatch' ? ['EVENT_PUBLISHER'] : []),
       ...(LOCAL_EMAIL_SENDERS.has(c.EMAIL_SENDER) ? ['EMAIL_SENDER'] : []),
       ...(c.EMAIL_SENDER === 'resend' && !c.RESEND_BASE_URL.startsWith('https://')
         ? ['RESEND_BASE_URL']
@@ -191,7 +198,7 @@ export function loadWorkerConfig(env: Readonly<Record<string, string | undefined
     if (refused.length > 0) {
       throw new ConfigError(
         refused,
-        `refused in ${c.EVENTHUB_ENV}: local-only adapters (broker decision D5 pending for EVENT_PUBLISHER) and non-HTTPS URLs`,
+        `refused in ${c.EVENTHUB_ENV}: local-only email adapters and non-HTTPS URLs`,
       );
     }
   }
@@ -204,6 +211,8 @@ export function loadWorkerConfig(env: Readonly<Record<string, string | undefined
       pollIntervalMs: c.OUTBOX_POLL_INTERVAL_MS,
       batchSize: c.OUTBOX_BATCH_SIZE,
       maxAttempts: c.OUTBOX_MAX_ATTEMPTS,
+      healthIntervalMs: c.OUTBOX_HEALTH_INTERVAL_MS,
+      lagWarnSeconds: c.OUTBOX_LAG_WARN_SECONDS,
     },
     email: {
       sender: c.EMAIL_SENDER,

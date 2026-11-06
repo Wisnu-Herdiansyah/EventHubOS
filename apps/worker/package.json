@@ -11,9 +11,11 @@
     "@eventhub/db": "workspace:*",
     "@eventhub/kernel": "workspace:*",
     "pino": "10.4.0",
-    "zod": "4.6.7"
+    "zod": "4.6.7",
+    "pg": "8.23.1"
   },
   "devDependencies": {
-    "vitest": "5.1.0"
+    "vitest": "5.1.0",
+    "@types/pg": "8.23.1"
   }
 }
