@@ -19,6 +19,7 @@ Phase 0 (foundation) plus Phase 1 slices:
 - **Team** (ADR-0010, ADR-0012): email invitations with role ceiling, acceptance bound to the
   invited address, revocation, member listing, role changes, and removal with a last-Owner guard.
 - **Organization settings** (ADR-0012): profile and billing contact with per-field permissions.
+- **Audit log** (ADR-0013): filterable, paginated history of who changed what, for Owners and Admins.
 - **Delivery** (ADR-0008, ADR-0009): Resend email through the PostgreSQL outbox broker.
 
 All of it sits behind server-resolved tenant context, deny-by-default permissions, PostgreSQL
