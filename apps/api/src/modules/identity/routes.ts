@@ -73,6 +73,11 @@ const resetCompleteBody = z
   .strict()
   .meta({ id: 'PasswordResetCompletion' });
 
+const changePasswordBody = z
+  .object({ currentPassword: loginPasswordSchema, newPassword: passwordSchema })
+  .strict()
+  .meta({ id: 'ChangePasswordRequest' });
+
 const verifyBody = z
   .object({ token: z.string().regex(TOKEN_RE, 'Malformed token.') })
   .strict()
@@ -518,6 +523,152 @@ export function identityRoutes(
           );
         });
         return { status: 204, body: null };
+      },
+    }),
+
+    defineRoute({
+      method: 'POST',
+      path: '/v1/auth/password/change',
+      operationId: 'changePassword',
+      summary:
+        'Change the password after re-entering the current one. Signs out every other session.',
+      tags: ['identity'],
+      requires: 'authenticated',
+      idempotent: false,
+      idempotencyExempt:
+        'Re-authenticates with the current password: a repeat after success fails that check and changes nothing.',
+      rateLimit: AUTH_RATE_LIMIT,
+      schemas: {
+        body: changePasswordBody,
+        response: {
+          status: 200,
+          schema: z
+            .object({ status: z.literal('password_changed'), otherSessionsSignedOut: z.number() })
+            .meta({ id: 'PasswordChanged' }),
+        },
+      },
+      async handler({ principal, body, correlationId }) {
+        const { rows } = await pool.query<{
+          out_password_hash: string;
+          out_locked: boolean;
+          out_email: string;
+        }>(
+          'SELECT out_password_hash, out_locked, out_email FROM eventhub.auth_credential_for_user($1)',
+          [principal.userId],
+        );
+        const credential = rows[0];
+        if (!credential) throw new AppError('unauthenticated', 'Sign in again.');
+        const currentOk =
+          !credential.out_locked &&
+          (await hasher.verify(credential.out_password_hash, body.currentPassword));
+        const actor: Actor = { type: 'user', id: principal.userId };
+
+        if (!currentOk) {
+          // Same lockout as login, so a stolen session cannot be used to guess the password.
+          // The failure must commit, so it is recorded before the error is raised.
+          const lockedNow = await withTransaction(
+            pool,
+            { userId: principal.userId },
+            async (client) => {
+              let locked = credential.out_locked;
+              if (!locked) {
+                const r = await client.query<{ auth_record_login_failure: boolean }>(
+                  'SELECT eventhub.auth_record_login_failure($1, $2, $3)',
+                  [principal.userId, settings.loginMaxFailures, settings.loginLockSeconds],
+                );
+                locked = r.rows[0]!.auth_record_login_failure;
+              }
+              await audit(
+                client,
+                'identity.password_change_failed',
+                actor,
+                principal.userId,
+                correlationId,
+                {
+                  reason: credential.out_locked ? 'locked' : 'bad_password',
+                  locked,
+                },
+              );
+              return locked;
+            },
+          );
+          if (lockedNow) {
+            throw new AppError(
+              'validation_failed',
+              'Too many incorrect attempts. Try again later, or reset your password by email.',
+              { details: { reason: 'locked' } },
+            );
+          }
+          throw new AppError('validation_failed', 'Invalid request body.', {
+            details: {
+              reason: 'bad_current_password',
+              fields: [
+                { path: 'body.currentPassword', message: 'Your current password is incorrect.' },
+              ],
+            },
+          });
+        }
+
+        const policy: Array<{ path: string; message: string }> = [];
+        if (body.newPassword.toLowerCase() === credential.out_email) {
+          policy.push({
+            path: 'body.newPassword',
+            message: 'Password must not be your email address.',
+          });
+        } else if (await hasher.verify(credential.out_password_hash, body.newPassword)) {
+          policy.push({
+            path: 'body.newPassword',
+            message: 'Choose a password different from your current one.',
+          });
+        }
+        if (policy.length > 0) {
+          throw new AppError('validation_failed', 'Invalid request body.', {
+            details: { fields: policy },
+          });
+        }
+
+        const passwordHash = await hasher.hash(body.newPassword);
+        const revoked = await withTransaction(
+          pool,
+          { userId: principal.userId },
+          async (client) => {
+            const r = await client.query<{ out_other_sessions_revoked: number }>(
+              'SELECT out_other_sessions_revoked FROM eventhub.auth_change_password($1, $2, $3)',
+              [principal.userId, principal.sessionId, passwordHash],
+            );
+            const row = r.rows[0];
+            if (!row) return null;
+            await audit(
+              client,
+              'identity.password_changed',
+              actor,
+              principal.userId,
+              correlationId,
+              {
+                otherSessionsRevoked: row.out_other_sessions_revoked,
+              },
+            );
+            await enqueueEvent(
+              client,
+              createDomainEvent({
+                eventType: PASSWORD_CHANGED,
+                schemaVersion: 1,
+                actor,
+                organizationId: null,
+                aggregateType: 'user',
+                aggregateId: principal.userId,
+                correlationId,
+                payload: { userId: principal.userId },
+              }),
+            );
+            return row.out_other_sessions_revoked;
+          },
+        );
+        if (revoked === null) throw new AppError('unauthenticated', 'Sign in again.');
+        return {
+          status: 200,
+          body: { status: 'password_changed', otherSessionsSignedOut: revoked },
+        };
       },
     }),
 

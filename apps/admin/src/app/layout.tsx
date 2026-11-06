@@ -49,6 +49,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                   <span className="visually-hidden">Signed in as </span>
                   {email}
                 </span>
+                <Link href="/account">Account</Link>
                 <form action={logoutAction}>
                   <button type="submit" className="link">
                     Sign out

@@ -694,3 +694,16 @@ details.confirm[open] > summary {
   align-items: center;
   min-height: 2.75rem;
 }
+
+/* Account */
+.account a {
+  color: var(--beige);
+  text-decoration-color: var(--gold-light);
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+.narrow-card {
+  max-width: 560px;
+}
