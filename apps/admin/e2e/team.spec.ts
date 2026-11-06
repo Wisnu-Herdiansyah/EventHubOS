@@ -12,8 +12,9 @@ import {
 
 async function openTeam(page: Page, orgName: string) {
   await expect(page.getByRole('heading', { level: 1, name: 'Organizations' })).toBeVisible();
-  await page.getByRole('link', { name: orgName }).click();
-  await page.getByRole('link', { name: 'Team' }).click();
+  await page.getByRole('link', { name: orgName, exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: orgName, exact: true })).toBeVisible();
+  await page.getByRole('link', { name: 'Team', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Team', exact: true })).toBeVisible();
 }
 
@@ -122,8 +123,9 @@ test('an Admin cannot grant or manage Owner, and other roles see no team control
 
   await page.getByRole('button', { name: 'Sign out' }).click();
   await signIn(page, viewer.email);
-  await page.getByRole('link', { name: 'Ceiling Org' }).click();
-  await expect(page.getByRole('link', { name: 'Team' })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Ceiling Org', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Ceiling Org' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Team', exact: true })).toHaveCount(0);
   await page.goto(`/orgs/${orgId}/team`);
   await expect(page.getByText('Only Owners and Admins can see and manage the team.')).toBeVisible();
   await expect(page.getByText(owner.email)).toHaveCount(0);
