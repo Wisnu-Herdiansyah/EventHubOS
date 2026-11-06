@@ -78,6 +78,20 @@ const changePasswordBody = z
   .strict()
   .meta({ id: 'ChangePasswordRequest' });
 
+const sessionParams = z.object({ sessionId: uuid }).strict();
+
+const activeSessionSchema = z
+  .object({
+    id: uuid,
+    createdAt: z.iso.datetime(),
+    lastSeenAt: z.iso.datetime(),
+    expiresAt: z.iso.datetime(),
+    /** Self-reported by the browser at sign-in; for recognising devices only. */
+    userAgent: z.string().nullable(),
+    current: z.boolean(),
+  })
+  .meta({ id: 'ActiveSession' });
+
 const verifyBody = z
   .object({ token: z.string().regex(TOKEN_RE, 'Malformed token.') })
   .strict()
@@ -229,7 +243,7 @@ export function identityRoutes(
         'Each call issues a fresh session; storing issued tokens for replay would persist secrets.',
       rateLimit: AUTH_RATE_LIMIT,
       schemas: { body: loginBody, response: { status: 200, schema: sessionSchema } },
-      async handler({ body, correlationId }) {
+      async handler({ body, correlationId, userAgent }) {
         const { rows } = await pool.query<{
           out_user_id: string;
           out_password_hash: string;
@@ -283,8 +297,14 @@ export function identityRoutes(
           }
           const { token, hash } = newSessionToken();
           const s = await client.query<{ out_session_id: string; out_expires_at: Date }>(
-            'SELECT out_session_id, out_expires_at FROM eventhub.auth_complete_login($1, $2, $3, $4)',
-            [account.out_user_id, hash, settings.sessionTtlSeconds, upgradedHash],
+            'SELECT out_session_id, out_expires_at FROM eventhub.auth_complete_login($1, $2, $3, $4, $5)',
+            [
+              account.out_user_id,
+              hash,
+              settings.sessionTtlSeconds,
+              upgradedHash,
+              userAgent ?? null,
+            ],
           );
           const session = s.rows[0]!;
           await audit(client, 'identity.logged_in', actor, account.out_user_id, correlationId, {
@@ -669,6 +689,128 @@ export function identityRoutes(
           status: 200,
           body: { status: 'password_changed', otherSessionsSignedOut: revoked },
         };
+      },
+    }),
+
+    defineRoute({
+      method: 'GET',
+      path: '/v1/auth/sessions',
+      operationId: 'listSessions',
+      summary: 'Your signed-in sessions, most recently active first, with the current one marked.',
+      tags: ['identity'],
+      requires: 'authenticated',
+      idempotent: false,
+      schemas: {
+        response: {
+          status: 200,
+          schema: z
+            .object({ data: z.array(activeSessionSchema) })
+            .meta({ id: 'ActiveSessionList' }),
+        },
+      },
+      async handler({ principal }) {
+        const { rows } = await pool.query<{
+          out_session_id: string;
+          out_created_at: Date;
+          out_last_seen_at: Date;
+          out_expires_at: Date;
+          out_user_agent: string | null;
+        }>(
+          'SELECT out_session_id, out_created_at, out_last_seen_at, out_expires_at, out_user_agent FROM eventhub.auth_list_sessions($1)',
+          [principal.userId],
+        );
+        return {
+          status: 200,
+          body: {
+            data: rows.map((r) => ({
+              id: r.out_session_id,
+              createdAt: r.out_created_at.toISOString(),
+              lastSeenAt: r.out_last_seen_at.toISOString(),
+              expiresAt: r.out_expires_at.toISOString(),
+              userAgent: r.out_user_agent,
+              current: r.out_session_id === principal.sessionId,
+            })),
+          },
+        };
+      },
+    }),
+
+    defineRoute({
+      method: 'POST',
+      path: '/v1/auth/sessions/:sessionId/revoke',
+      operationId: 'revokeSession',
+      summary: "Sign out one of your sessions. Another user's session is reported as not found.",
+      tags: ['identity'],
+      requires: 'authenticated',
+      idempotent: false,
+      idempotencyExempt:
+        'Revoking an already-revoked session is reported as not found and changes nothing.',
+      schemas: { params: sessionParams, response: { status: 204 } },
+      async handler({ principal, params, correlationId }) {
+        const revoked = await withTransaction(
+          pool,
+          { userId: principal.userId },
+          async (client) => {
+            const r = await client.query<{ auth_revoke_user_session: boolean }>(
+              'SELECT eventhub.auth_revoke_user_session($1, $2)',
+              [principal.userId, params.sessionId],
+            );
+            if (!r.rows[0]!.auth_revoke_user_session) return false;
+            await audit(
+              client,
+              'identity.session_revoked',
+              { type: 'user', id: principal.userId },
+              principal.userId,
+              correlationId,
+              { sessionId: params.sessionId, current: params.sessionId === principal.sessionId },
+            );
+            return true;
+          },
+        );
+        if (!revoked) throw new AppError('not_found', 'Session not found.');
+        return { status: 204, body: null };
+      },
+    }),
+
+    defineRoute({
+      method: 'POST',
+      path: '/v1/auth/sessions/revoke-others',
+      operationId: 'revokeOtherSessions',
+      summary: 'Sign out every session except this one.',
+      tags: ['identity'],
+      requires: 'authenticated',
+      idempotent: false,
+      idempotencyExempt: 'A repeat finds no other live sessions and changes nothing.',
+      schemas: {
+        response: {
+          status: 200,
+          schema: z
+            .object({ signedOut: z.number().int().min(0) })
+            .meta({ id: 'OtherSessionsRevoked' }),
+        },
+      },
+      async handler({ principal, correlationId }) {
+        const signedOut = await withTransaction(
+          pool,
+          { userId: principal.userId },
+          async (client) => {
+            const r = await client.query<{ auth_revoke_other_sessions: number }>(
+              'SELECT eventhub.auth_revoke_other_sessions($1, $2)',
+              [principal.userId, principal.sessionId],
+            );
+            const count = r.rows[0]!.auth_revoke_other_sessions;
+            await audit(
+              client,
+              'identity.other_sessions_revoked',
+              { type: 'user', id: principal.userId },
+              principal.userId,
+              correlationId,
+              { count, keptSessionId: principal.sessionId },
+            );
+            return count;
+          },
+        );
+        return { status: 200, body: { signedOut } };
       },
     }),
 

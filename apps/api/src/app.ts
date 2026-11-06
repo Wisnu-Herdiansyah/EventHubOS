@@ -137,11 +137,20 @@ function registerRoute(app: FastifyInstance, route: AnyRoute, deps: AppDependenc
     ...(route.rateLimit ? { config: { rateLimit: route.rateLimit } } : {}),
     handler: async (request, reply) => {
       let result: RouteResult;
+      const rawAgent = request.headers['user-agent'];
+      const userAgent =
+        typeof rawAgent === 'string' && rawAgent.trim() ? rawAgent.trim().slice(0, 256) : undefined;
       if (route.auth === 'public') {
         const params = parseInput(route.schemas.params, request.params, 'params');
         const query = parseInput(route.schemas.query, request.query, 'query');
         const body = parseInput(route.schemas.body, request.body ?? {}, 'body');
-        result = await route.handler({ params, query, body, correlationId: request.id });
+        result = await route.handler({
+          params,
+          query,
+          body,
+          correlationId: request.id,
+          userAgent,
+        });
       } else {
         const token = parseBearerToken(request.headers.authorization);
         const principal = token ? await deps.authenticator.authenticate(token) : null;
@@ -170,6 +179,7 @@ function registerRoute(app: FastifyInstance, route: AnyRoute, deps: AppDependenc
           body,
           principal,
           correlationId: request.id,
+          userAgent,
           idempotencyKey,
           idempotencyScope: `${route.operationId}:${canonicalJson(params ?? {})}`,
         });

@@ -48,6 +48,17 @@ describe('OpenAPI contract', () => {
       expect(r.rateLimit, r.operationId).toBeDefined();
   });
 
+  it('declares path parameters and path segments consistently (Fastify :name syntax)', () => {
+    for (const r of routes()) {
+      const inPath = [...r.path.matchAll(/:([A-Za-z]+)/g)].map((m) => m[1]).sort();
+      const declared = Object.keys(
+        (r.schemas.params as { shape?: Record<string, unknown> } | undefined)?.shape ?? {},
+      ).sort();
+      expect(r.path, r.operationId).not.toMatch(/[{}]/);
+      expect(inPath, r.operationId).toEqual(declared);
+    }
+  });
+
   it('every $ref in the document resolves against the document root', () => {
     const doc = buildOpenApiDocument(routes());
     const refs: string[] = [];

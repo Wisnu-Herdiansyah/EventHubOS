@@ -1,7 +1,11 @@
 'use client';
 
 import { useActionState } from 'react';
-import { changePasswordAction } from '@/app/actions/auth';
+import {
+  changePasswordAction,
+  revokeOtherSessionsAction,
+  revokeSessionAction,
+} from '@/app/actions/auth';
 import { initialFormState } from '@/lib/errors';
 import { Field, FormMessage, SubmitButton } from './form';
 
@@ -31,6 +35,31 @@ export function ChangePasswordForm() {
         Other devices and browsers will be signed out. This one stays signed in.
       </p>
       <SubmitButton pendingLabel="Saving…">Change password</SubmitButton>
+    </form>
+  );
+}
+
+export function RevokeSessionForm({ sessionId, label }: { sessionId: string; label: string }) {
+  const [state, action] = useActionState(revokeSessionAction, initialFormState);
+  return (
+    <form action={action}>
+      <FormMessage state={state} />
+      <input type="hidden" name="sessionId" value={sessionId} />
+      <SubmitButton className="secondary" pendingLabel="Signing out…">
+        Sign out<span className="visually-hidden"> {label}</span>
+      </SubmitButton>
+    </form>
+  );
+}
+
+export function RevokeOtherSessionsForm() {
+  const [state, action] = useActionState(revokeOtherSessionsAction, initialFormState);
+  return (
+    <form action={action}>
+      <FormMessage state={state} />
+      <SubmitButton className="danger" pendingLabel="Signing out…">
+        Sign out all other sessions
+      </SubmitButton>
     </form>
   );
 }

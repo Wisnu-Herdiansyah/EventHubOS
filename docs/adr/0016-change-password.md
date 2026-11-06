@@ -38,4 +38,4 @@
 ## Consequences
 
 - A stolen session alone can no longer take over an account by changing its password.
-- Not built: session listing and per-device sign-out, MFA, breached-password screen.
+- Session listing and per-device sign-out: ADR-0017. Not built: MFA, breached-password screen.

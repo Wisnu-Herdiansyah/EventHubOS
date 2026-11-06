@@ -61,3 +61,21 @@ export function formatInZone(iso: string, timeZone: string, locale = 'en-GB'): s
     timeZoneName: 'short',
   }).format(new Date(iso));
 }
+
+/** "just now", "12 minutes ago", "3 hours ago", "2 days ago" (past times only). */
+export function relativeTime(iso: string, now: Date = new Date()): string {
+  const seconds = Math.max(0, Math.round((now.getTime() - Date.parse(iso)) / 1000));
+  if (seconds < 60) return 'just now';
+  const units: Array<[number, string]> = [
+    [86_400, 'day'],
+    [3_600, 'hour'],
+    [60, 'minute'],
+  ];
+  for (const [size, name] of units) {
+    if (seconds >= size) {
+      const n = Math.floor(seconds / size);
+      return `${n} ${name}${n === 1 ? '' : 's'} ago`;
+    }
+  }
+  return 'just now';
+}
