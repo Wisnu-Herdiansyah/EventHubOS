@@ -1,5 +1,13 @@
 import { expect } from '@playwright/test';
-import { PASSWORD, expectAccessible, signIn, test, testClientIp, verifiedAccount } from './support';
+import {
+  expectAccessible,
+  PASSWORD,
+  signIn,
+  signOut,
+  test,
+  testClientIp,
+  verifiedAccount,
+} from './support';
 
 const NEW_PASSWORD = 'Precision and grace 2028'; // pragma: allowlist secret (synthetic)
 
@@ -55,7 +63,7 @@ test('a signed-in user changes their password; other sessions end, this one stay
   await other.close();
 
   // The new password is the one that works.
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await page.getByLabel('Email').fill(user.email);
   await page.getByLabel('Password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();

@@ -5,6 +5,7 @@ import {
   joinAs,
   patchOrgViaApi,
   signIn,
+  signOut,
   test,
   verifiedAccount,
 } from './support';
@@ -15,7 +16,7 @@ test('an Owner edits the profile and billing contact', async ({ page }) => {
   const owner = await verifiedAccount('settings-owner');
   const orgId = await createOrgViaApi(owner.token, 'Settings Org');
   await signIn(page, owner.email);
-  await page.getByRole('link', { name: 'Settings Org', exact: true }).click();
+  await page.getByRole('main').getByRole('link', { name: 'Settings Org', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Settings Org' })).toBeVisible();
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(
@@ -33,7 +34,11 @@ test('an Owner edits the profile and billing contact', async ({ page }) => {
   await profile.getByLabel('Time zone').selectOption('Asia/Singapore');
   await profile.getByRole('button', { name: 'Save profile' }).click();
   await expect(page.getByText('Organization profile saved.')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Systematic Elegance Co' })).toBeVisible();
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Breadcrumb' })
+      .getByRole('link', { name: 'Systematic Elegance Co' }),
+  ).toBeVisible();
   await page.reload();
   await expect(profile.getByLabel('Legal name')).toHaveValue('PT Systematic Elegance');
   await expect(profile.getByLabel('Time zone')).toHaveValue('Asia/Singapore');
@@ -105,13 +110,13 @@ test('each role sees exactly the settings it may change', async ({ page }) => {
   const adminBilling = section(page, 'Billing contact');
   await expect(adminBilling).toContainText('finance@example.test');
   await expect(adminBilling.getByRole('button')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
 
   // Billing admin: billing editable, profile read-only; the organization page works without
   // event access and links to Settings but not Team.
   await signIn(page, billingAdmin.email);
-  await page.getByRole('link', { name: 'Roles Org', exact: true }).click();
-  await expect(page.getByText('Your role does not include access to events.')).toBeVisible();
+  await page.getByRole('main').getByRole('link', { name: 'Roles Org', exact: true }).click();
+  await expect(page.getByText('Events are not part of your role')).toBeVisible();
   await expect(page.getByRole('link', { name: 'Team', exact: true })).toHaveCount(0);
   await page.getByRole('link', { name: 'Settings', exact: true }).click();
   await expect(section(page, 'Profile').getByRole('button')).toHaveCount(0);
@@ -121,11 +126,11 @@ test('each role sees exactly the settings it may change', async ({ page }) => {
   await billing.getByRole('button', { name: 'Save billing contact' }).click();
   await expect(page.getByText('Billing contact saved.')).toBeVisible();
   await expectAccessible(page);
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
 
   // Viewer: no Settings link, no billing data.
   await signIn(page, viewer.email);
-  await page.getByRole('link', { name: 'Roles Org', exact: true }).click();
+  await page.getByRole('main').getByRole('link', { name: 'Roles Org', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Roles Org' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Settings', exact: true })).toHaveCount(0);
   await page.goto(`/orgs/${orgId}/settings`);

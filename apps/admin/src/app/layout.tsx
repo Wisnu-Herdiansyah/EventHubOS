@@ -1,10 +1,7 @@
-import type { Metadata } from 'next';
-import Link from 'next/link';
-import { headers } from 'next/headers';
+import type { Metadata, Viewport } from 'next';
+import { cookies, headers } from 'next/headers';
 import type { ReactNode } from 'react';
-import { logoutAction } from './actions/auth';
-import { api } from '@/lib/api';
-import { readSessionToken } from '@/lib/session';
+import { THEME_COOKIE, parseTheme } from '@/lib/preferences';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -13,60 +10,27 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-async function currentUserEmail(): Promise<string | null> {
-  if (!(await readSessionToken())) return null;
-  try {
-    const client = await api();
-    const res = await client.GET('/v1/me');
-    return res.response.ok && res.data ? res.data.email : null;
-  } catch {
-    return null;
-  }
-}
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f5f5f7' },
+    { media: '(prefers-color-scheme: dark)', color: '#000000' },
+  ],
+};
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   // Reading request headers keeps every page dynamically rendered, which the per-request CSP
   // nonce requires (Next.js applies the nonce from the request's CSP header to its scripts).
   await headers();
-  const email = await currentUserEmail();
+  const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
   return (
-    <html lang="en">
+    <html lang="en" data-theme={theme === 'system' ? undefined : theme}>
       <body>
         <a className="skip-link" href="#main">
           Skip to content
         </a>
-        <header className="site-header">
-          <div className="inner">
-            <Link href="/" className="brand">
-              {/* The link text names the app; the monogram is decorative here. */}
-              <img
-                className="brand-mark"
-                src="/brand/awh-monogram.svg"
-                alt=""
-                width={44}
-                height={32}
-              />
-              EventHub OS
-            </Link>
-            {email ? (
-              <div className="account">
-                <span className="who">
-                  <span className="visually-hidden">Signed in as </span>
-                  {email}
-                </span>
-                <Link href="/account">Account</Link>
-                <form action={logoutAction}>
-                  <button type="submit" className="link">
-                    Sign out
-                  </button>
-                </form>
-              </div>
-            ) : null}
-          </div>
-        </header>
-        <main id="main" tabIndex={-1}>
-          {children}
-        </main>
+        {children}
       </body>
     </html>
   );

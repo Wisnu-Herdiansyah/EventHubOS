@@ -48,7 +48,7 @@ token. Nothing in the browser holds a credential.
   polite (`role=status`). Focus is visible, a skip link is provided, targets are at least
   2.75rem, and reduced motion is respected. axe (WCAG 2.2 A/AA) runs in e2e on every journey page.
   Failed forms keep what the user typed, except passwords and tokens.
-- **Visual identity:** navy, beige, gold and rose-gold tokens, a serif display face with a
+- **Visual identity** (superseded by ADR-0019): navy, beige, gold and rose-gold tokens, a serif display face with a
   sans-serif body, and no web fonts or inline styles (keeps the CSP strict).
 
 ## Team management (second slice)

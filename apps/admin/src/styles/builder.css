@@ -1,0 +1,160 @@
+/*
+ * Microsite builder: section navigator (left), live preview (centre), section configuration
+ * (right). Desktop-first; below 64rem the panels stack so nothing overflows.
+ */
+.builder {
+  display: grid;
+  grid-template-columns: 16rem minmax(0, 1fr) 19rem;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 40rem;
+  border: var(--border-width) solid var(--color-divider);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
+.builder__toolbar {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-divider);
+}
+
+.builder__toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.builder__status {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+}
+
+.builder__panel {
+  min-width: 0;
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.builder__panel--left {
+  border-right: var(--border-width) solid var(--color-divider);
+}
+
+.builder__panel--right {
+  border-left: var(--border-width) solid var(--color-divider);
+}
+
+.builder__panel-title {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  margin-bottom: var(--space-3);
+}
+
+.builder__canvas {
+  min-width: 0;
+  padding: var(--space-6);
+  background: var(--color-bg);
+  overflow: auto;
+}
+
+.section-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.section-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-sm);
+  border: var(--border-width) solid transparent;
+}
+
+.section-item[data-selected] {
+  background: var(--color-accent-bg);
+  border-color: var(--color-accent);
+}
+
+.section-item[data-hidden] .section-item__select {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+}
+
+.section-item__select {
+  flex: 1;
+  min-width: 0;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.section-item__tools {
+  display: flex;
+  gap: 2px;
+}
+
+.section-item .btn--icon.btn--sm {
+  width: 1.75rem;
+  min-height: 1.75rem;
+}
+
+.preview {
+  margin: 0 auto;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  transition: max-width var(--duration-slow) var(--ease-standard);
+  max-width: 100%;
+}
+
+.preview--tablet {
+  max-width: 48rem;
+}
+
+.preview--mobile {
+  max-width: 24.375rem;
+}
+
+.preview [data-selected-section] {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+@media (max-width: 63.99rem) {
+  .builder {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
+
+  .builder__panel--left,
+  .builder__panel--right {
+    border: 0;
+    border-bottom: var(--border-width) solid var(--color-divider);
+  }
+
+  .builder__canvas {
+    padding: var(--space-4);
+  }
+}

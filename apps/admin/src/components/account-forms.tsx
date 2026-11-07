@@ -12,7 +12,7 @@ import { Field, FormMessage, SubmitButton } from './form';
 export function ChangePasswordForm() {
   const [state, action] = useActionState(changePasswordAction, initialFormState);
   return (
-    <form action={action} noValidate>
+    <form action={action} className="form" noValidate>
       <FormMessage state={state} />
       <Field
         name="currentPassword"
@@ -31,7 +31,7 @@ export function ChangePasswordForm() {
         hint="At least 12 characters, different from your current password. A passphrase of several words works well."
         required
       />
-      <p className="muted">
+      <p className="field__hint">
         Other devices and browsers will be signed out. This one stays signed in.
       </p>
       <SubmitButton pendingLabel="Saving…">Change password</SubmitButton>
@@ -42,10 +42,10 @@ export function ChangePasswordForm() {
 export function RevokeSessionForm({ sessionId, label }: { sessionId: string; label: string }) {
   const [state, action] = useActionState(revokeSessionAction, initialFormState);
   return (
-    <form action={action}>
+    <form action={action} className="form">
       <FormMessage state={state} />
       <input type="hidden" name="sessionId" value={sessionId} />
-      <SubmitButton className="secondary" pendingLabel="Signing out…">
+      <SubmitButton variant="secondary" size="sm" pendingLabel="Signing out…">
         Sign out<span className="visually-hidden"> {label}</span>
       </SubmitButton>
     </form>
@@ -55,9 +55,9 @@ export function RevokeSessionForm({ sessionId, label }: { sessionId: string; lab
 export function RevokeOtherSessionsForm() {
   const [state, action] = useActionState(revokeOtherSessionsAction, initialFormState);
   return (
-    <form action={action}>
+    <form action={action} className="form">
       <FormMessage state={state} />
-      <SubmitButton className="danger" pendingLabel="Signing out…">
+      <SubmitButton variant="danger-secondary" pendingLabel="Signing out…">
         Sign out all other sessions
       </SubmitButton>
     </form>
