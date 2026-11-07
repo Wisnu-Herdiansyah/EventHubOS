@@ -88,12 +88,16 @@ attributes. No web fonts are loaded (`font-src 'self'`).
 
 ## 4. Patterns
 
-**Microsite builder** (`patterns/builder.tsx`, shown in the gallery with sample content): toolbar
-(undo/redo, preview size, save draft, publish), section navigator (select, move up/down, show/
-hide, duplicate), live preview, configuration panel. Undo/redo keeps 50 steps
-(`builder-history.ts`, unit-tested). Saving and publishing are disabled until the page and
-revision API exists; sections are typed and versioned (`SectionInstance`, `version: 1`) and
-render plain text only, never tenant HTML or script.
+**Microsite editor** (`patterns/builder.tsx`, live at an event's Microsite page and with sample
+content in the gallery):
+
+- **Toolbar:** undo/redo, preview size, save draft, publish.
+- **Section navigator:** select, move up/down, show/hide, duplicate, delete, add.
+- **Centre:** live preview.
+- **Configuration panel:** includes agenda and speaker item editors.
+
+Undo/redo keeps 50 steps, one per field edit (`builder-history.ts`, unit-tested). Sections are
+typed and versioned and render plain text only, never tenant HTML or script (ADR-0020).
 
 **Public microsites** (`styles/site-tokens.css`, `styles/microsite.css`): editorial sections
 (navigation, hero, text, agenda, speakers, registration call to action, footer) that read only

@@ -26,6 +26,23 @@ const record = (
   }) satisfies AuditRecord;
 
 describe('describeAuditEvent', () => {
+  it('describes microsite drafts and publications by version, never by content', () => {
+    const id = '22222222-2222-4222-8222-222222222222';
+    expect(
+      describeAuditEvent(
+        record('event.page_draft_saved', { draftVersion: 3, sectionCount: 5 }, id),
+        names,
+      ),
+    ).toEqual({
+      summary: 'Saved the microsite draft of Jakarta Summit',
+      details: ['Draft version 3.'],
+    });
+    expect(describeAuditEvent(record('event.page_published', { revision: 2 }, id), names)).toEqual({
+      summary: 'Published the microsite of Jakarta Summit',
+      details: ['Revision 2.'],
+    });
+  });
+
   it('describes team changes with names and roles', () => {
     expect(
       describeAuditEvent(

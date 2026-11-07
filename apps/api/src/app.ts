@@ -17,6 +17,7 @@ import { eventManagementRoutes } from './modules/event/management-routes.ts';
 import { eventRoutes } from './modules/event/routes.ts';
 import { DEFAULT_INVITATION_TTL_SECONDS, membershipRoutes } from './modules/membership/routes.ts';
 import { organizationRoutes } from './modules/organization/routes.ts';
+import { pageRoutes } from './modules/page/routes.ts';
 
 export interface AppDependencies {
   pool: Pool;
@@ -51,6 +52,7 @@ export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
     ...membershipRoutes(deps.pool, deps.invitationTtlSeconds ?? DEFAULT_INVITATION_TTL_SECONDS),
     ...eventRoutes(deps.pool),
     ...eventManagementRoutes(deps.pool),
+    ...pageRoutes(deps.pool),
     ...auditRoutes(deps.pool),
   ];
 }

@@ -365,7 +365,7 @@ export function eventManagementRoutes(pool: Pool): AnyRoute[] {
                   const messages = {
                     invalid_transition: `An event cannot move from ${from} to ${body.to}.`,
                     requires_published_revision:
-                      'Publishing requires a published page revision, available once the page builder ships.',
+                      'Making an event public needs public event sites, which arrive in a later phase. You can already publish page revisions.',
                     restore_target_mismatch: `This archived event can only be restored to ${row.archived_from === 'ended' ? 'ended' : 'draft'}.`,
                   } as const;
                   throw conflict(check.reason, messages[check.reason]);
