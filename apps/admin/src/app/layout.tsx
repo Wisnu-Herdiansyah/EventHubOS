@@ -38,9 +38,14 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <header className="site-header">
           <div className="inner">
             <Link href="/" className="brand">
-              <span className="brand-mark" aria-hidden="true">
-                EH
-              </span>
+              {/* The link text names the app; the monogram is decorative here. */}
+              <img
+                className="brand-mark"
+                src="/brand/awh-monogram.svg"
+                alt=""
+                width={44}
+                height={32}
+              />
               EventHub OS
             </Link>
             {email ? (
