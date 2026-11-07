@@ -141,14 +141,9 @@ a:hover {
 }
 
 .brand-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 2rem;
-  height: 2rem;
-  border: 2px solid var(--gold-light);
-  border-radius: 50%;
-  font-size: 0.85rem;
-  color: var(--gold-light);
+  display: block;
+  height: 2.25rem;
+  width: auto;
 }
 
 .account {
