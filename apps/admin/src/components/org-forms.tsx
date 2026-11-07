@@ -26,11 +26,11 @@ export function CreateOrganizationForm({
 }) {
   const [state, action] = useActionState(createOrganizationAction, initialFormState);
   return (
-    <form action={action} noValidate>
+    <form action={action} className="form" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <Field name="displayName" label="Organization name" state={state} maxLength={200} required />
-      <div className="row">
+      <div className="form__row">
         <Field
           name="locale"
           label="Language"
@@ -71,7 +71,7 @@ export function CreateEventForm({
 }) {
   const [state, action] = useActionState(createEventAction, initialFormState);
   return (
-    <form action={action} noValidate>
+    <form action={action} className="form" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
       <input type="hidden" name="organizationId" value={organizationId} />
@@ -84,7 +84,7 @@ export function CreateEventForm({
         required
         hint="Lowercase letters, digits and hyphens, e.g. jakarta-summit-2027."
       />
-      <div className="row">
+      <div className="form__row">
         <Select
           name="timezone"
           label="Event time zone"
@@ -100,7 +100,7 @@ export function CreateEventForm({
           defaultValue="in_person"
         />
       </div>
-      <div className="row">
+      <div className="form__row">
         <Field
           name="startsAt"
           label="Starts"
@@ -154,7 +154,7 @@ export function EventSettingsForm(props: {
   const [state, action] = useActionState(updateEventSettingsAction, initialFormState);
   const d = props.defaults;
   return (
-    <form action={action} noValidate>
+    <form action={action} className="form" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="organizationId" value={props.organizationId} />
       <input type="hidden" name="eventId" value={props.eventId} />
@@ -168,8 +168,8 @@ export function EventSettingsForm(props: {
         options={VISIBILITY}
         defaultValue={d.visibility}
       />
-      <fieldset>
-        <legend>Sharing</legend>
+      <fieldset className="fieldset">
+        <legend className="fieldset__legend">Sharing</legend>
         <Field
           name="title"
           label="Sharing title"
@@ -187,8 +187,8 @@ export function EventSettingsForm(props: {
           hint="Up to 200 characters."
         />
       </fieldset>
-      <fieldset>
-        <legend>Legal</legend>
+      <fieldset className="fieldset">
+        <legend className="fieldset__legend">Legal</legend>
         <Field
           name="privacyPolicyUrl"
           label="Privacy policy URL"
@@ -207,9 +207,9 @@ export function EventSettingsForm(props: {
           placeholder="https://"
         />
       </fieldset>
-      <fieldset>
-        <legend>Contact</legend>
-        <div className="row">
+      <fieldset className="fieldset">
+        <legend className="fieldset__legend">Contact</legend>
+        <div className="form__row">
           <Field
             name="email"
             label="Contact email"
@@ -227,9 +227,9 @@ export function EventSettingsForm(props: {
           />
         </div>
       </fieldset>
-      <fieldset>
-        <legend>Registration</legend>
-        <div className="row">
+      <fieldset className="fieldset">
+        <legend className="fieldset__legend">Registration</legend>
+        <div className="form__row">
           <Field
             name="opensAt"
             label="Opens"
@@ -256,7 +256,9 @@ export function EventSettingsForm(props: {
           />
         </div>
       </fieldset>
-      <SubmitButton pendingLabel="Saving…">Save settings</SubmitButton>
+      <div className="form__actions">
+        <SubmitButton pendingLabel="Saving…">Save settings</SubmitButton>
+      </div>
     </form>
   );
 }
@@ -271,12 +273,14 @@ export interface TransitionProps {
   /** Incomplete recommended items that must be acknowledged (scheduling only). */
   warnings?: Array<{ id: string; message: string }>;
   tone?: 'primary' | 'secondary' | 'danger';
+  /** What the transition does, shown beside the button. */
+  description?: string;
 }
 
 export function TransitionForm(props: TransitionProps) {
   const [state, action] = useActionState(transitionEventAction, initialFormState);
   return (
-    <form action={action} className="card">
+    <form action={action} className="form">
       <FormMessage state={state} />
       <input type="hidden" name="organizationId" value={props.organizationId} />
       <input type="hidden" name="eventId" value={props.eventId} />
@@ -284,22 +288,25 @@ export function TransitionForm(props: TransitionProps) {
       <input type="hidden" name="to" value={props.to} />
       <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
       {props.warnings && props.warnings.length > 0 ? (
-        <fieldset>
-          <legend>Recommended items you are skipping</legend>
+        <fieldset className="fieldset">
+          <legend className="fieldset__legend">Recommended items you are skipping</legend>
           {props.warnings.map((w) => (
-            <label key={w.id} className="checkbox-row">
+            <label key={w.id} className="checkbox">
               <input type="checkbox" name="acknowledgedWarnings" value={w.id} required />
               <span>{w.message}</span>
             </label>
           ))}
         </fieldset>
       ) : null}
-      <SubmitButton
-        className={props.tone === 'primary' ? undefined : props.tone}
-        pendingLabel="Updating…"
-      >
-        {props.label}
-      </SubmitButton>
+      <div className="form__actions">
+        <SubmitButton
+          variant={props.tone === 'danger' ? 'danger-secondary' : props.tone}
+          pendingLabel="Updating…"
+        >
+          {props.label}
+        </SubmitButton>
+        {props.description ? <span className="field__hint">{props.description}</span> : null}
+      </div>
     </form>
   );
 }
@@ -315,7 +322,7 @@ export function OrganizationProfileForm(props: {
   const [state, action] = useActionState(updateOrganizationProfileAction, initialFormState);
   const d = props.defaults;
   return (
-    <form action={action} noValidate>
+    <form action={action} className="form" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="organizationId" value={props.organizationId} />
       <input type="hidden" name="expectedVersion" value={props.version} />
@@ -336,7 +343,7 @@ export function OrganizationProfileForm(props: {
         maxLength={300}
         hint="The registered company name, if different. Leave empty to remove."
       />
-      <div className="row">
+      <div className="form__row">
         <Field
           name="locale"
           label="Language"
@@ -373,7 +380,7 @@ export function BillingContactForm(props: {
 }) {
   const [state, action] = useActionState(updateBillingContactAction, initialFormState);
   return (
-    <form action={action} noValidate>
+    <form action={action} className="form" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="organizationId" value={props.organizationId} />
       <input type="hidden" name="expectedVersion" value={props.version} />

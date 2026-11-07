@@ -13,11 +13,14 @@ import {
 } from '@/app/actions/auth';
 import { initialFormState } from '@/lib/errors';
 import { Field, FormMessage, SubmitButton } from './form';
+import { ButtonLink } from './ui/button';
+import { Spinner } from './ui/loading';
+import { Notice } from './ui/notice';
 
 export function LoginForm({ next }: { next: string }) {
   const [state, action] = useActionState(loginAction, initialFormState);
   return (
-    <form action={action} noValidate>
+    <form action={action} className="form" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="next" value={next} />
       <Field name="email" label="Email" type="email" state={state} autoComplete="email" required />
@@ -29,11 +32,13 @@ export function LoginForm({ next }: { next: string }) {
         autoComplete="current-password"
         required
       />
-      <p className="hint">
+      <p className="field__hint">
         <Link href="/forgot-password">Forgot your password?</Link>
       </p>
-      <div className="actions">
-        <SubmitButton pendingLabel="Signing in…">Sign in</SubmitButton>
+      <div className="form__actions">
+        <SubmitButton block pendingLabel="Signing in…">
+          Sign in
+        </SubmitButton>
         <Link href={`/signup${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`}>
           Create an account
         </Link>
@@ -46,16 +51,16 @@ export function SignupForm() {
   const [state, action] = useActionState(signupAction, initialFormState);
   if (state.ok) {
     return (
-      <div className="stack">
+      <div className="stack-sm">
         <FormMessage state={state} />
-        <p className="muted">
+        <p className="text-secondary">
           No email after a few minutes? <Link href="/login">Sign in</Link> and request a new link.
         </p>
       </div>
     );
   }
   return (
-    <form action={action} noValidate>
+    <form action={action} className="form" noValidate>
       <FormMessage state={state} />
       <Field name="email" label="Email" type="email" state={state} autoComplete="email" required />
       <Field
@@ -67,8 +72,10 @@ export function SignupForm() {
         hint="At least 12 characters. A passphrase of several words works well."
         required
       />
-      <div className="actions">
-        <SubmitButton pendingLabel="Creating account…">Create account</SubmitButton>
+      <div className="form__actions">
+        <SubmitButton block pendingLabel="Creating account…">
+          Create account
+        </SubmitButton>
         <Link href="/login">I already have an account</Link>
       </div>
     </form>
@@ -91,38 +98,34 @@ function useFragmentToken(): string | null | undefined {
 export function VerifyEmail() {
   const token = useFragmentToken();
   const [state, action] = useActionState(verifyEmailAction, initialFormState);
-  if (token === undefined) return <p>Checking your link…</p>;
+  if (token === undefined) return <Spinner label="Checking your link…" />;
   if (token === null && !state.message) {
     return (
-      <div className="message error" role="alert">
+      <Notice tone="danger">
         This verification link is incomplete. Open the link from your email again.
-      </div>
+      </Notice>
     );
   }
   if (state.ok) {
     return (
       <>
         <FormMessage state={state} />
-        <Link className="button" href="/login">
-          Sign in
-        </Link>
+        <ButtonLink href="/login">Sign in</ButtonLink>
       </>
     );
   }
   if (state.ok === false) {
     // A used or expired link cannot be retried; the way forward is a new one.
     return (
-      <div className="stack">
+      <div className="stack-sm">
         <FormMessage state={state} />
         <p>Verification links work once and expire after a day.</p>
-        <Link className="button" href="/">
-          Get a new verification link
-        </Link>
+        <ButtonLink href="/">Get a new verification link</ButtonLink>
       </div>
     );
   }
   return (
-    <form action={action}>
+    <form action={action} className="form">
       <FormMessage state={state} />
       <input type="hidden" name="token" value={token ?? ''} />
       <p>Confirm that this email address belongs to you.</p>
@@ -136,10 +139,10 @@ export function ResendVerificationForm({ idempotencyKey }: { idempotencyKey: str
   const [state, action] = useActionState(resendVerificationAction, initialFormState);
   if (state.ok) return <FormMessage state={state} />;
   return (
-    <form action={action}>
+    <form action={action} className="form">
       <FormMessage state={state} />
       <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
-      <SubmitButton className="secondary" pendingLabel="Sending…">
+      <SubmitButton variant="secondary" pendingLabel="Sending…">
         Send a new verification email
       </SubmitButton>
     </form>
@@ -170,33 +173,31 @@ export function AcceptInvitation({ signedIn }: { signedIn: boolean }) {
     setToken(t);
   }, [fragment, signedIn]);
 
-  if (token === undefined) return <p>Checking your invitation…</p>;
+  if (token === undefined) return <Spinner label="Checking your invitation…" />;
   if (!token)
     return (
-      <div className="message error" role="alert">
+      <Notice tone="danger">
         This invitation link is incomplete. Open the link from your email again.
-      </div>
+      </Notice>
     );
   if (!signedIn) {
     return (
-      <div className="stack">
+      <div className="stack-sm">
         <p>
           Sign in with the email address the invitation was sent to. New to EventHub OS? Create an
           account with that address first.
         </p>
-        <div className="actions">
-          <Link className="button" href="/login?next=%2Faccept-invitation">
-            Sign in
-          </Link>
-          <Link className="button secondary" href="/signup?next=%2Faccept-invitation">
+        <div className="form__actions">
+          <ButtonLink href="/login?next=%2Faccept-invitation">Sign in</ButtonLink>
+          <ButtonLink variant="secondary" href="/signup?next=%2Faccept-invitation">
             Create an account
-          </Link>
+          </ButtonLink>
         </div>
       </div>
     );
   }
   return (
-    <form action={action}>
+    <form action={action} className="form">
       <FormMessage state={state} />
       <input type="hidden" name="token" value={token} />
       <SubmitButton pendingLabel="Joining…">Accept invitation</SubmitButton>
@@ -208,20 +209,20 @@ export function ForgotPasswordForm() {
   const [state, action] = useActionState(requestPasswordResetAction, initialFormState);
   if (state.ok) {
     return (
-      <div className="stack">
+      <div className="stack-sm">
         <FormMessage state={state} />
         <Link href="/login">Back to sign in</Link>
       </div>
     );
   }
   return (
-    <form action={action} noValidate>
+    <form action={action} className="form" noValidate>
       <FormMessage state={state} />
       <p>
         Enter the email address you sign in with. We will send you a link to choose a new password.
       </p>
       <Field name="email" label="Email" type="email" state={state} autoComplete="email" required />
-      <div className="actions">
+      <div className="form__actions">
         <SubmitButton pendingLabel="Sending…">Send reset link</SubmitButton>
         <Link href="/login">Back to sign in</Link>
       </div>
@@ -232,37 +233,33 @@ export function ForgotPasswordForm() {
 export function ResetPasswordForm() {
   const token = useFragmentToken();
   const [state, action] = useActionState(completePasswordResetAction, initialFormState);
-  if (token === undefined) return <p>Checking your link…</p>;
+  if (token === undefined) return <Spinner label="Checking your link…" />;
   if (state.ok) {
     return (
-      <div className="stack">
+      <div className="stack-sm">
         <FormMessage state={state} />
-        <Link className="button" href="/login">
-          Sign in
-        </Link>
+        <ButtonLink href="/login">Sign in</ButtonLink>
       </div>
     );
   }
   if (!token || state.reason === 'invalid_or_expired_token') {
     // A broken, used or expired link cannot be retried; the way forward is a new one.
     return (
-      <div className="stack">
+      <div className="stack-sm">
         {token ? (
           <FormMessage state={state} />
         ) : (
-          <div className="message error" role="alert">
+          <Notice tone="danger">
             This reset link is incomplete. Open the link from your email again.
-          </div>
+          </Notice>
         )}
         <p>Reset links work once and expire after an hour.</p>
-        <Link className="button" href="/forgot-password">
-          Request a new link
-        </Link>
+        <ButtonLink href="/forgot-password">Request a new link</ButtonLink>
       </div>
     );
   }
   return (
-    <form action={action} noValidate>
+    <form action={action} className="form" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="token" value={token} />
       <Field

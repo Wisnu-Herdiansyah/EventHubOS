@@ -173,6 +173,8 @@ try {
       ADMIN_API_URL: apiUrl,
       // Tests send X-Forwarded-For the way a load balancer would (see e2e/support.ts).
       ADMIN_TRUSTED_PROXY_HOPS: '1',
+      // The design-system spec checks every component in the gallery (ADR-0019).
+      ADMIN_DESIGN_GALLERY: '1',
     },
     adminDir,
   );

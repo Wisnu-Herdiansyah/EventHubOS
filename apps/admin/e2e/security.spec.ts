@@ -1,8 +1,8 @@
 import { expect } from '@playwright/test';
 import {
-  PASSWORD,
   createEventViaApi,
   createOrgViaApi,
+  PASSWORD,
   signIn,
   test,
   verifiedAccount,
@@ -124,7 +124,9 @@ test.describe('access control', () => {
     await page.route('**/*', (route) =>
       route.request().headers()['next-action'] ? route.abort() : route.continue(),
     );
-    await page.getByRole('button', { name: 'Sign out' }).click();
+    // Sign out from the account menu; the aborted request never navigates.
+    await page.getByRole('button', { name: /account menu$/ }).click();
+    await page.getByRole('menuitem', { name: 'Sign out' }).click();
     await expect.poll(() => actionId).not.toBe('');
 
     const session = cookies.find((c) => c.name === '__Host-eventhub_session');

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, type ReactNode } from 'react';
+import { useActionState } from 'react';
 import {
   changeMemberRoleAction,
   inviteMemberAction,
@@ -9,6 +9,7 @@ import {
 } from '@/app/actions/team';
 import { initialFormState } from '@/lib/errors';
 import { Field, FormMessage, Select, SubmitButton } from './form';
+import { Dialog, DialogCancel } from './ui/dialog';
 
 type Option = { value: string; label: string };
 
@@ -20,7 +21,7 @@ export function InviteMemberForm(props: {
   const [state, action] = useActionState(inviteMemberAction, initialFormState);
   const fallbackRole = props.roles.at(-1)?.value;
   return (
-    <form action={action} noValidate>
+    <form action={action} className="form" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="organizationId" value={props.organizationId} />
       <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
@@ -57,7 +58,7 @@ export function MemberRoleForm(props: {
 }) {
   const [state, action] = useActionState(changeMemberRoleAction, initialFormState);
   return (
-    <form action={action} className="inline-form" noValidate>
+    <form action={action} className="form form--inline" noValidate>
       <FormMessage state={state} />
       <input type="hidden" name="organizationId" value={props.organizationId} />
       <input type="hidden" name="membershipId" value={props.membershipId} />
@@ -66,24 +67,15 @@ export function MemberRoleForm(props: {
         id={`role-${props.membershipId}`}
         name="role"
         label={`Role for ${props.email}`}
+        hideLabel
         state={state}
         options={props.roles}
         defaultValue={props.role}
       />
-      <SubmitButton className="secondary" pendingLabel="Saving…">
+      <SubmitButton variant="secondary" pendingLabel="Saving…">
         Change role
       </SubmitButton>
     </form>
-  );
-}
-
-/** Destructive actions sit behind a disclosure so a single click cannot trigger them. */
-function ConfirmDisclosure(props: { summary: string; children: ReactNode }) {
-  return (
-    <details className="confirm">
-      <summary>{props.summary}</summary>
-      <div className="confirm-body">{props.children}</div>
-    </details>
   );
 }
 
@@ -97,23 +89,41 @@ export function RemoveMemberForm(props: {
   const [state, action] = useActionState(removeMemberAction, initialFormState);
   const label = props.isSelf ? 'Leave organization' : `Remove ${props.email}`;
   return (
-    <ConfirmDisclosure summary={props.isSelf ? 'Leave…' : 'Remove…'}>
-      <form action={action}>
+    <Dialog
+      trigger={{
+        label: props.isSelf ? (
+          <>
+            Leave<span className="visually-hidden"> organization</span>…
+          </>
+        ) : (
+          <>
+            Remove<span className="visually-hidden"> {props.email}</span>…
+          </>
+        ),
+        variant: 'danger-secondary',
+        size: 'sm',
+      }}
+      title={props.isSelf ? 'Leave this organization?' : `Remove ${props.email}?`}
+      description={
+        props.isSelf
+          ? 'You will lose access to this organization immediately.'
+          : 'They lose access immediately. Their past actions stay in the audit log.'
+      }
+    >
+      <form action={action} className="form">
         <FormMessage state={state} />
         <input type="hidden" name="organizationId" value={props.organizationId} />
         <input type="hidden" name="membershipId" value={props.membershipId} />
         <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
         {props.isSelf ? <input type="hidden" name="self" value="1" /> : null}
-        <p>
-          {props.isSelf
-            ? 'You will lose access to this organization immediately.'
-            : `${props.email} will lose access immediately. Their past actions stay in the audit log.`}
-        </p>
-        <SubmitButton className="danger" pendingLabel="Removing…">
-          {label}
-        </SubmitButton>
+        <div className="form__actions form__actions--end">
+          <DialogCancel />
+          <SubmitButton variant="danger" pendingLabel="Removing…">
+            {label}
+          </SubmitButton>
+        </div>
       </form>
-    </ConfirmDisclosure>
+    </Dialog>
   );
 }
 
@@ -125,17 +135,31 @@ export function RevokeInvitationForm(props: {
 }) {
   const [state, action] = useActionState(revokeInvitationAction, initialFormState);
   return (
-    <ConfirmDisclosure summary="Revoke…">
-      <form action={action}>
+    <Dialog
+      trigger={{
+        label: (
+          <>
+            Revoke<span className="visually-hidden"> invitation for {props.email}</span>…
+          </>
+        ),
+        variant: 'danger-secondary',
+        size: 'sm',
+      }}
+      title="Revoke this invitation?"
+      description={`The invitation link sent to ${props.email} stops working immediately.`}
+    >
+      <form action={action} className="form">
         <FormMessage state={state} />
         <input type="hidden" name="organizationId" value={props.organizationId} />
         <input type="hidden" name="invitationId" value={props.invitationId} />
         <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
-        <p>The invitation link sent to {props.email} stops working immediately.</p>
-        <SubmitButton className="danger" pendingLabel="Revoking…">
-          {`Revoke invitation for ${props.email}`}
-        </SubmitButton>
+        <div className="form__actions form__actions--end">
+          <DialogCancel />
+          <SubmitButton variant="danger" pendingLabel="Revoking…">
+            {`Revoke invitation for ${props.email}`}
+          </SubmitButton>
+        </div>
       </form>
-    </ConfirmDisclosure>
+    </Dialog>
   );
 }

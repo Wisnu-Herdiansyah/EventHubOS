@@ -14,11 +14,22 @@ const schema = z.object({
    * real client IP from X-Forwarded-For; 0 means none, and no client IP is forwarded to the API.
    */
   ADMIN_TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+  /**
+   * Serves the component gallery at /design-system. On by default outside production builds;
+   * set to 1 to show it in a production build (e.g. the e2e harness), 0 to hide it anywhere.
+   */
+  ADMIN_DESIGN_GALLERY: z.enum(['0', '1']).optional(),
 });
 
 export interface AdminConfig {
   apiUrl: string;
   trustedProxyHops: number;
+  designGallery: boolean;
+}
+
+/** The gallery is on in development unless switched off, and off in production unless on. */
+export function galleryEnabled(flag: '0' | '1' | undefined, nodeEnv: string | undefined): boolean {
+  return flag === undefined ? nodeEnv !== 'production' : flag === '1';
 }
 
 let cached: AdminConfig | null = null;
@@ -33,6 +44,7 @@ export function adminConfig(): AdminConfig {
   cached = {
     apiUrl: parsed.data.ADMIN_API_URL.replace(/\/+$/, ''),
     trustedProxyHops: parsed.data.ADMIN_TRUSTED_PROXY_HOPS,
+    designGallery: galleryEnabled(parsed.data.ADMIN_DESIGN_GALLERY, process.env.NODE_ENV),
   };
   return cached;
 }

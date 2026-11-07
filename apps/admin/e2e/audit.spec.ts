@@ -6,6 +6,7 @@ import {
   joinAs,
   patchOrgViaApi,
   signIn,
+  signOut,
   test,
   verifiedAccount,
 } from './support';
@@ -26,7 +27,10 @@ test('an Owner reads activity in plain language and narrows it down', async ({ p
   await patchOrgViaApi(owner.token, orgId, { displayName: 'Audit Org Renamed' });
 
   await signIn(page, owner.email);
-  await page.getByRole('link', { name: 'Audit Org Renamed', exact: true }).click();
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: 'Audit Org Renamed', exact: true })
+    .click();
   await page.getByRole('link', { name: 'Audit log', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Audit log' })).toBeVisible();
 
@@ -60,7 +64,7 @@ test('an Owner reads activity in plain language and narrows it down', async ({ p
   await page.getByRole('link', { name: 'Clear filters' }).click();
   await page.getByLabel('To').fill('2020-01-01');
   await applyFilters(page);
-  await expect(page.getByText('No activity matches these filters.')).toBeVisible();
+  await expect(page.getByText('No activity matches these filters')).toBeVisible();
 
   // One object's history, from the event page.
   await page.goto(`/orgs/${orgId}/events/${eventId}`);
@@ -107,10 +111,10 @@ test('only Owners and Admins can read the audit log', async ({ page }) => {
   await signIn(page, admin.email);
   await page.goto(`/orgs/${orgId}/audit`);
   await expect(page.getByText('Created the organization')).toBeVisible();
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
 
   await signIn(page, manager.email);
-  await page.getByRole('link', { name: 'Audit Roles Org', exact: true }).click();
+  await page.getByRole('main').getByRole('link', { name: 'Audit Roles Org', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Audit Roles Org' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Audit log', exact: true })).toHaveCount(0);
   await page.goto(`/orgs/${orgId}/audit`);

@@ -80,7 +80,13 @@ export async function changeMemberRoleAction(_prev: FormState, form: FormData): 
       }),
     );
     revalidatePath(teamPath(organizationId));
-    return { ok: true, message: `Role updated for ${member.email}.` };
+    // The saved role refills the picker: React resets the form after the action, before the
+    // revalidated page arrives, which would otherwise show the old role for a moment.
+    return {
+      ok: true,
+      message: `Role updated for ${member.email}.`,
+      values: { role: member.role },
+    };
   } catch (error) {
     return { ...errorToFormState(error), values: submittedValues(form) };
   }

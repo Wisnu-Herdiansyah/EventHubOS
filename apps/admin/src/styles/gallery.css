@@ -1,0 +1,100 @@
+/* Component gallery (/design-system) only. */
+.swatches {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 11rem), 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.swatch {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+}
+
+.swatch__chip {
+  height: 3rem;
+  border-radius: var(--radius-md);
+  border: var(--border-width) solid var(--color-divider);
+}
+
+.swatch__chip--bg {
+  background: var(--color-bg);
+}
+.swatch__chip--surface {
+  background: var(--color-surface);
+}
+.swatch__chip--text {
+  background: var(--color-text);
+}
+.swatch__chip--text-secondary {
+  background: var(--color-text-secondary);
+}
+.swatch__chip--accent {
+  background: var(--color-accent);
+}
+.swatch__chip--success {
+  background: var(--color-success);
+}
+.swatch__chip--warning {
+  background: var(--color-warning);
+}
+.swatch__chip--danger {
+  background: var(--color-danger);
+}
+.swatch__chip--divider {
+  background: var(--color-divider);
+}
+.swatch__chip--accent-fill {
+  background: var(--color-accent-fill);
+}
+
+.type-scale {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.type-scale__xs {
+  font-size: var(--text-xs);
+}
+.type-scale__sm {
+  font-size: var(--text-sm);
+}
+.type-scale__md {
+  font-size: var(--text-md);
+}
+.type-scale__lg {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+.type-scale__xl {
+  font-size: var(--text-xl);
+  font-weight: var(--weight-semibold);
+}
+.type-scale__2xl {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+}
+.type-scale__3xl {
+  font-size: var(--text-3xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+}
+
+.gallery-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.gallery-demo {
+  border: var(--border-width) dashed var(--color-divider);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}

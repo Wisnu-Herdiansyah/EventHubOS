@@ -22,6 +22,10 @@ Phase 0 (foundation) plus Phase 1 slices:
   invited address, revocation, member listing, role changes, and removal with a last-Owner guard.
 - **Organization settings** (ADR-0012): profile and billing contact with per-field permissions.
 - **Audit log** (ADR-0013): filterable, paginated history of who changed what, for Owners and Admins.
+- **Design system** (ADR-0019): Apple-inspired tokens with light and dark modes, a shared
+  component library, a collapsible sidebar shell, and builder and microsite patterns. Guide:
+  [docs/design/design-system.md](docs/design/design-system.md); live gallery at `/design-system`
+  in development.
 - **Delivery** (ADR-0008, ADR-0009): Resend email through the PostgreSQL outbox broker.
 - **Admin web app** (ADR-0014): Next.js backend-for-frontend with sign-up, verification (and resend), sign-in,
   invitation acceptance, organizations, team management (invite, revoke, change roles, remove), organization settings, the audit log,

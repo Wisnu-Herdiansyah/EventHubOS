@@ -1,5 +1,13 @@
 import { expect } from '@playwright/test';
-import { PASSWORD, expectAccessible, mailLink, signIn, test, uniqueEmail } from './support';
+import {
+  expectAccessible,
+  mailLink,
+  PASSWORD,
+  signIn,
+  signOut,
+  test,
+  uniqueEmail,
+} from './support';
 
 test('an organizer signs up, verifies, creates an organization and runs an event lifecycle', async ({
   page,
@@ -53,20 +61,30 @@ test('an organizer signs up, verifies, creates an organization and runs an event
   await page.getByRole('button', { name: 'Create event' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Jakarta Summit 2027' })).toBeVisible();
   // Times entered in the event time zone (Asia/Jakarta, UTC+7) are shown back unchanged.
-  await expect(page.getByText(/1 Mar 2027.*09:00|Mar 1, 2027.*09:00/)).toBeVisible();
+  await expect(
+    page.getByRole('region', { name: 'Details' }).getByText(/1 Mar 2027.*09:00|Mar 1, 2027.*09:00/),
+  ).toBeVisible();
   await expect(page.getByText('Draft', { exact: true })).toBeVisible();
   await expect(page.getByText('Complete the required checklist items')).toBeVisible();
   await expectAccessible(page);
 
   // Settings: sharing text and a privacy policy are required before scheduling.
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  await expect(page).toHaveURL(/#settings$/);
   await page.getByLabel('Sharing title').fill('Jakarta Summit 2027');
   await page.getByLabel('Sharing description').fill('Two days of operations and branding.');
   await page.getByLabel('Privacy policy URL').fill('https://example.com/privacy');
   await page.getByRole('button', { name: 'Save settings' }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Settings saved.' })).toBeVisible();
 
-  // Scheduling asks the organizer to acknowledge each skipped recommendation.
+  // Scheduling asks the organizer to acknowledge each skipped recommendation. The tab survives
+  // a reload (it is in the URL fragment).
   await page.reload();
+  await expect(page.getByRole('tab', { name: 'Settings' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  );
+  await page.getByRole('tab', { name: 'Overview' }).click();
   const schedule = page.getByRole('button', { name: 'Schedule event' });
   await expect(schedule).toBeVisible();
   const acknowledgements = page.getByRole('checkbox');
@@ -82,7 +100,7 @@ test('an organizer signs up, verifies, creates an organization and runs an event
   await expect(page.getByText('Draft', { exact: true })).toBeVisible();
 
   // Sign out ends the session; protected pages send the visitor to sign in.
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await signOut(page);
   await expect(page).toHaveURL(/\/login$/);
   await page.goto('/');
   await expect(page).toHaveURL(/\/login/);

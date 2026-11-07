@@ -1,0 +1,72 @@
+/*
+ * Public microsite tokens. Deliberately separate from the admin tokens: each event brings its own
+ * identity, so the platform's look never constrains a client's. A microsite reads only --site-*
+ * variables; a brand sets them. These presets stand in for per-event themes until the page
+ * builder stores validated brand colours (checked for contrast in src/styles/tokens.test.ts).
+ */
+.site {
+  color-scheme: light;
+  --site-bg: #ffffff;
+  --site-surface: #f5f5f7;
+  --site-text: #1d1d1f;
+  --site-text-secondary: #5e5e66;
+  --site-brand: #0058b0;
+  --site-on-brand: #ffffff;
+  --site-brand-soft: #e5f0ff;
+  --site-hero-from: #0058b0;
+  --site-hero-to: #002a5c;
+  --site-on-hero: #ffffff;
+  --site-divider: #e5e5ea;
+  --site-radius: 18px;
+  --site-font-display: var(--font-display);
+  --site-font-body: var(--font-sans);
+}
+
+/* Navy and gold, with a serif display face. */
+.site[data-brand='navy-gold'] {
+  --site-bg: #fbf8f3;
+  --site-surface: #f2ebdf;
+  --site-text: #1b2a4a;
+  --site-text-secondary: #4a5672;
+  --site-brand: #1b2a4a;
+  --site-on-brand: #ffffff;
+  --site-brand-soft: #efe4cf;
+  --site-hero-from: #1b2a4a;
+  --site-hero-to: #2c3e63;
+  --site-on-hero: #ffffff;
+  --site-divider: #e3d9c8;
+  --site-radius: 6px;
+  --site-font-display: 'Playfair Display', 'Didot', 'Bodoni MT', Georgia, serif;
+}
+
+/* Deep green, rounded and friendly. */
+.site[data-brand='forest'] {
+  --site-bg: #ffffff;
+  --site-surface: #eef5f1;
+  --site-text: #12261d;
+  --site-text-secondary: #4b5f55;
+  --site-brand: #1f6b4a;
+  --site-on-brand: #ffffff;
+  --site-brand-soft: #dcefe5;
+  --site-hero-from: #1f6b4a;
+  --site-hero-to: #0f3d2a;
+  --site-on-hero: #ffffff;
+  --site-divider: #d7e5dd;
+  --site-radius: 24px;
+}
+
+/* Bold red on near-black. */
+.site[data-brand='ember'] {
+  --site-bg: #ffffff;
+  --site-surface: #f7f2f1;
+  --site-text: #1f1414;
+  --site-text-secondary: #5f4d4b;
+  --site-brand: #b3261e;
+  --site-on-brand: #ffffff;
+  --site-brand-soft: #fbe3e0;
+  --site-hero-from: #1f1414;
+  --site-hero-to: #3a1d1a;
+  --site-on-hero: #ffffff;
+  --site-divider: #eadedc;
+  --site-radius: 0px;
+}

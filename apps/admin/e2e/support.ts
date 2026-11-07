@@ -157,6 +157,12 @@ export async function expectAccessible(page: Page): Promise<void> {
   // Next.js streams page metadata, so the <title> can land just after the content. Every page
   // must end up with a proper title; wait for it before scanning.
   await expect(page).toHaveTitle(/\S.* · EventHub OS$|^EventHub OS$/);
+  // Let opening transitions (dialogs, drawers) finish: mid-fade colours are not the real ones.
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity),
+  );
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();
@@ -243,4 +249,11 @@ export async function lastActiveMinutesAgo(email: string, minutes: number): Prom
   } finally {
     await client.end();
   }
+}
+
+/** Signs out from the account menu in the top bar. */
+export async function signOut(page: Page): Promise<void> {
+  await page.getByRole('button', { name: /account menu$/ }).click();
+  await page.getByRole('menuitem', { name: 'Sign out' }).click();
+  await page.waitForURL((url) => url.pathname === '/login');
 }
