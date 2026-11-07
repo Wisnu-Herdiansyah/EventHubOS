@@ -13,6 +13,7 @@ export interface DialogTriggerProps {
   variant?: ButtonVariant;
   size?: ButtonSize;
   icon?: IconName;
+  disabled?: boolean;
 }
 
 /**
@@ -42,6 +43,7 @@ export function Dialog({
         type="button"
         className={buttonClass({ variant: trigger.variant, size: trigger.size })}
         aria-haspopup="dialog"
+        disabled={trigger.disabled}
         onClick={() => ref.current?.showModal()}
       >
         {trigger.icon ? <Icon name={trigger.icon} size={18} /> : null}

@@ -40,3 +40,16 @@ export function move<T>(list: T[], from: number, delta: number): T[] {
   copy.splice(to, 0, item!);
   return copy;
 }
+
+/**
+ * Typing changes the present without adding undo steps; `checkpoint` then records the state from
+ * before the edit (on blur), so one field edit is one undo step.
+ */
+export function replacePresent<T>(h: History<T>, next: T): History<T> {
+  return Object.is(next, h.present) ? h : { ...h, present: next };
+}
+
+export function checkpoint<T>(h: History<T>, before: T): History<T> {
+  if (Object.is(before, h.present)) return h;
+  return { past: [...h.past, before].slice(-HISTORY_LIMIT), present: h.present, future: [] };
+}

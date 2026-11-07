@@ -98,6 +98,16 @@ export function describeAuditEvent(
           : [],
       };
     }
+    case 'event.page_draft_saved':
+      return {
+        summary: `Saved the microsite draft of ${event}`,
+        details: typeof m.draftVersion === 'number' ? [`Draft version ${m.draftVersion}.`] : [],
+      };
+    case 'event.page_published':
+      return {
+        summary: `Published the microsite of ${event}`,
+        details: typeof m.revision === 'number' ? [`Revision ${m.revision}.`] : [],
+      };
     case 'membership.invited':
       return {
         summary: `Invited ${typeof m.email === 'string' ? m.email : 'someone'} as ${role(m.role)}`,

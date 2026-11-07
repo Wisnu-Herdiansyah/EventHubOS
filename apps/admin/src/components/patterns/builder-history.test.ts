@@ -36,3 +36,19 @@ describe('move', () => {
     expect(move(list, 5, 1)).toBe(list);
   });
 });
+
+describe('field edits', () => {
+  it('records one undo step per edited field, however many keystrokes', async () => {
+    const { checkpoint, replacePresent } = await import('./builder-history');
+    let h = initHistory('a');
+    const before = h.present;
+    h = replacePresent(h, 'ab');
+    h = replacePresent(h, 'abc');
+    expect(h.past).toEqual([]);
+    h = checkpoint(h, before);
+    expect(h.past).toEqual(['a']);
+    expect(undo(h).present).toBe('a');
+    // Focusing and leaving without a change adds nothing.
+    expect(checkpoint(h, h.present)).toBe(h);
+  });
+});

@@ -1,78 +1,59 @@
+import type { Section } from '@/lib/page-editor';
+
 /**
- * Public microsite section renderers (preview only). Each section type has a typed, versioned
- * shape; nothing here renders tenant-supplied HTML or script. The page builder will store these
- * as validated section instances (see docs/design/design-system.md, "Builder").
+ * Public microsite section renderers. Every field is rendered as a text node, so content can
+ * never become markup or script (ADR-0020). Used by the editor preview and the gallery; public
+ * pages will render published revisions with the same components.
  */
-export type SectionType = 'hero' | 'about' | 'agenda' | 'speakers' | 'register';
-
-export interface SectionInstance {
-  id: string;
-  type: SectionType;
-  version: 1;
-  visible: boolean;
-  heading: string;
-  body: string;
-}
-
-export const SECTION_LABELS: Record<SectionType, string> = {
-  hero: 'Hero',
-  about: 'About',
-  agenda: 'Agenda',
-  speakers: 'Speakers',
-  register: 'Registration',
-};
-
-const AGENDA = [
-  { time: '09:00', title: 'Doors open and coffee' },
-  { time: '09:30', title: 'Opening keynote' },
-  { time: '11:00', title: 'Operations at scale: a panel' },
-  { time: '13:00', title: 'Lunch' },
-  { time: '14:00', title: 'Workshops' },
-];
-
-const SPEAKERS = [
-  { name: 'Speaker One', role: 'Head of Operations' },
-  { name: 'Speaker Two', role: 'Brand Director' },
-  { name: 'Speaker Three', role: 'Founder' },
-  { name: 'Speaker Four', role: 'Programme Lead' },
-];
-
 function initials(name: string) {
-  return name
-    .split(' ')
-    .map((w) => w[0])
-    .join('')
-    .slice(0, 2);
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => Array.from(w)[0])
+      .join('')
+      .toUpperCase() || '?'
+  );
 }
 
-export function SiteSection({
-  section,
-  selected,
-}: {
-  section: SectionInstance;
-  selected?: boolean;
-}) {
+/** Paragraphs from plain text: blank lines separate them. */
+function Paragraphs({ text, className }: { text: string; className: string }) {
+  const parts = text.split(/\n{2,}/).filter((p) => p.trim());
+  return (
+    <>
+      {parts.map((p, i) => (
+        <p key={i} className={className}>
+          {p}
+        </p>
+      ))}
+    </>
+  );
+}
+
+export function SiteSection({ section, selected }: { section: Section; selected?: boolean }) {
   const mark = selected ? { 'data-selected-section': '' } : {};
   switch (section.type) {
     case 'hero':
       return (
         <section className="site-hero" {...mark} aria-label={section.heading}>
           <span className="site-hero__image-note">Event image</span>
-          <p className="site-hero__eyebrow">12–13 March · Jakarta</p>
           <h2 className="site-hero__title">{section.heading}</h2>
-          <p className="site-hero__lede">{section.body}</p>
-          <div>
-            <a className="site-cta site-cta--on-hero" href="#register">
-              Register now
-            </a>
-          </div>
+          <Paragraphs text={section.body} className="site-hero__lede" />
+          {section.ctaLabel ? (
+            <div>
+              <a className="site-cta site-cta--on-hero" href="#register">
+                {section.ctaLabel}
+              </a>
+            </div>
+          ) : null}
         </section>
       );
-    case 'about':
+    case 'text':
       return (
         <section className="site-section" {...mark} aria-label={section.heading}>
           <h2 className="site-section__title">{section.heading}</h2>
-          <p className="site-section__lede">{section.body}</p>
+          <Paragraphs text={section.body} className="site-section__lede" />
         </section>
       );
     case 'agenda':
@@ -83,31 +64,39 @@ export function SiteSection({
           aria-label={section.heading}
         >
           <h2 className="site-section__title">{section.heading}</h2>
-          <ol className="site-agenda">
-            {AGENDA.map((a) => (
-              <li key={a.time}>
-                <time>{a.time}</time>
-                <span>{a.title}</span>
-              </li>
-            ))}
-          </ol>
+          {section.items.length === 0 ? (
+            <p className="site-section__lede">The agenda will be announced soon.</p>
+          ) : (
+            <ol className="site-agenda">
+              {section.items.map((a, i) => (
+                <li key={i}>
+                  <time>{a.time}</time>
+                  <span>{a.title}</span>
+                </li>
+              ))}
+            </ol>
+          )}
         </section>
       );
     case 'speakers':
       return (
         <section className="site-section" {...mark} aria-label={section.heading}>
           <h2 className="site-section__title">{section.heading}</h2>
-          <ul className="site-speakers">
-            {SPEAKERS.map((s) => (
-              <li key={s.name} className="site-speaker">
-                <span className="site-speaker__photo" aria-hidden="true">
-                  {initials(s.name)}
-                </span>
-                <strong>{s.name}</strong>
-                <span className="site-speaker__role">{s.role}</span>
-              </li>
-            ))}
-          </ul>
+          {section.items.length === 0 ? (
+            <p className="site-section__lede">Speakers will be announced soon.</p>
+          ) : (
+            <ul className="site-speakers">
+              {section.items.map((s, i) => (
+                <li key={i} className="site-speaker">
+                  <span className="site-speaker__photo" aria-hidden="true">
+                    {initials(s.name)}
+                  </span>
+                  <strong>{s.name}</strong>
+                  {s.role ? <span className="site-speaker__role">{s.role}</span> : null}
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       );
     case 'register':
@@ -116,11 +105,13 @@ export function SiteSection({
           <div className="site-register">
             <div>
               <h2 className="site-section__title">{section.heading}</h2>
-              <p className="site-section__lede">{section.body}</p>
+              <Paragraphs text={section.body} className="site-section__lede" />
             </div>
-            <a className="site-cta" href="#register">
-              Register now
-            </a>
+            {section.ctaLabel ? (
+              <a className="site-cta" href="#register">
+                {section.ctaLabel}
+              </a>
+            ) : null}
           </div>
         </section>
       );
@@ -135,60 +126,82 @@ export function SitePreview({
 }: {
   brand?: string;
   name: string;
-  sections: SectionInstance[];
+  sections: Section[];
   selectedId?: string;
 }) {
+  const register = sections.find((s) => s.visible && s.type === 'register');
   return (
     <div className="site" data-brand={brand}>
       <header className="site-nav">
         <span className="site-nav__name">{name}</span>
-        <ul className="site-nav__links">
-          <li>
-            <a href="#register">Agenda</a>
-          </li>
-          <li>
-            <a href="#register">Speakers</a>
-          </li>
-        </ul>
-        <a className="site-cta" href="#register">
-          Register
-        </a>
+        {register && register.type === 'register' && register.ctaLabel ? (
+          <a className="site-cta" href="#register">
+            {register.ctaLabel}
+          </a>
+        ) : null}
       </header>
       {sections
         .filter((s) => s.visible)
         .map((s) => (
           <SiteSection key={s.id} section={s} selected={s.id === selectedId} />
         ))}
-      <footer className="site-footer">© 2027 {name}. Example content.</footer>
+      <footer className="site-footer">© {name}</footer>
     </div>
   );
 }
 
-export const SAMPLE_SECTIONS: SectionInstance[] = [
+export const SAMPLE_SECTIONS: Section[] = [
   {
-    id: 's-hero',
+    id: 'hero',
     type: 'hero',
     version: 1,
     visible: true,
     heading: 'Operations Summit 2027',
     body: 'Two days on running events with precision: systems, teams and the craft of hospitality.',
+    ctaLabel: 'Register now',
   },
   {
-    id: 's-about',
-    type: 'about',
+    id: 'about',
+    type: 'text',
     version: 1,
     visible: true,
     heading: 'Why attend',
     body: 'Practical sessions from teams who run hundreds of events a year, and time to meet them.',
   },
-  { id: 's-agenda', type: 'agenda', version: 1, visible: true, heading: 'Agenda', body: '' },
-  { id: 's-speakers', type: 'speakers', version: 1, visible: true, heading: 'Speakers', body: '' },
   {
-    id: 's-register',
+    id: 'agenda',
+    type: 'agenda',
+    version: 1,
+    visible: true,
+    heading: 'Agenda',
+    items: [
+      { time: '09:00', title: 'Doors open and coffee' },
+      { time: '09:30', title: 'Opening keynote' },
+      { time: '11:00', title: 'Operations at scale: a panel' },
+      { time: '13:00', title: 'Lunch' },
+      { time: '14:00', title: 'Workshops' },
+    ],
+  },
+  {
+    id: 'speakers',
+    type: 'speakers',
+    version: 1,
+    visible: true,
+    heading: 'Speakers',
+    items: [
+      { name: 'Speaker One', role: 'Head of Operations' },
+      { name: 'Speaker Two', role: 'Brand Director' },
+      { name: 'Speaker Three', role: 'Founder' },
+      { name: 'Speaker Four', role: 'Programme Lead' },
+    ],
+  },
+  {
+    id: 'register',
     type: 'register',
     version: 1,
     visible: true,
     heading: 'Save your seat',
     body: 'Places are limited. Registration closes on 1 March.',
+    ctaLabel: 'Register now',
   },
 ];

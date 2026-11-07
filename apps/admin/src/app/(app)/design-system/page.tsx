@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { BuilderPattern } from '@/components/patterns/builder';
+import { PageEditor } from '@/components/patterns/builder';
 import { ToastDemo } from '@/components/patterns/gallery-demos';
 import { SAMPLE_SECTIONS, SitePreview } from '@/components/patterns/microsite';
 import { Badge } from '@/components/ui/badge';
@@ -321,7 +321,7 @@ export default function DesignSystemPage() {
         <p className="text-secondary">
           Section navigator, live preview and configuration. Sample content; nothing is saved.
         </p>
-        <BuilderPattern initial={SAMPLE_SECTIONS} />
+        <PageEditor initialSections={SAMPLE_SECTIONS} eventName="Operations Summit" />
       </section>
 
       <section className="stack-sm" aria-labelledby="ds-microsites">
