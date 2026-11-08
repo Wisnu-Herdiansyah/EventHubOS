@@ -31,14 +31,16 @@ describe('OpenAPI contract', () => {
     }
   });
 
-  it('only pre-session identity flows are public', () => {
+  it('only pre-session identity flows and the public site are public', () => {
     const publicOps = routes()
       .filter((r) => r.auth === 'public')
       .map((r) => r.operationId)
       .sort();
     // Password reset is pre-session by nature: the user cannot sign in (ADR-0015).
+    // The public site reads published revisions only (ADR-0021).
     expect(publicOps).toEqual([
       'completePasswordReset',
+      'getPublicEventPage',
       'logIn',
       'requestPasswordReset',
       'signUp',

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { PageEditor } from '@/components/patterns/builder';
 import { ToastDemo } from '@/components/patterns/gallery-demos';
-import { SAMPLE_SECTIONS, SitePreview } from '@/components/patterns/microsite';
+import { SAMPLE_SECTIONS, SitePreview } from '@eventhub/microsite';
 import { Badge } from '@/components/ui/badge';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Card, Stat } from '@/components/ui/card';

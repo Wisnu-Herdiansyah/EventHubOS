@@ -41,6 +41,9 @@ importers:
       '@eventhub/kernel':
         specifier: workspace:*
         version: link:../../packages/kernel
+      '@eventhub/microsite':
+        specifier: workspace:*
+        version: link:../../packages/microsite
       next:
         specifier: 16.4.2
         version: 16.4.2(@playwright/test@1.63.0)(@types/node@22.20.5)(react-dom@19.1.10(react@19.1.10))(react@19.1.10)
@@ -122,6 +125,43 @@ importers:
         specifier: 5.1.0
         version: 5.1.0(@types/node@22.20.5)(vite@8.3.6(@types/node@22.20.5))
 
+  apps/site:
+    dependencies:
+      '@eventhub/microsite':
+        specifier: workspace:*
+        version: link:../../packages/microsite
+      next:
+        specifier: 16.4.2
+        version: 16.4.2(@playwright/test@1.63.0)(@types/node@22.20.5)(react-dom@19.1.10(react@19.1.10))(react@19.1.10)
+      react:
+        specifier: 19.1.10
+        version: 19.1.10
+      react-dom:
+        specifier: 19.1.10
+        version: 19.1.10(react@19.1.10)
+      server-only:
+        specifier: 0.0.1
+        version: 0.0.1
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: 22.20.5
+        version: 22.20.5
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: 19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      openapi-typescript:
+        specifier: 7.13.0
+        version: 7.13.0(typescript@6.0.3)
+      vitest:
+        specifier: 5.1.0
+        version: 5.1.0(@types/node@22.20.5)(vite@8.3.6(@types/node@22.20.5))
+
   apps/worker:
     dependencies:
       '@eventhub/config':
@@ -181,6 +221,18 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
     devDependencies:
+      vitest:
+        specifier: 5.1.0
+        version: 5.1.0(@types/node@22.20.5)(vite@8.3.6(@types/node@22.20.5))
+
+  packages/microsite:
+    devDependencies:
+      '@types/react':
+        specifier: 19.3.0
+        version: 19.3.0
+      react:
+        specifier: 19.1.10
+        version: 19.1.10
       vitest:
         specifier: 5.1.0
         version: 5.1.0(@types/node@22.20.5)(vite@8.3.6(@types/node@22.20.5))

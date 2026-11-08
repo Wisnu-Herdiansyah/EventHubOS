@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { cookies, headers } from 'next/headers';
 import type { ReactNode } from 'react';
 import { THEME_COOKIE, parseTheme } from '@/lib/preferences';
+import '@eventhub/microsite/site.css';
 import './globals.css';
 
 export const metadata: Metadata = {

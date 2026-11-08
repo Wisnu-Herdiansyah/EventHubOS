@@ -92,10 +92,15 @@ describe('lifecycle transitions', () => {
     });
   });
 
-  it('refuses publishing transitions until published revisions exist', () => {
-    expect(checkTransition('scheduled', 'published', null)).toEqual({
+  it('allows going public and back; the route checks the page and handle (ADR-0021)', () => {
+    const publish = checkTransition('scheduled', 'published', null);
+    expect(publish.ok && publish.rule.requiresPublicPage).toBe(true);
+    expect(checkTransition('published', 'scheduled', null).ok).toBe(true);
+    expect(checkTransition('published', 'live', null).ok).toBe(true);
+    expect(checkTransition('live', 'ended', null).ok).toBe(true);
+    expect(checkTransition('draft', 'published', null)).toEqual({
       ok: false,
-      reason: 'requires_published_revision',
+      reason: 'invalid_transition',
     });
   });
 
@@ -115,7 +120,13 @@ describe('lifecycle transitions', () => {
 
   it('lists available targets and gates every rule by an explicit permission', () => {
     expect(availableTransitions('draft', null).sort()).toEqual(['archived', 'scheduled']);
-    expect(availableTransitions('scheduled', null).sort()).toEqual(['archived', 'draft']);
+    expect(availableTransitions('scheduled', null).sort()).toEqual([
+      'archived',
+      'draft',
+      'published',
+    ]);
+    expect(availableTransitions('published', null).sort()).toEqual(['ended', 'live', 'scheduled']);
+    expect(availableTransitions('live', null)).toEqual(['ended']);
     expect(availableTransitions('archived', 'ended')).toEqual(['ended']);
     for (const t of TRANSITIONS) expect(['event.publish', 'event.archive']).toContain(t.permission);
   });

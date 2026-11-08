@@ -28,7 +28,7 @@ import {
   undo,
   type History,
 } from './builder-history';
-import { SitePreview } from './microsite';
+import { SitePreview } from '@eventhub/microsite';
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
 

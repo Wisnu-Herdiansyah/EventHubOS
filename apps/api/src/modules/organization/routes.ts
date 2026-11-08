@@ -8,7 +8,15 @@ import {
   type Permission,
   type FieldIssue,
 } from '@eventhub/kernel';
-import { enqueueEvent, withTransaction, writeAudit, type Pool } from '@eventhub/db';
+import {
+  enqueueEvent,
+  pgConstraint,
+  pgErrorCode,
+  PG_UNIQUE_VIOLATION,
+  withTransaction,
+  writeAudit,
+  type Pool,
+} from '@eventhub/db';
 import { runIdempotentCommand } from '../../http/idempotent-command.ts';
 import { defineRoute, type AnyRoute } from '../../http/route.ts';
 import { ianaTimeZone, languageTag, uuid } from '../../http/schemas.ts';
@@ -25,6 +33,49 @@ const createOrganizationBody = z
   .strict()
   .meta({ id: 'CreateOrganizationRequest' });
 
+/**
+ * Public handle (ADR-0021): the organization's part of its public site address,
+ * https://{handle}.{platform domain}/{event-slug}. Unique on the platform; DNS-label safe.
+ */
+export const RESERVED_HANDLES = new Set([
+  'admin',
+  'api',
+  'app',
+  'assets',
+  'auth',
+  'billing',
+  'blog',
+  'cdn',
+  'dashboard',
+  'dev',
+  'docs',
+  'eventhub',
+  'ftp',
+  'help',
+  'login',
+  'mail',
+  'mx',
+  'ns1',
+  'ns2',
+  'smtp',
+  'staging',
+  'static',
+  'status',
+  'support',
+  'test',
+  'www',
+]);
+
+export const publicHandleSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .regex(
+    /^[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])$/,
+    'Use 3–40 lowercase letters, digits and hyphens, starting and ending with a letter or digit.',
+  )
+  .refine((h) => !RESERVED_HANDLES.has(h), 'This address is reserved. Choose another.');
+
 const organizationSchema = z
   .object({
     id: uuid,
@@ -36,6 +87,8 @@ const organizationSchema = z
     role: z.enum(ROLES),
     createdAt: z.iso.datetime(),
     version: z.number().int(),
+    /** Public site handle (ADR-0021); null until chosen. */
+    publicHandle: z.string().nullable(),
     /** Present only for roles with billing.read (personal data). */
     billingContact: z
       .object({ name: z.string().nullable(), email: z.string().nullable() })
@@ -60,10 +113,11 @@ interface OrganizationRow {
   version: number;
   billing_contact_name: string | null;
   billing_contact_email: string | null;
+  public_handle: string | null;
 }
 
 const ORGANIZATION_COLUMNS =
-  'id, display_name, legal_name, locale, timezone, status, created_at, version, billing_contact_name, billing_contact_email';
+  'id, display_name, legal_name, locale, timezone, status, created_at, version, billing_contact_name, billing_contact_email, public_handle';
 
 function toOrganizationDto(row: OrganizationRow, role: (typeof ROLES)[number]) {
   return {
@@ -76,6 +130,7 @@ function toOrganizationDto(row: OrganizationRow, role: (typeof ROLES)[number]) {
     role,
     createdAt: row.created_at.toISOString(),
     version: row.version,
+    publicHandle: row.public_handle,
     ...(roleHasPermission(role, 'billing.read')
       ? { billingContact: { name: row.billing_contact_name, email: row.billing_contact_email } }
       : {}),
@@ -89,6 +144,8 @@ const updateOrganizationBody = z
     legalName: z.string().trim().min(1).max(300).nullable().optional(),
     locale: languageTag.optional(),
     timezone: ianaTimeZone.optional(),
+    /** null removes the handle (public sites stop resolving). */
+    publicHandle: publicHandleSchema.nullable().optional(),
     billingContact: z
       .object({ name: z.string().trim().min(1).max(200), email: emailSchema })
       .strict()
@@ -107,6 +164,7 @@ const FIELD_PERMISSIONS: Record<string, Permission> = {
   legalName: 'organization.manage',
   locale: 'organization.manage',
   timezone: 'organization.manage',
+  publicHandle: 'organization.manage',
   billingContact: 'billing.manage',
 };
 
@@ -331,18 +389,38 @@ export function organizationRoutes(pool: Pool): AnyRoute[] {
                 if (body.legalName !== undefined) columns.push(['legal_name', body.legalName]);
                 if (body.locale !== undefined) columns.push(['locale', body.locale]);
                 if (body.timezone !== undefined) columns.push(['timezone', body.timezone]);
+                if (body.publicHandle !== undefined)
+                  columns.push(['public_handle', body.publicHandle]);
                 if (body.billingContact !== undefined) {
                   columns.push(['billing_contact_name', body.billingContact?.name ?? null]);
                   columns.push(['billing_contact_email', body.billingContact?.email ?? null]);
                 }
                 const assignments = columns.map(([c], i) => c + ' = $' + String(i + 2)).join(', ');
-                const { rows } = await client.query<OrganizationRow>(
-                  'UPDATE eventhub.organization SET ' +
-                    assignments +
-                    ' WHERE id = $1 RETURNING ' +
-                    ORGANIZATION_COLUMNS,
-                  [access.organizationId, ...columns.map(([, v]) => v)],
-                );
+                let rows: OrganizationRow[];
+                try {
+                  ({ rows } = await client.query<OrganizationRow>(
+                    'UPDATE eventhub.organization SET ' +
+                      assignments +
+                      ' WHERE id = $1 RETURNING ' +
+                      ORGANIZATION_COLUMNS,
+                    [access.organizationId, ...columns.map(([, v]) => v)],
+                  ));
+                } catch (error) {
+                  if (
+                    pgErrorCode(error) === PG_UNIQUE_VIOLATION &&
+                    pgConstraint(error) === 'organization_public_handle_key'
+                  ) {
+                    throw new AppError('conflict', 'This public address is already taken.', {
+                      details: {
+                        reason: 'handle_taken',
+                        fields: [
+                          { path: 'body.publicHandle', message: 'Already taken. Choose another.' },
+                        ],
+                      },
+                    });
+                  }
+                  throw error;
+                }
                 const actor = { type: 'user' as const, id: principal.userId };
                 // Field names only: the billing contact is personal data.
                 await writeAudit(client, {

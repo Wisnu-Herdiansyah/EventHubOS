@@ -10,6 +10,7 @@ import {
   createOrganizationAction,
   updateBillingContactAction,
   updateOrganizationProfileAction,
+  updatePublicHandleAction,
 } from '@/app/actions/orgs';
 import { initialFormState } from '@/lib/errors';
 import { VENUE_MODES, VISIBILITY } from '@/lib/options';
@@ -404,6 +405,36 @@ export function BillingContactForm(props: {
         hint="Receives invoices and payment notices. Clear both fields to remove the contact."
       />
       <SubmitButton pendingLabel="Saving…">Save billing contact</SubmitButton>
+    </form>
+  );
+}
+
+export function PublicHandleForm(props: {
+  organizationId: string;
+  version: number;
+  idempotencyKey: string;
+  handle: string;
+  example: string;
+}) {
+  const [state, action] = useActionState(updatePublicHandleAction, initialFormState);
+  return (
+    <form action={action} className="form" noValidate>
+      <FormMessage state={state} />
+      <input type="hidden" name="organizationId" value={props.organizationId} />
+      <input type="hidden" name="expectedVersion" value={props.version} />
+      <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
+      <Field
+        name="publicHandle"
+        label="Public handle"
+        state={state}
+        defaultValue={props.handle}
+        maxLength={40}
+        autoComplete="off"
+        hint={`3–40 lowercase letters, digits and hyphens. Event pages live at ${props.example}. Changing it breaks links already shared.`}
+      />
+      <div className="form__actions">
+        <SubmitButton pendingLabel="Saving…">Save public address</SubmitButton>
+      </div>
     </form>
   );
 }

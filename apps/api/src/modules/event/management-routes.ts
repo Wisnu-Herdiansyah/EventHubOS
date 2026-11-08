@@ -80,6 +80,12 @@ const checklistSchema = z
     ),
     canSchedule: z.boolean(),
     availableTransitions: z.array(z.enum(LIFECYCLES)),
+    /** What the public site needs (ADR-0021): a published page revision and an org handle. */
+    publicSite: z.object({
+      pagePublished: z.boolean(),
+      handle: z.string().nullable(),
+      eventSlug: z.string(),
+    }),
   })
   .meta({ id: 'EventChecklist' });
 
@@ -158,6 +164,48 @@ async function record(
   );
 }
 
+/**
+ * Going public (ADR-0021): the required checklist still holds, the event is not private, a page
+ * revision is published, and the organization has a public handle to address the site.
+ */
+async function assertPublishable(
+  client: PoolClient,
+  access: OrganizationAccess,
+  row: EventRow,
+): Promise<void> {
+  const items = checklistFor(row);
+  const { blockingIncomplete } = evaluateForScheduling(items, []);
+  if (blockingIncomplete.length > 0) {
+    throw conflict(
+      'checklist_blocking',
+      'Complete the required setup items before publishing.',
+      checklistFields(blockingIncomplete, items),
+    );
+  }
+  if ((row.settings as { visibility?: string }).visibility === 'private') {
+    throw conflict(
+      'event_private',
+      'Private events have no public site. Change the visibility to Public or Unlisted first.',
+    );
+  }
+  const { rows } = await client.query<{ published: boolean; handle: string | null }>(
+    `SELECT EXISTS (SELECT 1 FROM eventhub.event_page p
+                     WHERE p.organization_id = $1 AND p.event_id = $2
+                       AND p.published_revision IS NOT NULL) AS published,
+            (SELECT public_handle FROM eventhub.organization WHERE id = $1) AS handle`,
+    [access.organizationId, row.id],
+  );
+  if (!rows[0]?.published) {
+    throw conflict('page_not_published', 'Publish a revision of the microsite page first.');
+  }
+  if (!rows[0].handle) {
+    throw conflict(
+      'public_handle_missing',
+      'Choose a public address for the organization in Settings first.',
+    );
+  }
+}
+
 export function eventManagementRoutes(pool: Pool): AnyRoute[] {
   return [
     defineRoute({
@@ -213,8 +261,8 @@ export function eventManagementRoutes(pool: Pool): AnyRoute[] {
                     details: { fields: issues },
                   });
                 }
-                // A scheduled event must keep satisfying the blocking checklist.
-                if (row.lifecycle === 'scheduled') {
+                // A scheduled or public event must keep satisfying the blocking checklist.
+                if (['scheduled', 'published', 'live'].includes(row.lifecycle)) {
                   const items = checklistFor({
                     name: body.name ?? row.name,
                     starts_at: startsAt,
@@ -310,6 +358,13 @@ export function eventManagementRoutes(pool: Pool): AnyRoute[] {
             if (!row) throw notFound('Event');
             const items = checklistFor(row);
             const { blockingIncomplete } = evaluateForScheduling(items, []);
+            const site = await client.query<{ published: boolean; handle: string | null }>(
+              `SELECT EXISTS (SELECT 1 FROM eventhub.event_page p
+                               WHERE p.organization_id = $1 AND p.event_id = $2
+                                 AND p.published_revision IS NOT NULL) AS published,
+                      (SELECT public_handle FROM eventhub.organization WHERE id = $1) AS handle`,
+              [access.organizationId, row.id],
+            );
             const permitted = TRANSITIONS.filter(
               (t) =>
                 t.from === row.lifecycle &&
@@ -325,6 +380,11 @@ export function eventManagementRoutes(pool: Pool): AnyRoute[] {
                 items,
                 canSchedule: row.lifecycle === 'draft' && blockingIncomplete.length === 0,
                 availableTransitions: permitted,
+                publicSite: {
+                  pagePublished: site.rows[0]?.published ?? false,
+                  handle: site.rows[0]?.handle ?? null,
+                  eventSlug: row.slug,
+                },
               },
             };
           },
@@ -364,8 +424,6 @@ export function eventManagementRoutes(pool: Pool): AnyRoute[] {
                 if (!check.ok) {
                   const messages = {
                     invalid_transition: `An event cannot move from ${from} to ${body.to}.`,
-                    requires_published_revision:
-                      'Making an event public needs public event sites, which arrive in a later phase. You can already publish page revisions.',
                     restore_target_mismatch: `This archived event can only be restored to ${row.archived_from === 'ended' ? 'ended' : 'draft'}.`,
                   } as const;
                   throw conflict(check.reason, messages[check.reason]);
@@ -402,6 +460,10 @@ export function eventManagementRoutes(pool: Pool): AnyRoute[] {
                   acknowledged = items
                     .filter((i) => i.severity === 'recommended' && !i.complete)
                     .map((i) => i.id);
+                }
+
+                if (check.rule.requiresPublicPage) {
+                  await assertPublishable(client, access, row);
                 }
 
                 const { rows } = await client.query<EventRow>(

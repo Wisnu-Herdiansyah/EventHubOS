@@ -1,0 +1,103 @@
+import { z } from 'zod';
+import { notFound } from '@eventhub/kernel';
+import { withTransaction, type Pool } from '@eventhub/db';
+import { definePublicRoute, type AnyRoute } from '../../http/route.ts';
+import { slugSchema } from '../event/routes.ts';
+import { sectionSchema, type Section } from '../page/sections.ts';
+
+/**
+ * Public event site data (ADR-0021). Anonymous, read-only, and narrow: one SECURITY DEFINER
+ * lookup returns the published revision of a public or unlisted event that is published, live or
+ * ended. Every other case (unknown handle, draft-only page, private or unpublished event,
+ * suspended organization) is the same 404, so nothing about non-public events leaks.
+ */
+const params = z
+  .object({
+    handle: z.string().regex(/^[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])$/),
+    eventSlug: slugSchema,
+  })
+  .strict();
+
+const publicEventPageSchema = z
+  .object({
+    handle: z.string(),
+    eventSlug: z.string(),
+    name: z.string(),
+    startsAt: z.string(),
+    endsAt: z.string(),
+    timezone: z.string(),
+    venueMode: z.string(),
+    language: z.string(),
+    lifecycle: z.enum(['published', 'live', 'ended']),
+    /** Unlisted events are reachable by link but must not be indexed by search engines. */
+    indexable: z.boolean(),
+    sharing: z.object({ title: z.string().nullable(), description: z.string().nullable() }),
+    revision: z.number().int(),
+    publishedAt: z.string(),
+    /** Visible sections only, in page order. */
+    sections: z.array(sectionSchema),
+  })
+  .meta({ id: 'PublicEventPage' });
+
+interface Row {
+  out_event_name: string;
+  out_starts_at: Date;
+  out_ends_at: Date;
+  out_timezone: string;
+  out_venue_mode: string;
+  out_primary_language: string;
+  out_lifecycle: 'published' | 'live' | 'ended';
+  out_visibility: string;
+  out_sharing_title: string | null;
+  out_sharing_description: string | null;
+  out_revision: number;
+  out_sections: Section[];
+  out_published_at: Date;
+}
+
+export function publicSiteRoutes(pool: Pool): AnyRoute[] {
+  return [
+    definePublicRoute({
+      method: 'GET',
+      path: '/v1/public/sites/:handle/events/:eventSlug',
+      operationId: 'getPublicEventPage',
+      summary:
+        'Public microsite of an event: its published revision only. Unknown, private, unpublished and draft-only all answer 404.',
+      tags: ['public'],
+      idempotent: false,
+      // Generous: requests arrive through the site server; edge caching and per-visitor limits
+      // belong to the CDN in front of it (D1).
+      rateLimit: { max: 600, timeWindow: '1 minute' },
+      schemas: { params, response: { status: 200, schema: publicEventPageSchema } },
+      async handler({ params: p }) {
+        const row = await withTransaction(pool, {}, async (client) => {
+          const { rows } = await client.query<Row>(
+            'SELECT * FROM eventhub.public_event_page($1, $2)',
+            [p.handle, p.eventSlug],
+          );
+          return rows[0];
+        });
+        if (!row) throw notFound('Page');
+        return {
+          status: 200,
+          body: {
+            handle: p.handle,
+            eventSlug: p.eventSlug,
+            name: row.out_event_name,
+            startsAt: row.out_starts_at.toISOString(),
+            endsAt: row.out_ends_at.toISOString(),
+            timezone: row.out_timezone,
+            venueMode: row.out_venue_mode,
+            language: row.out_primary_language,
+            lifecycle: row.out_lifecycle,
+            indexable: row.out_visibility === 'public',
+            sharing: { title: row.out_sharing_title, description: row.out_sharing_description },
+            revision: row.out_revision,
+            publishedAt: row.out_published_at.toISOString(),
+            sections: row.out_sections.filter((s) => s.visible),
+          },
+        };
+      },
+    }),
+  ];
+}

@@ -187,7 +187,7 @@ describe('setup checklist and scheduling (EVT-03)', () => {
     );
   });
 
-  it('refuses publishing until published revisions exist, and unnamed transitions', async () => {
+  it('refuses publishing without a published page, and unnamed transitions', async () => {
     const t = await setup();
     expect(
       (await t.transition({ to: 'ended', expectedVersion: 1 })).json().error.details.reason,
@@ -200,7 +200,7 @@ describe('setup checklist and scheduling (EVT-03)', () => {
     });
     const publish = await t.transition({ to: 'published', expectedVersion: 3 });
     expect(publish.statusCode).toBe(409);
-    expect(publish.json().error.details.reason).toBe('requires_published_revision');
+    expect(publish.json().error.details.reason).toBe('page_not_published');
   });
 
   it('gates each transition by its own permission', async () => {

@@ -77,7 +77,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Install Chromium for Playwright
         run: pnpm --filter @eventhub/admin exec playwright install --with-deps chromium
-      # Builds the app, starts a fresh database, the API, the worker and `next start`, then runs
+      # Builds the admin and public site apps, starts a fresh database, the API, the worker and
+      # both apps (sites on *.localhost), then runs
       # the journeys, security-header, session-cookie, tenant-isolation and accessibility checks.
       - run: pnpm --filter @eventhub/admin e2e
         env:

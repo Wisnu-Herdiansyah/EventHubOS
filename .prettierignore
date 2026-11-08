@@ -3,5 +3,7 @@ apps/api/openapi.json
 **/.next/
 apps/admin/src/lib/api-types.ts
 apps/admin/next-env.d.ts
+apps/site/src/lib/api-types.ts
+apps/site/next-env.d.ts
 apps/admin/playwright-report/
 apps/admin/test-results/

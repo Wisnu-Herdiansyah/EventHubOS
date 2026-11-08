@@ -1,13 +1,19 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { BillingContactForm, OrganizationProfileForm } from '@/components/org-forms';
+import {
+  BillingContactForm,
+  OrganizationProfileForm,
+  PublicHandleForm,
+} from '@/components/org-forms';
 import { Card } from '@/components/ui/card';
 import { Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
 import { LOCALES, ROLE_LABELS, timeZones } from '@/lib/options';
+import { adminConfig } from '@/lib/config';
 import { settingsAbilities } from '@/lib/permissions';
+import { publicSiteExample, publicSiteUrl } from '@/lib/public-url';
 
 export const metadata: Metadata = { title: 'Organization settings' };
 
@@ -34,6 +40,8 @@ export default async function OrganizationSettingsPage({
   }
 
   const abilities = settingsAbilities(org.role);
+  const siteTemplate = adminConfig().publicSiteUrl;
+  const siteOrigin = publicSiteUrl(siteTemplate, org.publicHandle);
   const billing = org.billingContact;
 
   return (
@@ -87,6 +95,32 @@ export default async function OrganizationSettingsPage({
                 <p className="field__hint">Owners and Admins can change the profile.</p>
               </div>
             )}
+          </Card>
+
+          <Card
+            title="Public address"
+            titleId="public-address-heading"
+            description="Where published event pages live."
+          >
+            {abilities.canEditProfile ? (
+              <PublicHandleForm
+                organizationId={orgId}
+                version={org.version}
+                idempotencyKey={newIdempotencyKey()}
+                handle={org.publicHandle ?? ''}
+                example={publicSiteExample(siteTemplate, org.publicHandle)}
+              />
+            ) : (
+              <div className="stack-sm">
+                <p>{org.publicHandle ?? 'Not chosen yet.'}</p>
+                <p className="field__hint">Owners and Admins can change the public address.</p>
+              </div>
+            )}
+            {siteOrigin ? (
+              <p className="field__hint">
+                Organization address: <span className="text-mono">{siteOrigin}</span>
+              </p>
+            ) : null}
           </Card>
 
           {abilities.canReadBilling || abilities.canEditBilling ? (

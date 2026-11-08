@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { EventSettingsForm, TransitionForm, type SettingsDefaults } from '@/components/org-forms';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +15,8 @@ import { ApiError } from '@/lib/errors';
 import { can } from '@/lib/permissions';
 import { auditHref } from '@/lib/audit';
 import { lifecycleStatus } from '@/lib/status';
+import { adminConfig } from '@/lib/config';
+import { publicSiteUrl } from '@/lib/public-url';
 import { formatInZone, isoToZonedLocal } from '@/lib/time';
 
 export const metadata: Metadata = { title: 'Event' };
@@ -35,8 +38,27 @@ const TRANSITION_LABELS: Record<
     tone: 'danger',
     description: 'Makes the event read-only. You can restore it later.',
   },
-  ended: { label: 'Restore as ended', tone: 'secondary' },
+  published: {
+    label: 'Publish event',
+    tone: 'primary',
+    description: 'Opens the public page at its address.',
+  },
+  live: { label: 'Mark as live', tone: 'secondary', description: 'The event is happening now.' },
+  ended: { label: 'End event', tone: 'secondary', description: 'The public page stays up.' },
 };
+
+/** Labels that depend on where the event is now. */
+function transitionMeta(from: string, to: string) {
+  if (from === 'archived') return { label: 'Restore event', tone: 'secondary' as const };
+  if (from === 'published' && to === 'scheduled') {
+    return {
+      label: 'Take offline',
+      tone: 'secondary' as const,
+      description: 'The public page stops working until you publish again.',
+    };
+  }
+  return TRANSITION_LABELS[to] ?? { label: `Move to ${to}`, tone: 'secondary' as const };
+}
 
 export default async function EventPage({
   params,
@@ -85,7 +107,33 @@ export default async function EventPage({
     .filter((i) => i.severity === 'recommended' && !i.complete)
     .map((i) => ({ id: i.id, message: i.message }));
   const canEdit = can(org.role, 'event.update') && evt.lifecycle !== 'archived';
-  const restoreLabel = evt.lifecycle === 'archived' ? 'Restore event' : undefined;
+  const site = checklist.publicSite;
+  const publicUrl = publicSiteUrl(adminConfig().publicSiteUrl, site.handle, site.eventSlug);
+  const isPublic =
+    ['published', 'live', 'ended'].includes(evt.lifecycle) && s.visibility !== 'private';
+  const publishBlockers = [
+    ...(site.pagePublished
+      ? []
+      : [
+          {
+            text: 'Publish a revision of the microsite.',
+            href: `/orgs/${orgId}/events/${eventId}/page`,
+            link: 'Open the microsite',
+          },
+        ]),
+    ...(site.handle
+      ? []
+      : [
+          {
+            text: 'Choose a public address for the organization.',
+            href: `/orgs/${orgId}/settings`,
+            link: 'Open settings',
+          },
+        ]),
+    ...(s.visibility === 'private'
+      ? [{ text: 'Set the visibility to Public or Unlisted in the Settings tab.' }]
+      : []),
+  ];
 
   const status = lifecycleStatus(evt.lifecycle);
   const done = checklist.items.filter((i) => i.complete).length;
@@ -112,17 +160,27 @@ export default async function EventPage({
           <Card
             title="Lifecycle"
             titleId="lifecycle-heading"
-            description="Move the event through draft, scheduled and archived."
+            description="Draft, scheduled, published, live, ended and archived."
           >
             <div className="stack-sm">
               {checklist.availableTransitions.map((to) => {
-                const meta = TRANSITION_LABELS[to] ?? {
-                  label: `Move to ${to}`,
-                  tone: 'secondary' as const,
-                };
-                const label =
-                  evt.lifecycle === 'archived' && restoreLabel ? restoreLabel : meta.label;
-                if (to === 'scheduled' && !checklist.canSchedule) {
+                const meta = transitionMeta(evt.lifecycle, to);
+                const label = meta.label;
+                if (to === 'published' && publishBlockers.length > 0) {
+                  return (
+                    <Notice key={to} tone="warning" role={null} title="Before publishing">
+                      <ul className="issue-list">
+                        {publishBlockers.map((b) => (
+                          <li key={b.text}>
+                            {b.text}{' '}
+                            {'href' in b && b.href ? <Link href={b.href}>{b.link}</Link> : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </Notice>
+                  );
+                }
+                if (to === 'scheduled' && evt.lifecycle === 'draft' && !checklist.canSchedule) {
                   return (
                     <Notice key={to} tone="warning" role={null}>
                       Complete the required checklist items to schedule this event.
@@ -138,9 +196,12 @@ export default async function EventPage({
                     to={to}
                     label={label}
                     tone={meta.tone}
-                    description={meta.description}
+                    description={'description' in meta ? meta.description : undefined}
                     idempotencyKey={newIdempotencyKey()}
-                    warnings={to === 'scheduled' ? warnings : undefined}
+                    // Skipped recommendations are acknowledged when scheduling a draft only.
+                    warnings={
+                      to === 'scheduled' && evt.lifecycle === 'draft' ? warnings : undefined
+                    }
                   />
                 );
               })}
@@ -153,33 +214,64 @@ export default async function EventPage({
         ) : null}
       </div>
 
-      <Card title="Setup checklist" titleId="checklist-heading">
-        <div className="stack-sm">
-          <Meter value={done} max={checklist.items.length} label="Complete" />
-          <ul className="checklist">
-            {checklist.items.map((item) => (
-              <li
-                key={item.id}
-                className={`checklist__item ${item.complete ? 'checklist__item--done' : `checklist__item--${item.severity}`}`}
+      <div className="stack">
+        <Card title="Public page" titleId="public-page-heading">
+          {isPublic && publicUrl ? (
+            <div className="stack-sm">
+              <Badge tone="success" dot>
+                Public
+              </Badge>
+              <a
+                className="wrap-anywhere"
+                href={publicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                <span className="checklist__icon" aria-hidden="true">
-                  <Icon
-                    name={item.complete ? 'check' : item.severity === 'blocking' ? 'close' : 'info'}
-                    size={14}
-                  />
-                </span>
-                <span>
-                  <span className="visually-hidden">{item.complete ? 'Done: ' : 'To do: '}</span>
-                  {item.message}
-                  <span className="checklist__severity">
-                    {item.severity === 'blocking' ? 'Required' : 'Recommended'}
+                {publicUrl}
+                <span className="visually-hidden"> (opens in a new tab)</span>
+              </a>
+            </div>
+          ) : isPublic ? (
+            <p className="text-secondary">
+              Public at {site.handle}/{site.eventSlug}. Set ADMIN_PUBLIC_SITE_URL to link to it.
+            </p>
+          ) : (
+            <p className="text-secondary">
+              Not public. Publish the event to open its page
+              {site.handle ? '' : ' (after choosing a public address)'}.
+            </p>
+          )}
+        </Card>
+        <Card title="Setup checklist" titleId="checklist-heading">
+          <div className="stack-sm">
+            <Meter value={done} max={checklist.items.length} label="Complete" />
+            <ul className="checklist">
+              {checklist.items.map((item) => (
+                <li
+                  key={item.id}
+                  className={`checklist__item ${item.complete ? 'checklist__item--done' : `checklist__item--${item.severity}`}`}
+                >
+                  <span className="checklist__icon" aria-hidden="true">
+                    <Icon
+                      name={
+                        item.complete ? 'check' : item.severity === 'blocking' ? 'close' : 'info'
+                      }
+                      size={14}
+                    />
                   </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </Card>
+                  <span>
+                    <span className="visually-hidden">{item.complete ? 'Done: ' : 'To do: '}</span>
+                    {item.message}
+                    <span className="checklist__severity">
+                      {item.severity === 'blocking' ? 'Required' : 'Recommended'}
+                    </span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 

@@ -1,9 +1,9 @@
-import type { Section } from '@/lib/page-editor';
+import type { Section } from './types.ts';
 
 /**
- * Public microsite section renderers. Every field is rendered as a text node, so content can
- * never become markup or script (ADR-0020). Used by the editor preview and the gallery; public
- * pages will render published revisions with the same components.
+ * Microsite section renderers, shared by the admin editor preview and the public site, so a
+ * published page looks exactly like its preview. Every field is rendered as a text node, so
+ * content can never become markup or script (ADR-0020, ADR-0021).
  */
 function initials(name: string) {
   return (
@@ -123,17 +123,30 @@ export function SitePreview({
   name,
   sections,
   selectedId,
+  lang,
+  dateLine,
+  asPage,
 }: {
   brand?: string;
   name: string;
   sections: Section[];
   selectedId?: string;
+  /** The event's primary language, for screen readers and hyphenation. */
+  lang?: string;
+  /** e.g. "1 Mar 2027, 09:00 GMT+7", shown under the event name. */
+  dateLine?: string;
+  /** On a real page the event name is the page's h1; in previews it is plain text. */
+  asPage?: boolean;
 }) {
+  const Name = asPage ? 'h1' : 'span';
   const register = sections.find((s) => s.visible && s.type === 'register');
   return (
-    <div className="site" data-brand={brand}>
+    <div className="site" data-brand={brand} lang={lang}>
       <header className="site-nav">
-        <span className="site-nav__name">{name}</span>
+        <span className="site-nav__title">
+          <Name className="site-nav__name">{name}</Name>
+          {dateLine ? <span className="site-nav__date">{dateLine}</span> : null}
+        </span>
         {register && register.type === 'register' && register.ctaLabel ? (
           <a className="site-cta" href="#register">
             {register.ctaLabel}
