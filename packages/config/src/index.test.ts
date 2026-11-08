@@ -4,6 +4,7 @@ import { ConfigError, loadApiConfig, loadMigratorConfig, loadWorkerConfig } from
 // Leak-detection sentinel, not a credential.
 const SECRET = 'S3cr3t-should-never-appear'; // pragma: allowlist secret
 const localUrl = `postgres://eventhub_app:${SECRET}@localhost:5432/eventhub`;
+const MFA_KEY = Buffer.alloc(32, 3).toString('base64');
 
 function captureError(fn: () => unknown): ConfigError {
   try {
@@ -14,6 +15,40 @@ function captureError(fn: () => unknown): ConfigError {
   }
   throw new Error('expected ConfigError');
 }
+
+describe('loadApiConfig: MFA key (ADR-0022)', () => {
+  const key = Buffer.alloc(32, 9).toString('base64');
+  it('is optional locally and decoded when present', () => {
+    expect(loadApiConfig({ EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl }).mfa).toEqual({
+      encryptionKey: null,
+    });
+    const c = loadApiConfig({
+      EVENTHUB_ENV: 'local',
+      DATABASE_APP_URL: localUrl,
+      MFA_ENCRYPTION_KEY: key,
+    });
+    expect(c.mfa.encryptionKey).toEqual(Buffer.alloc(32, 9));
+  });
+
+  it('must be 32 bytes, and never echoes the value', () => {
+    const bad = Buffer.from(SECRET).toString('base64');
+    const e = captureError(() =>
+      loadApiConfig({ EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl, MFA_ENCRYPTION_KEY: bad }),
+    );
+    expect(e.keys).toEqual(['MFA_ENCRYPTION_KEY']);
+    expect(e.message).not.toContain(bad);
+  });
+
+  it('is required in staging and production', () => {
+    const remoteUrl = `postgres://eventhub_app:${SECRET}@db.internal:5432/eventhub?sslmode=require`;
+    for (const env of ['staging', 'production']) {
+      const e = captureError(() =>
+        loadApiConfig({ EVENTHUB_ENV: env, DATABASE_APP_URL: remoteUrl, TRUST_PROXY: '10.0.0.1' }),
+      );
+      expect(e.keys).toEqual(['MFA_ENCRYPTION_KEY']);
+    }
+  });
+});
 
 describe('loadApiConfig', () => {
   it('parses a valid local configuration with defaults', () => {
@@ -49,6 +84,7 @@ describe('loadApiConfig', () => {
         EVENTHUB_ENV: 'production',
         DATABASE_APP_URL: tls,
         TRUST_PROXY: '10.0.0.0/8, 192.168.1.5',
+        MFA_ENCRYPTION_KEY: MFA_KEY,
       }).http.trustProxy,
     ).toEqual(['10.0.0.0/8', '192.168.1.5']);
     expect(
@@ -105,6 +141,7 @@ describe('loadApiConfig', () => {
     const ok = loadApiConfig({
       EVENTHUB_ENV: 'production',
       DATABASE_APP_URL: `${localUrl}?sslmode=verify-full`,
+      MFA_ENCRYPTION_KEY: MFA_KEY,
     });
     expect(ok.environment).toBe('production');
   });

@@ -11,6 +11,7 @@ import { canonicalJson, type Pool } from '@eventhub/db';
 import { parseInput, type AnyRoute, type RouteResult } from './http/route.ts';
 import { parseBearerToken, type SessionAuthenticator } from './modules/identity/authenticator.ts';
 import type { PasswordHasher } from './modules/identity/password.ts';
+import { mfaRoutes } from './modules/identity/mfa-routes.ts';
 import { identityRoutes, type IdentitySettings } from './modules/identity/routes.ts';
 import { auditRoutes } from './modules/audit/routes.ts';
 import { eventManagementRoutes } from './modules/event/management-routes.ts';
@@ -49,6 +50,7 @@ export interface RouteFactoryDeps {
 export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
   return [
     ...identityRoutes(deps.pool, deps.passwordHasher, deps.identity),
+    ...mfaRoutes(deps.pool, deps.passwordHasher, deps.identity),
     ...organizationRoutes(deps.pool),
     ...membershipRoutes(deps.pool, deps.invitationTtlSeconds ?? DEFAULT_INVITATION_TTL_SECONDS),
     ...eventRoutes(deps.pool),

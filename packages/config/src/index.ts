@@ -104,6 +104,17 @@ const apiSchema = baseSchema.extend({
   LOGIN_MAX_FAILURES: z.coerce.number().int().min(3).max(50).default(5),
   LOGIN_LOCK_SECONDS: z.coerce.number().int().min(60).max(86_400).default(900),
   INVITATION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(168),
+  /**
+   * 32 random bytes, base64, sealing authenticator-app secrets (ADR-0022). Required in staging and
+   * production; without it locally, two-step verification reports itself as unavailable.
+   */
+  MFA_ENCRYPTION_KEY: z
+    .string()
+    .optional()
+    .refine(
+      (v) => v === undefined || Buffer.from(v, 'base64').length === 32,
+      'Must be 32 bytes, base64-encoded (e.g. openssl rand -base64 32)',
+    ),
 });
 
 export interface ApiConfig {
@@ -119,6 +130,8 @@ export interface ApiConfig {
     loginLockSeconds: number;
   };
   invitations: { ttlSeconds: number };
+  /** null: not configured (local/ci only), so MFA enrolment and sign-in report unavailable. */
+  mfa: { encryptionKey: Buffer | null };
 }
 
 export function loadApiConfig(env: Readonly<Record<string, string | undefined>>): ApiConfig {
@@ -130,6 +143,9 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
       ['TRUST_PROXY'],
       `list the trusted proxy addresses explicitly in ${c.EVENTHUB_ENV}`,
     );
+  }
+  if (!c.MFA_ENCRYPTION_KEY && isRemoteEnvironment(c.EVENTHUB_ENV)) {
+    throw new ConfigError(['MFA_ENCRYPTION_KEY'], `is required in ${c.EVENTHUB_ENV}`);
   }
   return {
     environment: c.EVENTHUB_ENV,
@@ -144,6 +160,9 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
       loginLockSeconds: c.LOGIN_LOCK_SECONDS,
     },
     invitations: { ttlSeconds: c.INVITATION_TTL_HOURS * 3600 },
+    mfa: {
+      encryptionKey: c.MFA_ENCRYPTION_KEY ? Buffer.from(c.MFA_ENCRYPTION_KEY, 'base64') : null,
+    },
   };
 }
 

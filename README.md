@@ -13,7 +13,8 @@ Phase 0 (foundation) plus Phase 1 slices:
 
 - **Identity** (ADR-0007, ADR-0015): email/password sign-up with Argon2id, email verification,
   login with lockout, logout, password reset by email and change while signed in (ADR-0016),
-  signed-in sessions with per-device sign-out (ADR-0017), an idle timeout (ADR-0018), and
+  signed-in sessions with per-device sign-out (ADR-0017), an idle timeout (ADR-0018), optional
+  two-step verification with an authenticator app and recovery codes (ADR-0022), and
   `GET /v1/me`.
 - **Tenancy and events**: organization creation with Owner membership, listing a user's
   organizations; events with validated settings, a setup checklist, and lifecycle transitions

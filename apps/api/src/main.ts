@@ -15,7 +15,7 @@ const app = await buildApp({
     idleSeconds: config.auth.sessionIdleSeconds,
   }),
   passwordHasher: new Argon2idPasswordHasher(),
-  identity: config.auth,
+  identity: { ...config.auth, mfaEncryptionKey: config.mfa.encryptionKey },
   invitationTtlSeconds: config.invitations.ttlSeconds,
   logger: loggerOptions(config.logLevel),
   trustProxy: config.http.trustProxy,

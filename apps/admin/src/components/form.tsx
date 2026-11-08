@@ -118,6 +118,7 @@ interface FieldProps extends FieldBase {
   maxLength?: number;
   min?: number;
   list?: string;
+  inputMode?: 'numeric' | 'text' | 'email';
 }
 
 /** Labelled input with hint and error wired up via aria-describedby / aria-invalid. */
@@ -140,6 +141,7 @@ export function Field(props: FieldProps) {
       maxLength={props.maxLength}
       min={props.min}
       list={props.list}
+      inputMode={props.inputMode}
     />
   );
   return (

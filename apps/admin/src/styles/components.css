@@ -1443,3 +1443,23 @@
   resize: vertical;
   line-height: var(--leading-normal);
 }
+
+/* Two-step verification */
+.qr-code {
+  width: 12.5rem;
+  height: 12.5rem;
+  border-radius: var(--radius-md);
+  background: var(--color-on-accent);
+  padding: var(--space-2);
+}
+
+.recovery-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+  padding: var(--space-4);
+  list-style: none;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
+}

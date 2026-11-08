@@ -4,22 +4,89 @@ import { redirect } from 'next/navigation';
 import { api, unwrap } from '@/lib/api';
 import { errorToFormState, type FormState } from '@/lib/errors';
 import { safeNext } from '@/lib/redirect';
-import { clearSession, writeSession } from '@/lib/session';
+import {
+  clearMfaChallenge,
+  clearSession,
+  readMfaChallenge,
+  writeMfaChallenge,
+  writeSession,
+} from '@/lib/session';
 import { formText, submittedValues } from '@/lib/form-data';
 
 const str = (form: FormData, key: string) => formText(form, key, { trim: false });
 
 export async function loginAction(_prev: FormState, form: FormData): Promise<FormState> {
+  const next = safeNext(form.get('next'));
+  let target = next;
   try {
     const client = await api();
-    const session = unwrap(
+    const result = unwrap(
       await client.POST('/v1/auth/login', {
         body: { email: str(form, 'email'), password: str(form, 'password') },
       }),
     );
-    await writeSession(session.token, session.expiresAt);
+    if ('mfaRequired' in result) {
+      // Password accepted; the second step happens on its own page (ADR-0022).
+      await writeMfaChallenge(result.challengeToken, result.expiresAt);
+      target = `/login/verify${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`;
+    } else {
+      await clearMfaChallenge();
+      await writeSession(result.token, result.expiresAt);
+    }
   } catch (error) {
     return { ...errorToFormState(error), values: submittedValues(form) };
+  }
+  redirect(target);
+}
+
+/** Second step of sign-in: an app code or a recovery code (ADR-0022). */
+export async function verifyLoginAction(_prev: FormState, form: FormData): Promise<FormState> {
+  const challengeToken = await readMfaChallenge();
+  if (!challengeToken) {
+    return {
+      ok: false,
+      reason: 'challenge_invalid',
+      message: 'This sign-in has expired. Sign in again.',
+    };
+  }
+  const method = formText(form, 'method') === 'recovery' ? 'recovery' : 'code';
+  const value = formText(form, method === 'recovery' ? 'recoveryCode' : 'code');
+  const field = method === 'recovery' ? 'recoveryCode' : 'code';
+  if (!value) {
+    return {
+      ok: false,
+      message: 'Check the highlighted fields.',
+      fields: {
+        [field]: method === 'recovery' ? 'Enter a recovery code.' : 'Enter the 6-digit code.',
+      },
+    };
+  }
+  try {
+    const client = await api();
+    const session = unwrap(
+      await client.POST('/v1/auth/login/mfa', {
+        body: {
+          challengeToken,
+          ...(method === 'recovery' ? { recoveryCode: value } : { code: value.replace(/\s/g, '') }),
+        },
+      }),
+    );
+    await clearMfaChallenge();
+    await writeSession(session.token, session.expiresAt);
+  } catch (error) {
+    const state = errorToFormState(error);
+    if (state.reason === 'challenge_invalid' || state.reason === 'locked') {
+      await clearMfaChallenge();
+      return state;
+    }
+    if (state.reason === 'bad_code') {
+      return {
+        ...state,
+        message: 'Check the highlighted fields.',
+        fields: { [field]: 'That code is incorrect or was already used.' },
+      };
+    }
+    return state;
   }
   redirect(safeNext(form.get('next')));
 }
