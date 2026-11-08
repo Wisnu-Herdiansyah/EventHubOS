@@ -106,7 +106,6 @@
   border-radius: var(--radius-sm);
   cursor: pointer;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -157,4 +156,84 @@
   .builder__canvas {
     padding: var(--space-4);
   }
+}
+
+.section-item__select {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+}
+
+.section-item__name,
+.section-item__type {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.section-item__type {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+}
+
+.section-item[data-invalid] {
+  border-color: var(--color-danger-text);
+}
+
+.section-add {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--color-divider);
+}
+
+.section-add__row {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.section-add .select {
+  min-height: var(--control-height-sm);
+  font-size: max(16px, var(--text-sm));
+}
+
+.item-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.item-row {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.item-row--two {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+
+.item-row .input {
+  min-height: var(--control-height-sm);
+  font-size: max(16px, var(--text-sm));
+  padding: 0 var(--space-2);
+}
+
+.issue-list {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+}
+
+/* Secondary text on the selected (accent) background uses the accent text colour (4.5:1). */
+.section-item[data-selected] .section-item__type {
+  color: var(--color-accent-text);
 }

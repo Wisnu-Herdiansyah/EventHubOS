@@ -220,15 +220,22 @@ export default async function EventPage({
           </span>
         }
         actions={
-          can(org.role, 'audit.read') ? (
-            <ButtonLink
-              variant="secondary"
-              icon="history"
-              href={auditHref(orgId, { targetType: 'event', targetId: eventId })}
-            >
-              View history
+          <>
+            {can(org.role, 'audit.read') ? (
+              <ButtonLink
+                variant="secondary"
+                icon="history"
+                href={auditHref(orgId, { targetType: 'event', targetId: eventId })}
+              >
+                View history
+              </ButtonLink>
+            ) : null}
+            <ButtonLink icon="layers" href={`/orgs/${orgId}/events/${eventId}/page`}>
+              {can(org.role, 'page.edit') && evt.lifecycle !== 'archived'
+                ? 'Edit microsite'
+                : 'View microsite'}
             </ButtonLink>
-          ) : null
+          </>
         }
       />
       {settings ? (

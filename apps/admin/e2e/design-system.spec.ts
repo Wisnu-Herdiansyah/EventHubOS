@@ -227,7 +227,7 @@ test('reduced motion turns transitions off', async ({ page }) => {
   expect(duration).toBeLessThan(0.001);
 });
 
-test('the builder pattern reorders, hides, duplicates, undoes and previews sizes', async ({
+test('the builder pattern reorders, hides, duplicates, deletes, undoes and previews sizes', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -235,36 +235,39 @@ test('the builder pattern reorders, hides, duplicates, undoes and previews sizes
   await page.goto('/design-system');
   const builder = page.locator('.builder');
   const sectionNames = () =>
-    builder.locator('.section-item__select').evaluateAll((els) => els.map((e) => e.textContent));
+    builder.locator('.section-item__name').evaluateAll((els) => els.map((e) => e.textContent));
   const preview = builder.getByRole('region', { name: 'Preview' });
 
-  expect(await sectionNames()).toEqual(['Hero', 'About', 'Agenda', 'Speakers', 'Registration']);
-  await builder.getByRole('button', { name: 'Move About: Why attend down' }).click();
-  expect(await sectionNames()).toEqual(['Hero', 'Agenda', 'About', 'Speakers', 'Registration']);
-  await expect(builder.getByRole('status')).toHaveText('About moved down');
+  expect(await sectionNames()).toEqual([
+    'Operations Summit 2027',
+    'Why attend',
+    'Agenda',
+    'Speakers',
+    'Save your seat',
+  ]);
+  await builder.getByRole('button', { name: 'Move Why attend down' }).click();
+  expect((await sectionNames()).slice(1, 3)).toEqual(['Agenda', 'Why attend']);
+  await expect(builder.getByRole('status')).toHaveText('Why attend moved down');
 
-  await builder.getByRole('button', { name: 'Hide Speakers: Speakers' }).click();
+  await builder.getByRole('button', { name: 'Hide Speakers' }).click();
   await expect(preview.getByRole('region', { name: 'Speakers' })).toHaveCount(0);
   await builder.getByRole('button', { name: 'Undo' }).click();
   await expect(preview.getByRole('region', { name: 'Speakers' })).toHaveCount(1);
   await builder.getByRole('button', { name: 'Redo' }).click();
   await expect(preview.getByRole('region', { name: 'Speakers' })).toHaveCount(0);
 
-  await builder.getByRole('button', { name: 'Duplicate Agenda: Agenda' }).click();
-  expect(await sectionNames()).toEqual([
-    'Hero',
-    'Agenda',
-    'Agenda',
-    'About',
-    'Speakers (hidden)',
-    'Registration',
-  ]);
+  await builder.getByRole('button', { name: 'Duplicate Agenda' }).click();
+  expect(await sectionNames()).toHaveLength(6);
+  await builder.getByRole('button', { name: 'Delete Agenda' }).first().click();
+  expect(await sectionNames()).toHaveLength(5);
 
-  // Configure the selected section; the preview follows.
-  await builder.getByRole('button', { name: 'Hero', exact: true }).click();
+  // Typing is one undo step per field.
+  await builder.getByRole('button', { name: /^Operations Summit 2027/ }).click();
   await builder.getByLabel('Heading').fill('Systematic Elegance Summit');
-  await builder.getByLabel('Text').click();
+  await builder.getByLabel('Text', { exact: true }).click();
   await expect(preview.getByRole('heading', { name: 'Systematic Elegance Summit' })).toBeVisible();
+  await builder.getByRole('button', { name: 'Undo' }).click();
+  await expect(preview.getByRole('heading', { name: 'Operations Summit 2027' })).toBeVisible();
 
   // Responsive preview.
   await builder.getByRole('button', { name: 'Phone preview' }).click();
@@ -275,6 +278,7 @@ test('the builder pattern reorders, hides, duplicates, undoes and previews sizes
   await expect
     .poll(async () => (await builder.locator('.preview').boundingBox())!.width)
     .toBeLessThanOrEqual(390);
-  // Saving needs the page API; the buttons say so instead of pretending.
-  await expect(builder.getByRole('button', { name: 'Publish' })).toBeDisabled();
+  // Sample content: saving and publishing are not offered.
+  await expect(builder.getByRole('button', { name: 'Save draft' })).toBeDisabled();
+  await expect(builder.getByRole('button', { name: 'Publish…' })).toBeDisabled();
 });
