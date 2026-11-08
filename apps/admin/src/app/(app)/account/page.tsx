@@ -7,6 +7,7 @@ import {
   RevokeOtherSessionsForm,
   RevokeSessionForm,
 } from '@/components/account-forms';
+import { TwoStepPanel } from '@/components/two-step';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { PageHeader } from '@/components/ui/page-header';
@@ -42,11 +43,12 @@ export default async function AccountPage({
   if (!(await readSessionToken())) redirect('/login?next=%2Faccount');
   const code = (await searchParams).notice;
   const notice = typeof code === 'string' ? NOTICES[code] : undefined;
-  let me, sessions, policy;
+  let me, sessions, policy, mfa;
   try {
     const client = await api();
     me = unwrap(await client.GET('/v1/me'));
     ({ data: sessions, policy } = unwrap(await client.GET('/v1/auth/sessions')));
+    mfa = unwrap(await client.GET('/v1/auth/mfa'));
   } catch (error) {
     signInOn401(error, '/account');
   }
@@ -102,6 +104,21 @@ export default async function AccountPage({
             Forgot your current password? <Link href="/forgot-password">Reset it by email</Link>.
           </p>
         </div>
+      </Card>
+
+      <Card
+        title="Two-step verification"
+        titleId="two-step-heading"
+        description="A code from your phone, in addition to your password, when you sign in."
+      >
+        <TwoStepPanel
+          status={mfa}
+          enabledLabel={
+            mfa.enabledAt ? (
+              <span className="text-secondary">Since {formatInZone(mfa.enabledAt, 'UTC')}</span>
+            ) : null
+          }
+        />
       </Card>
 
       <Card

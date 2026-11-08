@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
@@ -266,4 +266,29 @@ export async function signOut(page: Page): Promise<void> {
   await page.getByRole('button', { name: /account menu$/ }).click();
   await page.getByRole('menuitem', { name: 'Sign out' }).click();
   await page.waitForURL((url) => url.pathname === '/login');
+}
+
+/**
+ * The 6-digit code an authenticator app would show for a base32 key (RFC 6238), `offset` steps
+ * from now. Tests use later steps because each step is accepted only once.
+ */
+export function totpFromKey(key: string, offset = 0): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  let bits = 0;
+  let value = 0;
+  const bytes: number[] = [];
+  for (const ch of key.toUpperCase().replace(/[^A-Z2-7]/g, '')) {
+    value = (value << 5) | alphabet.indexOf(ch);
+    bits += 5;
+    if (bits >= 8) {
+      bytes.push((value >>> (bits - 8)) & 255);
+      bits -= 8;
+    }
+  }
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 30_000) + offset));
+  const mac = createHmac('sha1', Buffer.from(bytes)).update(counter).digest();
+  const o = mac[mac.length - 1]! & 0x0f;
+  const n = ((mac[o]! & 0x7f) << 24) | (mac[o + 1]! << 16) | (mac[o + 2]! << 8) | mac[o + 3]!;
+  return String(n % 1_000_000).padStart(6, '0');
 }

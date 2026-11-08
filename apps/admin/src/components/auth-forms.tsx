@@ -10,6 +10,7 @@ import {
   resendVerificationAction,
   signupAction,
   verifyEmailAction,
+  verifyLoginAction,
 } from '@/app/actions/auth';
 import { initialFormState } from '@/lib/errors';
 import { Field, FormMessage, SubmitButton } from './form';
@@ -272,6 +273,52 @@ export function ResetPasswordForm() {
         required
       />
       <SubmitButton pendingLabel="Saving…">Set new password</SubmitButton>
+    </form>
+  );
+}
+
+export function VerifyLoginForm({ next, recovery }: { next: string; recovery: boolean }) {
+  const [state, action] = useActionState(verifyLoginAction, initialFormState);
+  if (state.reason === 'challenge_invalid' || state.reason === 'locked') {
+    return (
+      <div className="stack-sm">
+        <FormMessage state={state} />
+        <ButtonLink href={`/login${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`}>
+          Sign in again
+        </ButtonLink>
+      </div>
+    );
+  }
+  return (
+    <form action={action} className="form" noValidate>
+      <FormMessage state={state} />
+      <input type="hidden" name="next" value={next} />
+      <input type="hidden" name="method" value={recovery ? 'recovery' : 'code'} />
+      {recovery ? (
+        <Field
+          name="recoveryCode"
+          label="Recovery code"
+          state={state}
+          autoComplete="off"
+          placeholder="abcde-fghjk"
+          maxLength={12}
+          required
+        />
+      ) : (
+        <Field
+          name="code"
+          label="Verification code"
+          state={state}
+          autoComplete="one-time-code"
+          inputMode="numeric"
+          placeholder="123456"
+          maxLength={7}
+          required
+        />
+      )}
+      <SubmitButton block pendingLabel="Verifying…">
+        Verify
+      </SubmitButton>
     </form>
   );
 }

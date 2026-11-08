@@ -31,21 +31,34 @@ test('a signed-in user changes their password; other sessions end, this one stay
   await expectAccessible(page);
 
   // Wrong current password: inline error, nothing changes, nothing is echoed.
-  await page.getByLabel('Current password').fill('not my password at all');
+  await page
+    .getByRole('region', { name: 'Change password' })
+    .getByLabel('Current password')
+    .fill('not my password at all');
   await page.getByLabel('New password').fill(NEW_PASSWORD);
   await page.getByRole('button', { name: 'Change password' }).click();
-  await expect(page.getByLabel('Current password')).toHaveAttribute('aria-invalid', 'true');
+  await expect(
+    page.getByRole('region', { name: 'Change password' }).getByLabel('Current password'),
+  ).toHaveAttribute('aria-invalid', 'true');
   await expect(page.getByText('Your current password is incorrect.')).toBeVisible();
-  await expect(page.getByLabel('Current password')).toHaveValue('');
+  await expect(
+    page.getByRole('region', { name: 'Change password' }).getByLabel('Current password'),
+  ).toHaveValue('');
   await expect(page.getByLabel('New password')).toHaveValue('');
 
   // Same as the current password is refused.
-  await page.getByLabel('Current password').fill(PASSWORD);
+  await page
+    .getByRole('region', { name: 'Change password' })
+    .getByLabel('Current password')
+    .fill(PASSWORD);
   await page.getByLabel('New password').fill(PASSWORD);
   await page.getByRole('button', { name: 'Change password' }).click();
   await expect(page.getByText('Choose a password different from your current one.')).toBeVisible();
 
-  await page.getByLabel('Current password').fill(PASSWORD);
+  await page
+    .getByRole('region', { name: 'Change password' })
+    .getByLabel('Current password')
+    .fill(PASSWORD);
   await page.getByLabel('New password').fill(NEW_PASSWORD);
   await page.getByRole('button', { name: 'Change password' }).click();
   // Two other sessions: the second browser and the fixture's own API sign-in.

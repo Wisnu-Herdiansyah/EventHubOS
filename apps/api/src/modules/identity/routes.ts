@@ -12,6 +12,7 @@ import { runIdempotentCommand } from '../../http/idempotent-command.ts';
 import { definePublicRoute, defineRoute, type AnyRoute } from '../../http/route.ts';
 import { uuid } from '../../http/schemas.ts';
 import { DEFAULT_SESSION_IDLE_SECONDS } from './authenticator.ts';
+import { reauthenticate } from './reauth.ts';
 import {
   emailSchema,
   loginPasswordSchema,
@@ -20,6 +21,8 @@ import {
 } from './password.ts';
 
 export interface IdentitySettings {
+  /** Seals authenticator secrets (ADR-0022); null or absent: two-step verification unavailable. */
+  mfaEncryptionKey?: Buffer | null;
   sessionTtlSeconds: number;
   /** Idle timeout (ADR-0018); defaults to DEFAULT_SESSION_IDLE_SECONDS. */
   sessionIdleSeconds?: number;
@@ -113,16 +116,31 @@ const sessionSchema = z
   })
   .meta({ id: 'Session' });
 
+/** A correct password on an account with two-step verification (ADR-0022). */
+export const MFA_CHALLENGE_TTL_SECONDS = 300;
+const mfaChallengeSchema = z
+  .object({
+    mfaRequired: z.literal(true),
+    /** Single use; send it back with a code to POST /v1/auth/login/mfa. */
+    challengeToken: z.string(),
+    expiresAt: z.iso.datetime(),
+  })
+  .meta({ id: 'MfaChallenge' });
+
+export const loginResultSchema = z
+  .union([sessionSchema, mfaChallengeSchema])
+  .meta({ id: 'LoginResult' });
+
 const meSchema = z
   .object({ userId: uuid, email: z.string(), emailVerified: z.boolean() })
   .meta({ id: 'CurrentUser' });
 
-function newSessionToken(): { token: string; hash: Buffer } {
+export function newSessionToken(): { token: string; hash: Buffer } {
   const token = randomBytes(32).toString('base64url');
   return { token, hash: createHash('sha256').update(token).digest() };
 }
 
-async function audit(
+export async function audit(
   client: PoolClient,
   action: string,
   actor: Actor,
@@ -240,13 +258,14 @@ export function identityRoutes(
       method: 'POST',
       path: '/v1/auth/login',
       operationId: 'logIn',
-      summary: 'Exchange email and password for a bearer session token.',
+      summary:
+        'Exchange email and password for a bearer session token, or for a two-step verification challenge when the account has MFA on (ADR-0022).',
       tags: ['identity'],
       idempotent: false,
       idempotencyExempt:
         'Each call issues a fresh session; storing issued tokens for replay would persist secrets.',
       rateLimit: AUTH_RATE_LIMIT,
-      schemas: { body: loginBody, response: { status: 200, schema: sessionSchema } },
+      schemas: { body: loginBody, response: { status: 200, schema: loginResultSchema } },
       async handler({ body, correlationId, userAgent }) {
         const { rows } = await pool.query<{
           out_user_id: string;
@@ -298,6 +317,37 @@ export function identityRoutes(
               },
             );
             return null;
+          }
+          // Two-step verification: the password alone earns a short-lived challenge, not a session.
+          // The failure counter is reset only when the second step succeeds.
+          const mfa = await client.query<{ auth_mfa_required: boolean }>(
+            'SELECT eventhub.auth_mfa_required($1)',
+            [account.out_user_id],
+          );
+          if (mfa.rows[0]!.auth_mfa_required) {
+            const challenge = newSessionToken();
+            const c = await client.query<{ auth_mfa_create_challenge: Date }>(
+              'SELECT eventhub.auth_mfa_create_challenge($1, $2, $3, $4, $5)',
+              [
+                account.out_user_id,
+                challenge.hash,
+                MFA_CHALLENGE_TTL_SECONDS,
+                userAgent ?? null,
+                upgradedHash,
+              ],
+            );
+            await audit(
+              client,
+              'identity.mfa_challenge_issued',
+              actor,
+              account.out_user_id,
+              correlationId,
+            );
+            return {
+              mfaRequired: true as const,
+              challengeToken: challenge.token,
+              expiresAt: c.rows[0]!.auth_mfa_create_challenge.toISOString(),
+            };
           }
           const { token, hash } = newSessionToken();
           const s = await client.query<{ out_session_id: string; out_expires_at: Date }>(
@@ -572,74 +622,22 @@ export function identityRoutes(
         },
       },
       async handler({ principal, body, correlationId }) {
-        const { rows } = await pool.query<{
-          out_password_hash: string;
-          out_locked: boolean;
-          out_email: string;
-        }>(
-          'SELECT out_password_hash, out_locked, out_email FROM eventhub.auth_credential_for_user($1)',
-          [principal.userId],
-        );
-        const credential = rows[0];
-        if (!credential) throw new AppError('unauthenticated', 'Sign in again.');
-        const currentOk =
-          !credential.out_locked &&
-          (await hasher.verify(credential.out_password_hash, body.currentPassword));
+        const credential = await reauthenticate(pool, hasher, settings, {
+          userId: principal.userId,
+          password: body.currentPassword,
+          correlationId,
+          failureAction: 'identity.password_change_failed',
+          field: 'body.currentPassword',
+        });
         const actor: Actor = { type: 'user', id: principal.userId };
 
-        if (!currentOk) {
-          // Same lockout as login, so a stolen session cannot be used to guess the password.
-          // The failure must commit, so it is recorded before the error is raised.
-          const lockedNow = await withTransaction(
-            pool,
-            { userId: principal.userId },
-            async (client) => {
-              let locked = credential.out_locked;
-              if (!locked) {
-                const r = await client.query<{ auth_record_login_failure: boolean }>(
-                  'SELECT eventhub.auth_record_login_failure($1, $2, $3)',
-                  [principal.userId, settings.loginMaxFailures, settings.loginLockSeconds],
-                );
-                locked = r.rows[0]!.auth_record_login_failure;
-              }
-              await audit(
-                client,
-                'identity.password_change_failed',
-                actor,
-                principal.userId,
-                correlationId,
-                {
-                  reason: credential.out_locked ? 'locked' : 'bad_password',
-                  locked,
-                },
-              );
-              return locked;
-            },
-          );
-          if (lockedNow) {
-            throw new AppError(
-              'validation_failed',
-              'Too many incorrect attempts. Try again later, or reset your password by email.',
-              { details: { reason: 'locked' } },
-            );
-          }
-          throw new AppError('validation_failed', 'Invalid request body.', {
-            details: {
-              reason: 'bad_current_password',
-              fields: [
-                { path: 'body.currentPassword', message: 'Your current password is incorrect.' },
-              ],
-            },
-          });
-        }
-
         const policy: Array<{ path: string; message: string }> = [];
-        if (body.newPassword.toLowerCase() === credential.out_email) {
+        if (body.newPassword.toLowerCase() === credential.email) {
           policy.push({
             path: 'body.newPassword',
             message: 'Password must not be your email address.',
           });
-        } else if (await hasher.verify(credential.out_password_hash, body.newPassword)) {
+        } else if (await hasher.verify(credential.passwordHash, body.newPassword)) {
           policy.push({
             path: 'body.newPassword',
             message: 'Choose a password different from your current one.',
