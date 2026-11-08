@@ -4501,6 +4501,144 @@
         }
       }
     },
+    "/v1/public/sites/{handle}/events/{eventSlug}": {
+      "get": {
+        "operationId": "getPublicEventPage",
+        "summary": "Public microsite of an event: its published revision only. Unknown, private, unpublished and draft-only all answer 404.",
+        "tags": [
+          "public"
+        ],
+        "security": [],
+        "x-eventhub-requires": "public",
+        "x-eventhub-rate-limit": {
+          "max": 600,
+          "timeWindow": "1 minute"
+        },
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])$"
+            }
+          },
+          {
+            "name": "eventSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$"
+            }
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicEventPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or Idempotency-Key missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated, or invalid credentials on login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (missing permission or unverified email)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found (also returned for resources in other organizations)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Idempotency-Key reused with a different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (generic body with correlation ID)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/organizations/{organizationId}/audit-events": {
       "get": {
         "operationId": "listAuditEvents",
@@ -5463,6 +5601,29 @@
                 "archived"
               ]
             }
+          },
+          "publicSite": {
+            "type": "object",
+            "properties": {
+              "pagePublished": {
+                "type": "boolean"
+              },
+              "handle": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "eventSlug": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "pagePublished",
+              "handle",
+              "eventSlug"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -5471,7 +5632,8 @@
           "version",
           "items",
           "canSchedule",
-          "availableTransitions"
+          "availableTransitions",
+          "publicSite"
         ],
         "additionalProperties": false
       },
@@ -6181,6 +6343,12 @@
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
+          "publicHandle": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "billingContact": {
             "type": "object",
             "properties": {
@@ -6213,7 +6381,8 @@
           "status",
           "role",
           "createdAt",
-          "version"
+          "version",
+          "publicHandle"
         ],
         "additionalProperties": false
       },
@@ -6385,6 +6554,99 @@
         },
         "required": [
           "email"
+        ],
+        "additionalProperties": false
+      },
+      "PublicEventPage": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string"
+          },
+          "eventSlug": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "venueMode": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "published",
+              "live",
+              "ended"
+            ]
+          },
+          "indexable": {
+            "type": "boolean"
+          },
+          "sharing": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "description": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "title",
+              "description"
+            ],
+            "additionalProperties": false
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "publishedAt": {
+            "type": "string"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PageSection"
+            }
+          }
+        },
+        "required": [
+          "handle",
+          "eventSlug",
+          "name",
+          "startsAt",
+          "endsAt",
+          "timezone",
+          "venueMode",
+          "language",
+          "lifecycle",
+          "indexable",
+          "sharing",
+          "revision",
+          "publishedAt",
+          "sections"
         ],
         "additionalProperties": false
       },
@@ -6706,6 +6968,17 @@
             "minLength": 1,
             "maxLength": 64,
             "pattern": "^(UTC|[A-Za-z_]+(\\/[A-Za-z0-9_+-]+)+)$"
+          },
+          "publicHandle": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])$"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "billingContact": {
             "anyOf": [

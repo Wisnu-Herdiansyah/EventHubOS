@@ -112,6 +112,19 @@ export async function updateOrganizationProfileAction(
   );
 }
 
+export async function updatePublicHandleAction(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  // Lowercased here so "AWH-Events" is accepted as "awh-events"; the API validates the rest.
+  const publicHandle = str(form, 'publicHandle').toLowerCase() || null;
+  return saveOrganization(
+    form,
+    (current) => (publicHandle !== current.publicHandle ? { publicHandle } : {}),
+    publicHandle ? 'Public address saved.' : 'Public address removed. Public pages stop working.',
+  );
+}
+
 export async function updateBillingContactAction(
   _prev: FormState,
   form: FormData,

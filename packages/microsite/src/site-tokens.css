@@ -18,8 +18,12 @@
   --site-on-hero: #ffffff;
   --site-divider: #e5e5ea;
   --site-radius: 18px;
-  --site-font-display: var(--font-display);
-  --site-font-body: var(--font-sans);
+  --site-font-display:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', system-ui, 'Segoe UI',
+    Roboto, Arial, sans-serif;
+  --site-font-body:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', system-ui, 'Segoe UI',
+    Roboto, Arial, sans-serif;
 }
 
 /* Navy and gold, with a serif display face. */

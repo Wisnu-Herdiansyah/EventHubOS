@@ -1,7 +1,7 @@
 /**
  * End-to-end harness: a disposable PostgreSQL database (production role model, all migrations),
- * the real API, the outbox worker writing emails to a temp folder, and the production build of
- * this app, then Playwright against it. Everything is torn down afterwards, pass or fail.
+ * the real API, the outbox worker writing emails to a temp folder, and the production builds of
+ * this app and the public site app (served on *.localhost), then Playwright against them. Everything is torn down afterwards, pass or fail.
  *
  * Needs TEST_DATABASE_ADMIN_URL (superuser URL of a disposable PostgreSQL 16 instance).
  * Set E2E_SKIP_BUILD=1 to reuse an existing `next build`.
@@ -18,6 +18,7 @@ import { ROLE_NAMES, bootstrapDatabase, loadMigrations, migrate } from '@eventhu
 
 const adminDir = fileURLToPath(new URL('..', import.meta.url));
 const repoRoot = join(adminDir, '..', '..');
+const siteDir = join(repoRoot, 'apps', 'site');
 const adminUrl = process.env.TEST_DATABASE_ADMIN_URL;
 if (!adminUrl) {
   process.stderr.write(
@@ -128,7 +129,9 @@ try {
   await migrate(migrator, await loadMigrations());
   await migrator.end();
 
-  const [apiPort, adminPort] = [await freePort(), await freePort()];
+  const [apiPort, adminPort, sitePort] = [await freePort(), await freePort(), await freePort()];
+  // Chromium resolves every *.localhost name to this machine, so {handle}.localhost works.
+  const siteTemplate = `http://{handle}.localhost:${sitePort}`;
   const apiUrl = `http://127.0.0.1:${apiPort}`;
   // `localhost` is a secure context in Chromium, so the Secure __Host- cookie works without TLS.
   const baseUrl = `http://localhost:${adminPort}`;
@@ -141,6 +144,13 @@ try {
       adminDir,
     );
     if (code !== 0) throw new Error('next build failed');
+    const siteCode = await run(
+      'pnpm',
+      ['exec', 'next', 'build'],
+      { NEXT_TELEMETRY_DISABLED: '1' },
+      siteDir,
+    );
+    if (siteCode !== 0) throw new Error('site next build failed');
   }
 
   start('api', process.execPath, ['apps/api/src/main.ts'], {
@@ -175,12 +185,26 @@ try {
       ADMIN_TRUSTED_PROXY_HOPS: '1',
       // The design-system spec checks every component in the gallery (ADR-0019).
       ADMIN_DESIGN_GALLERY: '1',
+      ADMIN_PUBLIC_SITE_URL: siteTemplate,
     },
     adminDir,
+  );
+  start(
+    'site',
+    'pnpm',
+    ['exec', 'next', 'start', '--hostname', 'localhost', '--port', String(sitePort)],
+    {
+      NEXT_TELEMETRY_DISABLED: '1',
+      SITE_API_URL: apiUrl,
+      SITE_DOMAIN: 'localhost',
+      SITE_HTTPS: '0',
+    },
+    siteDir,
   );
 
   await waitFor(`${apiUrl}/health/live`);
   await waitFor(`${baseUrl}/login`);
+  await waitFor(`http://localhost:${sitePort}/`);
 
   exitCode = await run(
     'pnpm',
@@ -189,6 +213,7 @@ try {
       E2E_BASE_URL: baseUrl,
       E2E_API_URL: apiUrl,
       E2E_MAIL_DIR: mailDir,
+      E2E_SITE_URL_TEMPLATE: siteTemplate,
       // Disposable test database, for fixtures that cannot wait in real time (e.g. idle timeout).
       E2E_FIXTURE_DATABASE_URL: withCredentials(ROLE_NAMES.migrator, passwords.migrator, database),
     },

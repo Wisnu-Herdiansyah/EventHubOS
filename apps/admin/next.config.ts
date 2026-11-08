@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: true,
   // Workspace packages ship TypeScript source (e.g. the shared permission catalog).
-  transpilePackages: ['@eventhub/kernel'],
+  transpilePackages: ['@eventhub/kernel', '@eventhub/microsite'],
   headers() {
     return Promise.resolve([
       {

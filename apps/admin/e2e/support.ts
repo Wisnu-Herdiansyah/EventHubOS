@@ -58,7 +58,12 @@ export async function mailLink(to: string, template: string): Promise<string> {
   throw new Error(`No ${template} email arrived for ${to}`);
 }
 
-async function apiCall<T>(method: string, path: string, body: unknown, token?: string): Promise<T> {
+export async function apiCall<T>(
+  method: string,
+  path: string,
+  body: unknown,
+  token?: string,
+): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     method,
     headers: {
@@ -157,6 +162,11 @@ export async function expectAccessible(page: Page): Promise<void> {
   // Next.js streams page metadata, so the <title> can land just after the content. Every page
   // must end up with a proper title; wait for it before scanning.
   await expect(page).toHaveTitle(/\S.* · EventHub OS$|^EventHub OS$/);
+  await axeScan(page);
+}
+
+/** The axe scan alone, for pages with their own titles (public event sites). */
+export async function axeScan(page: Page): Promise<void> {
   // Let opening transitions (dialogs, drawers) finish: mid-fade colours are not the real ones.
   await page.waitForFunction(() =>
     document

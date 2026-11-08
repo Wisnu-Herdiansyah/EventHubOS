@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@eventhub/kernel": "workspace:*",
+    "@eventhub/microsite": "workspace:*",
     "next": "16.4.2",
     "openapi-fetch": "0.17.0",
     "react": "19.1.10",

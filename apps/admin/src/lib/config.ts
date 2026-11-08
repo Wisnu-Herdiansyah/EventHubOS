@@ -19,12 +19,21 @@ const schema = z.object({
    * set to 1 to show it in a production build (e.g. the e2e harness), 0 to hide it anywhere.
    */
   ADMIN_DESIGN_GALLERY: z.enum(['0', '1']).optional(),
+  /**
+   * Public site address with a {handle} placeholder, e.g. https://{handle}.eventhub.example
+   * (ADR-0021). Optional: without it the admin shows handles but no links.
+   */
+  ADMIN_PUBLIC_SITE_URL: z
+    .string()
+    .regex(/^https?:\/\/\{handle\}\.[a-z0-9.-]+(:\d+)?$/i, 'e.g. https://{handle}.eventhub.example')
+    .optional(),
 });
 
 export interface AdminConfig {
   apiUrl: string;
   trustedProxyHops: number;
   designGallery: boolean;
+  publicSiteUrl: string | null;
 }
 
 /** The gallery is on in development unless switched off, and off in production unless on. */
@@ -45,6 +54,7 @@ export function adminConfig(): AdminConfig {
     apiUrl: parsed.data.ADMIN_API_URL.replace(/\/+$/, ''),
     trustedProxyHops: parsed.data.ADMIN_TRUSTED_PROXY_HOPS,
     designGallery: galleryEnabled(parsed.data.ADMIN_DESIGN_GALLERY, process.env.NODE_ENV),
+    publicSiteUrl: parsed.data.ADMIN_PUBLIC_SITE_URL ?? null,
   };
   return cached;
 }

@@ -501,6 +501,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/public/sites/{handle}/events/{eventSlug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public microsite of an event: its published revision only. Unknown, private, unpublished and draft-only all answer 404. */
+        get: operations["getPublicEventPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/organizations/{organizationId}/audit-events": {
         parameters: {
             query?: never;
@@ -681,6 +698,11 @@ export interface components {
             }[];
             canSchedule: boolean;
             availableTransitions: ("draft" | "scheduled" | "published" | "live" | "ended" | "archived")[];
+            publicSite: {
+                pagePublished: boolean;
+                handle: string | null;
+                eventSlug: string;
+            };
         };
         EventList: {
             data: components["schemas"]["Event"][];
@@ -868,6 +890,7 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
             version: number;
+            publicHandle: string | null;
             billingContact?: {
                 name: string | null;
                 email: string | null;
@@ -908,6 +931,26 @@ export interface components {
         };
         PasswordResetRequest: {
             email: string;
+        };
+        PublicEventPage: {
+            handle: string;
+            eventSlug: string;
+            name: string;
+            startsAt: string;
+            endsAt: string;
+            timezone: string;
+            venueMode: string;
+            language: string;
+            /** @enum {string} */
+            lifecycle: "published" | "live" | "ended";
+            indexable: boolean;
+            sharing: {
+                title: string | null;
+                description: string | null;
+            };
+            revision: number;
+            publishedAt: string;
+            sections: components["schemas"]["PageSection"][];
         };
         PublishPageRequest: {
             expectedVersion: number;
@@ -982,6 +1025,7 @@ export interface components {
             legalName?: string | null;
             locale?: string;
             timezone?: string;
+            publicHandle?: string | null;
             billingContact?: {
                 name: string;
                 email: string;
@@ -4148,6 +4192,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PageRevisionList"];
+                };
+            };
+            /** @description Validation failed or Idempotency-Key missing */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unauthenticated, or invalid credentials on login */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden (missing permission or unverified email) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found (also returned for resources in other organizations) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Idempotency-Key reused with a different payload */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error (generic body with correlation ID) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getPublicEventPage: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Correlation-Id"?: string;
+            };
+            path: {
+                handle: string;
+                eventSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicEventPage"];
                 };
             };
             /** @description Validation failed or Idempotency-Key missing */

@@ -1,0 +1,20 @@
+{
+  "name": "@eventhub/microsite",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./site.css": "./src/site.css"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "react": "19.1.10"
+  },
+  "devDependencies": {
+    "@types/react": "19.3.0",
+    "react": "19.1.10",
+    "vitest": "5.1.0"
+  }
+}
