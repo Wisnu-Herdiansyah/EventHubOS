@@ -292,3 +292,27 @@ export function totpFromKey(key: string, offset = 0): string {
   const n = ((mac[o]! & 0x7f) << 24) | (mac[o + 1]! << 16) | (mac[o + 2]! << 8) | mac[o + 3]!;
   return String(n % 1_000_000).padStart(6, '0');
 }
+
+/**
+ * Turns on two-step verification through the API and returns the authenticator key. Confirming
+ * signs out the account's other sessions, browsers included. The confirming code's step is spent,
+ * so the next sign-in uses `totpFromKey(key, 1)`.
+ */
+export async function enableMfaViaApi(token: string): Promise<string> {
+  const setup = await apiCall<{ secret: string }>(
+    'POST',
+    '/v1/auth/mfa/setup',
+    { currentPassword: PASSWORD },
+    token,
+  );
+  await apiCall('POST', '/v1/auth/mfa/confirm', { code: totpFromKey(setup.secret) }, token);
+  return setup.secret;
+}
+
+/** Signs in an account that has two-step verification on. */
+export async function signInWithCode(page: Page, email: string, key: string): Promise<void> {
+  await signIn(page, email);
+  await page.getByLabel('Verification code').fill(totpFromKey(key, 1));
+  await page.getByRole('button', { name: 'Verify' }).click();
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'));
+}

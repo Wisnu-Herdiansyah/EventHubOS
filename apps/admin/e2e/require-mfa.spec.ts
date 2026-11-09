@@ -1,0 +1,88 @@
+import { expect } from '@playwright/test';
+import {
+  createEventViaApi,
+  createOrgViaApi,
+  enableMfaViaApi,
+  expectAccessible,
+  joinAs,
+  signIn,
+  signInWithCode,
+  signOut,
+  test,
+  verifiedAccount,
+} from './support';
+
+test('an Owner requires two-step verification; an Admin without it is held at an explanation', async ({
+  page,
+}) => {
+  const owner = await verifiedAccount('require-mfa-owner');
+  const orgId = await createOrgViaApi(owner.token, 'Secure Org');
+  await createEventViaApi(owner.token, orgId);
+  const admin = await joinAs(owner.token, orgId, 'require-mfa-admin', 'admin');
+  const manager = await joinAs(owner.token, orgId, 'require-mfa-manager', 'event_manager');
+
+  // Without two-step verification of their own, the Owner cannot require it.
+  await signIn(page, owner.email);
+  await page.goto(`/orgs/${orgId}/settings`);
+  const security = page.getByRole('region', { name: 'Security', exact: true });
+  await expect(security).toContainText('You don’t use two-step verification yet.');
+  const box = security.getByRole('checkbox', {
+    name: 'Require two-step verification for Owners and Admins',
+  });
+  await expect(box).not.toBeChecked();
+  await box.check();
+  await security.getByRole('button', { name: 'Save security settings' }).click();
+  await expect(
+    security.getByText('Set up two-step verification in your account first.'),
+  ).toBeVisible();
+  await expect(box).toHaveAttribute('aria-invalid', 'true');
+  await expectAccessible(page);
+
+  // With it on, the Owner can.
+  const ownerKey = await enableMfaViaApi(owner.token);
+  await signInWithCode(page, owner.email, ownerKey);
+  await page.goto(`/orgs/${orgId}/settings`);
+  await expect(security).not.toContainText('You don’t use two-step verification yet.');
+  await box.check();
+  await security.getByRole('button', { name: 'Save security settings' }).click();
+  await expect(
+    page.getByText('Two-step verification is now required for Owners and Admins.'),
+  ).toBeVisible();
+  await page.reload();
+  await expect(box).toBeChecked();
+  await page.goto(`/orgs/${orgId}/audit`);
+  await expect(page.getByRole('main')).toContainText(
+    'Required two-step verification for Owners and Admins',
+  );
+  await signOut(page);
+
+  // The Admin without it reaches only the explanation, from any page of the organization.
+  await signIn(page, admin.email);
+  for (const path of ['', '/team', '/settings', '/audit']) {
+    await page.goto(`/orgs/${orgId}${path}`);
+    await expect(page).toHaveURL(`/two-step-required?org=${orgId}`);
+  }
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Two-step verification required' }),
+  ).toBeVisible();
+  await expect(page.getByRole('main')).toContainText(
+    'Secure Org requires two-step verification for Owners and Admins. As an Admin',
+  );
+  await expectAccessible(page);
+  await page.getByRole('link', { name: 'Set up two-step verification' }).click();
+  await expect(page).toHaveURL(/\/account#two-step-heading$/);
+  await expect(page.getByRole('region', { name: 'Two-step verification' })).toContainText('Off');
+
+  // Once it is on, the organization opens again; the explanation page sends them back in.
+  const adminKey = await enableMfaViaApi(admin.token);
+  await signInWithCode(page, admin.email, adminKey);
+  await page.goto(`/two-step-required?org=${orgId}`);
+  await expect(page).toHaveURL(`/orgs/${orgId}`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Secure Org' })).toBeVisible();
+  await signOut(page);
+
+  // Other roles are not affected.
+  await signIn(page, manager.email);
+  await page.goto(`/orgs/${orgId}`);
+  await expect(page.getByRole('heading', { level: 1, name: 'Secure Org' })).toBeVisible();
+});

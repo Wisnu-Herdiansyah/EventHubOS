@@ -4,6 +4,7 @@ import {
   PERMISSION_CATALOG_VERSION,
   ROLES,
   canAssignRole,
+  roleRequiresMfa,
   permissionsForRole,
   roleHasPermission,
   type Permission,
@@ -105,5 +106,18 @@ describe('canAssignRole', () => {
 
   it('denies unknown roles', () => {
     expect(canAssignRole('owner', 'root')).toBe(false);
+  });
+});
+
+describe('roleRequiresMfa', () => {
+  it('applies only to Owners and Admins, and only when the organization requires it', () => {
+    const enforced = ROLES.filter((r) => roleRequiresMfa(r, true));
+    expect(enforced).toEqual(['owner', 'admin']);
+    for (const r of ROLES) expect(roleRequiresMfa(r, false)).toBe(false);
+  });
+
+  it('denies nothing for unknown roles', () => {
+    expect(roleRequiresMfa('superuser', true)).toBe(false);
+    expect(roleRequiresMfa(undefined, true)).toBe(false);
   });
 });

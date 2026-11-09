@@ -21,7 +21,8 @@ Phase 0 (foundation) plus Phase 1 slices:
   (schedule, unschedule, archive, restore; ADR-0011).
 - **Team** (ADR-0010, ADR-0012): email invitations with role ceiling, acceptance bound to the
   invited address, revocation, member listing, role changes, and removal with a last-Owner guard.
-- **Organization settings** (ADR-0012): profile and billing contact with per-field permissions.
+- **Organization settings** (ADR-0012): profile and billing contact with per-field permissions,
+  and an option to require two-step verification for Owners and Admins (ADR-0024).
 - **Audit log** (ADR-0013): filterable, paginated history of who changed what, for Owners and Admins.
 - **Microsites** (ADR-0020): a three-panel editor for each event's page with typed sections,
   drafts, and immutable published revisions; editors save, Event managers publish.

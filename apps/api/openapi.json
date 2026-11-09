@@ -8062,6 +8062,12 @@
               "null"
             ]
           },
+          "requireMfaForAdmins": {
+            "type": "boolean"
+          },
+          "mfaSetupRequired": {
+            "type": "boolean"
+          },
           "billingContact": {
             "type": "object",
             "properties": {
@@ -8095,7 +8101,9 @@
           "role",
           "createdAt",
           "version",
-          "publicHandle"
+          "publicHandle",
+          "requireMfaForAdmins",
+          "mfaSetupRequired"
         ],
         "additionalProperties": false
       },
@@ -8961,6 +8969,9 @@
                 "type": "null"
               }
             ]
+          },
+          "requireMfaForAdmins": {
+            "type": "boolean"
           },
           "billingContact": {
             "anyOf": [
