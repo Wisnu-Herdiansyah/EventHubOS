@@ -33,6 +33,7 @@ describe('internalPath', () => {
     expect(internalPath('acme', '/')).toBe('/s/acme');
     expect(internalPath('acme', '/jakarta-summit')).toBe('/s/acme/jakarta-summit');
     expect(internalPath('acme', '/jakarta-summit/')).toBe('/s/acme/jakarta-summit');
+    expect(internalPath('acme', '/cancel-registration')).toBe('/c/acme');
     expect(internalPath('acme', '/s/other/x')).toBeNull();
     expect(internalPath('acme', '/Bad_Slug')).toBeNull();
     expect(internalPath('acme', '/a/b')).toBeNull();
@@ -41,10 +42,10 @@ describe('internalPath', () => {
 
 describe('site CSP', async () => {
   const { buildCsp } = await import('./csp');
-  it('allows only nonce scripts, no forms and no framing', () => {
+  it('allows only nonce scripts, same-site forms and no framing', () => {
     const csp = buildCsp('abc', { development: false, https: true });
     expect(csp).toContain("script-src 'self' 'nonce-abc' 'strict-dynamic'");
-    expect(csp).toContain("form-action 'none'");
+    expect(csp).toContain("form-action 'self'");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain('upgrade-insecure-requests');
     expect(csp).not.toContain('unsafe-inline');

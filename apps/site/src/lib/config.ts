@@ -8,9 +8,12 @@ const schema = z.object({
   SITE_DOMAIN: z.string().regex(/^[a-z0-9.-]+$/i, 'A bare domain such as eventhub.example'),
   /** 1 when served over HTTPS (adds upgrade-insecure-requests to the CSP). */
   SITE_HTTPS: z.enum(['0', '1']).default('1'),
+  /** Proxies in front of this app; their X-Forwarded-For gives the visitor IP for rate limits. */
+  SITE_TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
 });
 
-let cached: { apiUrl: string; domain: string; https: boolean } | null = null;
+let cached: { apiUrl: string; domain: string; https: boolean; trustedProxyHops: number } | null =
+  null;
 
 export function siteConfig() {
   if (cached) return cached;
@@ -23,6 +26,7 @@ export function siteConfig() {
     apiUrl: parsed.data.SITE_API_URL.replace(/\/+$/, ''),
     domain: parsed.data.SITE_DOMAIN.toLowerCase(),
     https: parsed.data.SITE_HTTPS === '1',
+    trustedProxyHops: parsed.data.SITE_TRUSTED_PROXY_HOPS,
   };
   return cached;
 }

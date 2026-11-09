@@ -42,6 +42,8 @@
 | `SITE_API_URL`                                                   | site                       | yes           | core API base URL, server-side only (ADR-0021)                                                                                     |
 | `SITE_DOMAIN`                                                    | site                       | yes           | platform domain whose subdomains are organization handles, e.g. `eventhub.example`                                                 |
 | `SITE_HTTPS`                                                     | site                       | no            | `1` (default) when served over HTTPS; `0` for local HTTP                                                                           |
+| `SITE_TRUSTED_PROXY_HOPS`                                        | site                       | no            | proxies in front of the site; their X-Forwarded-For gives visitor IPs for rate limits (ADR-0023)                                   |
+| `PUBLIC_SITE_URL`                                                | worker                     | no            | public site template, e.g. `https://{handle}.eventhub.example`, for registration cancel links; HTTPS outside local/ci (ADR-0023)   |
 | `DATABASE_ADMIN_URL`, `EVENTHUB_{MIGRATOR,APP,WORKER}_PASSWORD`  | bootstrap (operator, once) | **yes**       |                                                                                                                                    |
 | `TEST_DATABASE_ADMIN_URL`                                        | integration tests          | local/CI only | disposable instance                                                                                                                |
 

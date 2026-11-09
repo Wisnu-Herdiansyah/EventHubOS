@@ -103,7 +103,7 @@ test('an organizer publishes the event and visitors see the published page only'
   await expect(visitor.getByRole('heading', { name: 'Welcome to the summit' })).toBeVisible();
   await expect(visitor.getByRole('heading', { name: 'Speakers' })).toHaveCount(0);
   await expect(visitor.locator('meta[name="robots"]')).toHaveAttribute('content', 'index, follow');
-  expect(res?.headers()['content-security-policy']).toContain("form-action 'none'");
+  expect(res?.headers()['content-security-policy']).toContain("form-action 'self'");
   expect(res?.headers()['set-cookie']).toBeUndefined();
   await axeScan(visitor);
 

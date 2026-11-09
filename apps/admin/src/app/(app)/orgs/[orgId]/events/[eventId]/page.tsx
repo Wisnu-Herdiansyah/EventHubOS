@@ -17,6 +17,7 @@ import { auditHref } from '@/lib/audit';
 import { lifecycleStatus } from '@/lib/status';
 import { adminConfig } from '@/lib/config';
 import { publicSiteUrl } from '@/lib/public-url';
+import { registrationStateLabel, seatsLabel } from '@/lib/registrations';
 import { formatInZone, isoToZonedLocal } from '@/lib/time';
 
 export const metadata: Metadata = { title: 'Event' };
@@ -68,7 +69,7 @@ export default async function EventPage({
   const { orgId, eventId } = await params;
   if (!UUID.test(orgId) || !UUID.test(eventId)) notFound();
   const path = { organizationId: orgId, eventId };
-  let org, evt, checklist;
+  let org, evt, checklist, regSummary;
   try {
     const client = await api();
     org = unwrap(
@@ -83,6 +84,14 @@ export default async function EventPage({
       await client.GET('/v1/organizations/{organizationId}/events/{eventId}/checklist', {
         params: { path },
       }),
+    );
+    regSummary = unwrap(
+      await client.GET(
+        '/v1/organizations/{organizationId}/events/{eventId}/registrations/summary',
+        {
+          params: { path },
+        },
+      ),
     );
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
@@ -136,6 +145,7 @@ export default async function EventPage({
   ];
 
   const status = lifecycleStatus(evt.lifecycle);
+  const regState = registrationStateLabel(regSummary.state);
   const done = checklist.items.filter((i) => i.complete).length;
 
   const overview = (
@@ -215,6 +225,17 @@ export default async function EventPage({
       </div>
 
       <div className="stack">
+        <Card title="Registrations" titleId="registrations-heading">
+          <div className="stack-sm">
+            <Badge tone={regState.tone} dot>
+              Registration {regState.label.toLowerCase()}
+            </Badge>
+            <p>
+              <strong>{seatsLabel(regSummary.confirmed, regSummary.capacity)}</strong> registered
+            </p>
+            <Link href={`/orgs/${orgId}/events/${eventId}/registrations`}>See registrations</Link>
+          </div>
+        </Card>
         <Card title="Public page" titleId="public-page-heading">
           {isPublic && publicUrl ? (
             <div className="stack-sm">
@@ -322,6 +343,13 @@ export default async function EventPage({
                 View history
               </ButtonLink>
             ) : null}
+            <ButtonLink
+              variant="secondary"
+              icon="users"
+              href={`/orgs/${orgId}/events/${eventId}/registrations`}
+            >
+              Registrations
+            </ButtonLink>
             <ButtonLink icon="layers" href={`/orgs/${orgId}/events/${eventId}/page`}>
               {can(org.role, 'page.edit') && evt.lifecycle !== 'archived'
                 ? 'Edit microsite'

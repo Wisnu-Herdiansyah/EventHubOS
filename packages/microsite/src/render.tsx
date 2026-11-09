@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { Section } from './types.ts';
 
 /**
@@ -31,7 +32,16 @@ function Paragraphs({ text, className }: { text: string; className: string }) {
   );
 }
 
-export function SiteSection({ section, selected }: { section: Section; selected?: boolean }) {
+export function SiteSection({
+  section,
+  selected,
+  registerSlot,
+}: {
+  section: Section;
+  selected?: boolean;
+  /** Public site only: the registration form or status, in place of the button. */
+  registerSlot?: ReactNode;
+}) {
   const mark = selected ? { 'data-selected-section': '' } : {};
   switch (section.type) {
     case 'hero':
@@ -107,11 +117,12 @@ export function SiteSection({ section, selected }: { section: Section; selected?
               <h2 className="site-section__title">{section.heading}</h2>
               <Paragraphs text={section.body} className="site-section__lede" />
             </div>
-            {section.ctaLabel ? (
-              <a className="site-cta" href="#register">
-                {section.ctaLabel}
-              </a>
-            ) : null}
+            {registerSlot ??
+              (section.ctaLabel ? (
+                <a className="site-cta" href="#register">
+                  {section.ctaLabel}
+                </a>
+              ) : null)}
           </div>
         </section>
       );
@@ -126,6 +137,7 @@ export function SitePreview({
   lang,
   dateLine,
   asPage,
+  registerSlot,
 }: {
   brand?: string;
   name: string;
@@ -137,6 +149,8 @@ export function SitePreview({
   dateLine?: string;
   /** On a real page the event name is the page's h1; in previews it is plain text. */
   asPage?: boolean;
+  /** Public site only: shown in the registration section (added at the end if the page has none). */
+  registerSlot?: ReactNode;
 }) {
   const Name = asPage ? 'h1' : 'span';
   const register = sections.find((s) => s.visible && s.type === 'register');
@@ -156,8 +170,21 @@ export function SitePreview({
       {sections
         .filter((s) => s.visible)
         .map((s) => (
-          <SiteSection key={s.id} section={s} selected={s.id === selectedId} />
+          <SiteSection
+            key={s.id}
+            section={s}
+            selected={s.id === selectedId}
+            registerSlot={s.type === 'register' ? registerSlot : undefined}
+          />
         ))}
+      {registerSlot && !register ? (
+        <section className="site-section" id="register" aria-label="Register">
+          <div className="site-register site-register--stacked">
+            <h2 className="site-section__title">Register</h2>
+            {registerSlot}
+          </div>
+        </section>
+      ) : null}
       <footer className="site-footer">© {name}</footer>
     </div>
   );

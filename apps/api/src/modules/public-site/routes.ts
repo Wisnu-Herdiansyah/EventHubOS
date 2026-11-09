@@ -36,6 +36,14 @@ const publicEventPageSchema = z
     publishedAt: z.string(),
     /** Visible sections only, in page order. */
     sections: z.array(sectionSchema),
+    /** Shown with the consent checkbox of the registration form. */
+    privacyPolicyUrl: z.string().nullable(),
+    /** Whether visitors can register now (ADR-0023). */
+    registration: z.object({
+      state: z.enum(['open', 'not_open_yet', 'closed', 'full']),
+      opensAt: z.string().nullable(),
+      closesAt: z.string(),
+    }),
   })
   .meta({ id: 'PublicEventPage' });
 
@@ -70,14 +78,22 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
       rateLimit: { max: 600, timeWindow: '1 minute' },
       schemas: { params, response: { status: 200, schema: publicEventPageSchema } },
       async handler({ params: p }) {
-        const row = await withTransaction(pool, {}, async (client) => {
+        const found = await withTransaction(pool, {}, async (client) => {
           const { rows } = await client.query<Row>(
             'SELECT * FROM eventhub.public_event_page($1, $2)',
             [p.handle, p.eventSlug],
           );
-          return rows[0];
+          if (!rows[0]) return null;
+          const reg = await client.query<{
+            out_state: 'open' | 'not_open_yet' | 'closed' | 'full';
+            out_opens_at: Date | null;
+            out_closes_at: Date;
+            out_privacy_policy_url: string | null;
+          }>('SELECT * FROM eventhub.public_registration_state($1, $2)', [p.handle, p.eventSlug]);
+          return { row: rows[0], reg: reg.rows[0]! };
         });
-        if (!row) throw notFound('Page');
+        if (!found) throw notFound('Page');
+        const { row, reg } = found;
         return {
           status: 200,
           body: {
@@ -95,6 +111,12 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
             revision: row.out_revision,
             publishedAt: row.out_published_at.toISOString(),
             sections: row.out_sections.filter((s) => s.visible),
+            privacyPolicyUrl: reg.out_privacy_policy_url,
+            registration: {
+              state: reg.out_state,
+              opensAt: reg.out_opens_at?.toISOString() ?? null,
+              closesAt: reg.out_closes_at.toISOString(),
+            },
           },
         };
       },

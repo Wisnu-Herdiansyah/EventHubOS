@@ -276,3 +276,112 @@ h1.site-nav__name {
   font-size: 1.0625rem;
   line-height: 1.3;
 }
+
+.site-register--stacked {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* Registration form (public site only). Brand tokens only, so it matches each event. */
+.site-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 28rem;
+}
+
+.site-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.site-field label {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.site-input {
+  min-height: 2.75rem;
+  padding: 0 0.875rem;
+  border: 1px solid var(--site-text-secondary);
+  border-radius: min(var(--site-radius), 12px);
+  background: var(--site-bg);
+  color: var(--site-text);
+  font: inherit;
+  font-size: max(16px, 1rem);
+}
+
+.site-input[aria-invalid='true'] {
+  border-width: 2px;
+  border-color: var(--site-text);
+}
+
+.site-check {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  font-size: 0.9375rem;
+}
+
+.site-check input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0.125rem 0 0;
+  accent-color: var(--site-brand);
+  flex: none;
+}
+
+.site-error {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--site-text);
+}
+
+.site-error::before {
+  content: '⚠ ';
+}
+
+.site-notice {
+  padding: 1rem 1.25rem;
+  border-radius: min(var(--site-radius), 12px);
+  background: var(--site-bg);
+  border: 1px solid var(--site-divider);
+}
+
+.site-notice--success {
+  border-left: 4px solid var(--site-brand);
+}
+
+/* Visually hidden, still announced. The honeypot uses the off-screen variant. */
+.site-sr-only {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.site-trap {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+button.site-cta {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+button.site-cta:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}

@@ -2,9 +2,37 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { SitePreview } from '@eventhub/microsite';
 import { eventDateLine } from '@/lib/format';
-import { publicEventPage } from '@/lib/public-api';
+import { RegisterForm } from '@/components/register-form';
+import { publicEventPage, type PublicEventPage as PublicEventPageData } from '@/lib/public-api';
 
 type Params = Promise<{ handle: string; eventSlug: string }>;
+
+/** The registration form while open; otherwise a short status (ADR-0023). */
+function registerSlot(page: PublicEventPageData, handle: string, eventSlug: string) {
+  const r = page.registration;
+  if (r.state === 'open') {
+    const register = page.sections.find((s) => s.type === 'register');
+    return (
+      <RegisterForm
+        handle={handle}
+        eventSlug={eventSlug}
+        privacyPolicyUrl={page.privacyPolicyUrl}
+        ctaLabel={(register?.type === 'register' && register.ctaLabel) || 'Register'}
+      />
+    );
+  }
+  const message =
+    r.state === 'not_open_yet'
+      ? `Registration opens ${r.opensAt ? eventDateLine(r.opensAt, page.timezone) : 'soon'}.`
+      : r.state === 'full'
+        ? 'This event is full.'
+        : 'Registration is closed.';
+  return (
+    <p className="site-notice" role="status">
+      {message}
+    </p>
+  );
+}
 
 export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
   const { handle, eventSlug } = await params;
@@ -34,6 +62,7 @@ export default async function PublicEventPage({ params }: { params: Params }) {
       <main id="main">
         <SitePreview
           asPage
+          registerSlot={registerSlot(page, handle, eventSlug)}
           name={page.name}
           lang={page.language}
           dateLine={eventDateLine(page.startsAt, page.timezone)}

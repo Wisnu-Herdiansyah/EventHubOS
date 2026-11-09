@@ -202,6 +202,15 @@ const workerSchema = baseSchema.extend({
   PASSWORD_RESET_TTL_MINUTES: z.coerce.number().int().min(10).max(240).default(60),
   // Secret for deterministic, retry-stable verification tokens (ADR-0008).
   EMAIL_TOKEN_SECRET: z.string().min(32).max(512),
+  /**
+   * Public event site address with a {handle} placeholder, e.g. https://{handle}.eventhub.example
+   * (ADR-0021). Used for registration cancel links (ADR-0023); without it emails say to contact
+   * the organizer instead.
+   */
+  PUBLIC_SITE_URL: z
+    .string()
+    .regex(/^https?:\/\/\{handle\}\.[a-z0-9.-]+(:\d+)?$/i, 'e.g. https://{handle}.eventhub.example')
+    .optional(),
 });
 
 export interface WorkerConfig {
@@ -223,6 +232,8 @@ export interface WorkerConfig {
     resend: { apiKey: string; from: string; baseUrl: string; timeoutMs: number } | undefined;
   };
   appBaseUrl: string;
+  /** {handle} template of public sites, or null. */
+  publicSiteUrl: string | null;
   emailVerificationTtlSeconds: number;
   passwordResetTtlSeconds: number;
   /** Secret: never log. */
@@ -251,6 +262,9 @@ export function loadWorkerConfig(env: Readonly<Record<string, string | undefined
         ? ['RESEND_BASE_URL']
         : []),
       ...(c.APP_BASE_URL.startsWith('https://') ? [] : ['APP_BASE_URL']),
+      ...(c.PUBLIC_SITE_URL && !c.PUBLIC_SITE_URL.startsWith('https://')
+        ? ['PUBLIC_SITE_URL']
+        : []),
     ];
     if (refused.length > 0) {
       throw new ConfigError(
@@ -285,6 +299,7 @@ export function loadWorkerConfig(env: Readonly<Record<string, string | undefined
           : undefined,
     },
     appBaseUrl: c.APP_BASE_URL.replace(/\/+$/, ''),
+    publicSiteUrl: c.PUBLIC_SITE_URL ?? null,
     emailVerificationTtlSeconds: c.EMAIL_VERIFICATION_TTL_HOURS * 3600,
     passwordResetTtlSeconds: c.PASSWORD_RESET_TTL_MINUTES * 60,
     emailTokenSecret: c.EMAIL_TOKEN_SECRET,

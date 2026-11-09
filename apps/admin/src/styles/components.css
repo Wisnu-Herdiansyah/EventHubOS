@@ -1463,3 +1463,31 @@
   border-radius: var(--radius-md);
   background: var(--color-surface-muted);
 }
+
+/* Filter links (a small segmented navigation above a table) */
+.filter-links {
+  padding: var(--space-4) var(--space-6) 0;
+  gap: var(--space-1);
+}
+
+.filter-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.filter-link:hover {
+  background: var(--color-surface-muted);
+  text-decoration: none;
+}
+
+.filter-link[aria-current='page'] {
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+  font-weight: var(--weight-semibold);
+}

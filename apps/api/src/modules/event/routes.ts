@@ -54,6 +54,8 @@ export const RESERVED_EVENT_SLUGS = new Set([
   'platform',
   'support',
   'status',
+  // Public site path for cancelling a registration (ADR-0023).
+  'cancel-registration',
 ]);
 
 export const slugSchema = z
