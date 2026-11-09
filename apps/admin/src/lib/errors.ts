@@ -75,3 +75,14 @@ export function errorToFormState(error: unknown): FormState {
   // Never echo unexpected errors to the browser; they are logged server-side.
   return { ok: false, message: 'Something went wrong. Please try again.' };
 }
+
+/** ADR-0024: the organization requires two-step verification and this Owner/Admin has none. */
+export function isTwoStepRequired(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 403 && error.reason === 'mfa_required';
+}
+
+/** Where to explain the block: names the organization from the page the user was opening. */
+export function twoStepRequiredPath(returnTo: string): string {
+  const org = /^\/orgs\/([0-9a-f-]{36})(?:[/?#]|$)/i.exec(returnTo)?.[1];
+  return org ? `/two-step-required?org=${org}` : '/account';
+}

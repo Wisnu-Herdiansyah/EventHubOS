@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { clientIpFromForwarded } from './client-ip';
 import { buildCsp, newNonce } from './csp';
-import { ApiError, errorToFormState, fieldName } from './errors';
+import {
+  ApiError,
+  errorToFormState,
+  fieldName,
+  isTwoStepRequired,
+  twoStepRequiredPath,
+} from './errors';
 import { safeNext } from './redirect';
 import { formText, submittedValues } from './form-data';
 import { formatInZone, isoToZonedLocal, zonedLocalToIso } from './time';
@@ -173,5 +179,30 @@ describe('friendly API reasons', () => {
     expect(state.message).toMatch(/Someone else changed this while you were editing/);
     expect(state.message).not.toContain('version 7');
     expect(state.reference).toBe('corr-2');
+  });
+});
+
+describe('two-step verification required (ADR-0024)', () => {
+  const blocked = new ApiError(403, {
+    error: { code: 'forbidden', message: 'x', details: { reason: 'mfa_required' } },
+  });
+  it('recognises only the mfa_required refusal', () => {
+    expect(isTwoStepRequired(blocked)).toBe(true);
+    const other = new ApiError(403, {
+      error: {
+        code: 'forbidden',
+        message: 'x',
+        details: { reason: 'missing_permission:event.read' },
+      },
+    });
+    expect(isTwoStepRequired(other)).toBe(false);
+    expect(isTwoStepRequired(new Error('mfa_required'))).toBe(false);
+  });
+  it('explains the block for the organization being opened', () => {
+    const org = '0b9f1c52-6a59-4a55-9d0e-3c1f2a0e5d11';
+    expect(twoStepRequiredPath(`/orgs/${org}`)).toBe(`/two-step-required?org=${org}`);
+    expect(twoStepRequiredPath(`/orgs/${org}/events/x`)).toBe(`/two-step-required?org=${org}`);
+    expect(twoStepRequiredPath('/orgs/not-a-uuid')).toBe('/account');
+    expect(twoStepRequiredPath('https://evil.example/orgs/' + org)).toBe('/account');
   });
 });

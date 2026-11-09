@@ -89,6 +89,13 @@ const organizationSchema = z
     version: z.number().int(),
     /** Public site handle (ADR-0021); null until chosen. */
     publicHandle: z.string().nullable(),
+    /** Owners and Admins must use two-step verification to work in this organization (ADR-0024). */
+    requireMfaForAdmins: z.boolean(),
+    /**
+     * True when the caller is an Owner or Admin who must set up two-step verification before
+     * anything else in this organization is available to them.
+     */
+    mfaSetupRequired: z.boolean(),
     /** Present only for roles with billing.read (personal data). */
     billingContact: z
       .object({ name: z.string().nullable(), email: z.string().nullable() })
@@ -114,12 +121,17 @@ interface OrganizationRow {
   billing_contact_name: string | null;
   billing_contact_email: string | null;
   public_handle: string | null;
+  require_mfa_for_admins: boolean;
 }
 
 const ORGANIZATION_COLUMNS =
-  'id, display_name, legal_name, locale, timezone, status, created_at, version, billing_contact_name, billing_contact_email, public_handle';
+  'id, display_name, legal_name, locale, timezone, status, created_at, version, billing_contact_name, billing_contact_email, public_handle, require_mfa_for_admins';
 
-function toOrganizationDto(row: OrganizationRow, role: (typeof ROLES)[number]) {
+function toOrganizationDto(
+  row: OrganizationRow,
+  role: (typeof ROLES)[number],
+  mfaSetupRequired = false,
+) {
   return {
     id: row.id,
     displayName: row.display_name,
@@ -131,6 +143,8 @@ function toOrganizationDto(row: OrganizationRow, role: (typeof ROLES)[number]) {
     createdAt: row.created_at.toISOString(),
     version: row.version,
     publicHandle: row.public_handle,
+    requireMfaForAdmins: row.require_mfa_for_admins,
+    mfaSetupRequired,
     ...(roleHasPermission(role, 'billing.read')
       ? { billingContact: { name: row.billing_contact_name, email: row.billing_contact_email } }
       : {}),
@@ -146,6 +160,8 @@ const updateOrganizationBody = z
     timezone: ianaTimeZone.optional(),
     /** null removes the handle (public sites stop resolving). */
     publicHandle: publicHandleSchema.nullable().optional(),
+    /** Turning this on requires the caller to have two-step verification (ADR-0024). */
+    requireMfaForAdmins: z.boolean().optional(),
     billingContact: z
       .object({ name: z.string().trim().min(1).max(200), email: emailSchema })
       .strict()
@@ -165,6 +181,7 @@ const FIELD_PERMISSIONS: Record<string, Permission> = {
   locale: 'organization.manage',
   timezone: 'organization.manage',
   publicHandle: 'organization.manage',
+  requireMfaForAdmins: 'organization.manage',
   billingContact: 'billing.manage',
 };
 
@@ -315,8 +332,13 @@ export function organizationRoutes(pool: Pool): AnyRoute[] {
                FROM eventhub.organization WHERE id = $1`,
               [access.organizationId],
             );
-            return { status: 200, body: toOrganizationDto(rows[0]!, access.role) };
+            return {
+              status: 200,
+              body: toOrganizationDto(rows[0]!, access.role, access.mfaBlocked),
+            };
           },
+          // A blocked Owner/Admin may read the profile: it tells them why and what to do.
+          { allowMfaBlocked: true },
         );
       },
     }),
@@ -383,6 +405,31 @@ export function organizationRoutes(pool: Pool): AnyRoute[] {
                     { details: { reason: 'version_conflict' } },
                   );
                 }
+                // Nobody can require two-step verification without using it: that would lock the
+                // caller out of the organization in the same request.
+                if (body.requireMfaForAdmins === true) {
+                  const mfa = await client.query<{ enrolled: boolean }>(
+                    'SELECT eventhub.auth_mfa_required($1) AS enrolled',
+                    [principal.userId],
+                  );
+                  if (!mfa.rows[0]!.enrolled) {
+                    throw new AppError(
+                      'conflict',
+                      'Turn on two-step verification for your own account before requiring it.',
+                      {
+                        details: {
+                          reason: 'actor_mfa_required',
+                          fields: [
+                            {
+                              path: 'body.requireMfaForAdmins',
+                              message: 'Set up two-step verification in your account first.',
+                            },
+                          ],
+                        },
+                      },
+                    );
+                  }
+                }
                 const columns: Array<[string, unknown]> = [];
                 if (body.displayName !== undefined)
                   columns.push(['display_name', body.displayName]);
@@ -391,6 +438,8 @@ export function organizationRoutes(pool: Pool): AnyRoute[] {
                 if (body.timezone !== undefined) columns.push(['timezone', body.timezone]);
                 if (body.publicHandle !== undefined)
                   columns.push(['public_handle', body.publicHandle]);
+                if (body.requireMfaForAdmins !== undefined)
+                  columns.push(['require_mfa_for_admins', body.requireMfaForAdmins]);
                 if (body.billingContact !== undefined) {
                   columns.push(['billing_contact_name', body.billingContact?.name ?? null]);
                   columns.push(['billing_contact_email', body.billingContact?.email ?? null]);
@@ -430,7 +479,12 @@ export function organizationRoutes(pool: Pool): AnyRoute[] {
                   targetType: 'organization',
                   targetId: access.organizationId,
                   correlationId,
-                  metadata: { fields },
+                  metadata: {
+                    fields,
+                    ...(body.requireMfaForAdmins !== undefined
+                      ? { requireMfaForAdmins: body.requireMfaForAdmins }
+                      : {}),
+                  },
                 });
                 await enqueueEvent(
                   client,

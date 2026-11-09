@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import type { paths } from './api-types';
 import { clientIpFromForwarded } from './client-ip';
 import { adminConfig } from './config';
-import { ApiError } from './errors';
+import { ApiError, isTwoStepRequired, twoStepRequiredPath } from './errors';
 import { readSessionToken } from './session';
 
 /**
@@ -47,6 +47,8 @@ export function signInOn401(error: unknown, returnTo: string): never {
   if (error instanceof ApiError && error.status === 401) {
     redirect(`/login?next=${encodeURIComponent(returnTo)}&ended=1`);
   }
+  // ADR-0024: the organization requires two-step verification and this Owner/Admin has none.
+  if (isTwoStepRequired(error)) redirect(twoStepRequiredPath(returnTo));
   throw error;
 }
 

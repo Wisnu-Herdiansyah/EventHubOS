@@ -1128,6 +1128,8 @@ export interface components {
             createdAt: string;
             version: number;
             publicHandle: string | null;
+            requireMfaForAdmins: boolean;
+            mfaSetupRequired: boolean;
             billingContact?: {
                 name: string | null;
                 email: string | null;
@@ -1318,6 +1320,7 @@ export interface components {
             locale?: string;
             timezone?: string;
             publicHandle?: string | null;
+            requireMfaForAdmins?: boolean;
             billingContact?: {
                 name: string;
                 email: string;

@@ -154,3 +154,19 @@ export async function updateBillingContactAction(
     { name: 'billingName', email: 'billingEmail' },
   );
 }
+
+/** ADR-0024. The API refuses to turn it on for someone without two-step verification. */
+export async function updateTwoStepRequirementAction(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const requireMfaForAdmins = form.get('requireMfaForAdmins') === 'on';
+  return saveOrganization(
+    form,
+    (current) =>
+      requireMfaForAdmins !== current.requireMfaForAdmins ? { requireMfaForAdmins } : {},
+    requireMfaForAdmins
+      ? 'Two-step verification is now required for Owners and Admins.'
+      : 'Two-step verification is no longer required.',
+  );
+}

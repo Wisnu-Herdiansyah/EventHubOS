@@ -119,3 +119,13 @@ export function canAssignRole(actorRole: unknown, targetRole: unknown): boolean 
   if (targetRole === 'owner') return actorRole === 'owner';
   return ROLES.indexOf(targetRole) >= ROLES.indexOf(actorRole);
 }
+
+/**
+ * ADR-0024: roles that must have two-step verification when the organization requires it.
+ * These are the roles that can change membership, settings and security posture.
+ */
+export const MFA_ENFORCED_ROLES: readonly Role[] = ['owner', 'admin'];
+
+export function roleRequiresMfa(role: unknown, organizationRequiresMfa: boolean): boolean {
+  return organizationRequiresMfa && isRole(role) && MFA_ENFORCED_ROLES.includes(role);
+}

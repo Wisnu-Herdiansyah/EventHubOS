@@ -11,10 +11,12 @@ import {
   updateBillingContactAction,
   updateOrganizationProfileAction,
   updatePublicHandleAction,
+  updateTwoStepRequirementAction,
 } from '@/app/actions/orgs';
 import { initialFormState } from '@/lib/errors';
 import { VENUE_MODES, VISIBILITY } from '@/lib/options';
 import { Field, FormMessage, Select, SubmitButton } from './form';
+import { Icon } from './ui/icons';
 
 export function CreateOrganizationForm({
   idempotencyKey,
@@ -434,6 +436,52 @@ export function PublicHandleForm(props: {
       />
       <div className="form__actions">
         <SubmitButton pendingLabel="Saving…">Save public address</SubmitButton>
+      </div>
+    </form>
+  );
+}
+
+/** ADR-0024: require two-step verification for Owners and Admins. */
+export function TwoStepRequirementForm(props: {
+  organizationId: string;
+  version: number;
+  idempotencyKey: string;
+  required: boolean;
+}) {
+  const [state, action] = useActionState(updateTwoStepRequirementAction, initialFormState);
+  const error = state.fields?.requireMfaForAdmins;
+  const hintId = 'require-mfa-hint';
+  const errorId = 'require-mfa-error';
+  return (
+    <form action={action} className="form" noValidate>
+      <FormMessage state={state} />
+      <input type="hidden" name="organizationId" value={props.organizationId} />
+      <input type="hidden" name="expectedVersion" value={props.version} />
+      <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
+      <div className="field">
+        <label className="checkbox">
+          <input
+            type="checkbox"
+            name="requireMfaForAdmins"
+            defaultChecked={props.required}
+            aria-describedby={error ? `${errorId} ${hintId}` : hintId}
+            aria-invalid={error ? true : undefined}
+          />
+          <span>Require two-step verification for Owners and Admins</span>
+        </label>
+        <span className="field__hint" id={hintId}>
+          Owners and Admins without it can’t open this organization’s events, team or settings until
+          they set it up. Other roles are not affected.
+        </span>
+        {error ? (
+          <div className="field__error" id={errorId}>
+            <Icon name="error" size={16} />
+            <span>{error}</span>
+          </div>
+        ) : null}
+      </div>
+      <div className="form__actions">
+        <SubmitButton pendingLabel="Saving…">Save security settings</SubmitButton>
       </div>
     </form>
   );

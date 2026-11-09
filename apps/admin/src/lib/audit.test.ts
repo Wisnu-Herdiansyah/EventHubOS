@@ -117,6 +117,33 @@ describe('describeAuditEvent', () => {
     ).toBe("Changed the organization's name, time zone and billing contact");
   });
 
+  it('describes the two-step verification requirement in words', () => {
+    const on = record('organization.updated', {
+      fields: ['requireMfaForAdmins'],
+      requireMfaForAdmins: true,
+    });
+    expect(describeAuditEvent(on, names)).toEqual({
+      summary: 'Required two-step verification for Owners and Admins',
+      details: [],
+    });
+    const offWithName = record('organization.updated', {
+      fields: ['displayName', 'requireMfaForAdmins'],
+      requireMfaForAdmins: false,
+    });
+    expect(describeAuditEvent(offWithName, names)).toEqual({
+      summary: "Changed the organization's name",
+      details: ['Stopped requiring two-step verification for Owners and Admins.'],
+    });
+    // A non-boolean value is not trusted.
+    const odd = record('organization.updated', {
+      fields: ['publicHandle'],
+      requireMfaForAdmins: 'yes',
+    });
+    expect(describeAuditEvent(odd, names).summary).toBe(
+      "Changed the organization's public address",
+    );
+  });
+
   it('falls back to the action name for unknown actions and never trusts metadata types', () => {
     expect(describeAuditEvent(record('future.thing', {}), names).summary).toBe('future.thing');
     expect(

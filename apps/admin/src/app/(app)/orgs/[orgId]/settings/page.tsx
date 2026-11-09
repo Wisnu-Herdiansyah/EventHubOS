@@ -1,15 +1,17 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import Link from 'next/link';
+import { notFound, redirect } from 'next/navigation';
 import {
   BillingContactForm,
   OrganizationProfileForm,
   PublicHandleForm,
+  TwoStepRequirementForm,
 } from '@/components/org-forms';
 import { Card } from '@/components/ui/card';
 import { Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
-import { ApiError } from '@/lib/errors';
+import { ApiError, twoStepRequiredPath } from '@/lib/errors';
 import { LOCALES, ROLE_LABELS, timeZones } from '@/lib/options';
 import { adminConfig } from '@/lib/config';
 import { settingsAbilities } from '@/lib/permissions';
@@ -26,7 +28,7 @@ export default async function OrganizationSettingsPage({
 }) {
   const { orgId } = await params;
   if (!UUID.test(orgId)) notFound();
-  let org;
+  let org, mfa;
   try {
     const client = await api();
     org = unwrap(
@@ -34,10 +36,16 @@ export default async function OrganizationSettingsPage({
         params: { path: { organizationId: orgId } },
       }),
     );
+    if (settingsAbilities(org.role).canEditProfile && !org.mfaSetupRequired) {
+      mfa = unwrap(await client.GET('/v1/auth/mfa'));
+    }
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
     signInOn401(error, `/orgs/${orgId}/settings`);
   }
+
+  // The API would refuse every change; explain why instead of showing forms that cannot save.
+  if (org.mfaSetupRequired) redirect(twoStepRequiredPath(`/orgs/${orgId}/settings`));
 
   const abilities = settingsAbilities(org.role);
   const siteTemplate = adminConfig().publicSiteUrl;
@@ -122,6 +130,27 @@ export default async function OrganizationSettingsPage({
               </p>
             ) : null}
           </Card>
+
+          {abilities.canEditProfile ? (
+            <Card
+              title="Security"
+              titleId="security-heading"
+              description="Extra protection for the people who can change everything."
+            >
+              <TwoStepRequirementForm
+                organizationId={orgId}
+                version={org.version}
+                idempotencyKey={newIdempotencyKey()}
+                required={org.requireMfaForAdmins}
+              />
+              {mfa?.status === 'on' ? null : (
+                <p className="field__hint">
+                  You don’t use two-step verification yet.{' '}
+                  <Link href="/account#two-step-heading">Set it up</Link> before requiring it.
+                </p>
+              )}
+            </Card>
+          ) : null}
 
           {abilities.canReadBilling || abilities.canEditBilling ? (
             <Card

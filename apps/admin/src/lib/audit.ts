@@ -32,6 +32,7 @@ const FIELD_LABELS: Record<string, string> = {
   locale: 'language',
   timezone: 'time zone',
   billingContact: 'billing contact',
+  publicHandle: 'public address',
   name: 'name',
   slug: 'URL slug',
   starts_at: 'start time',
@@ -81,8 +82,23 @@ export function describeAuditEvent(
   switch (e.action) {
     case 'organization.created':
       return { summary: 'Created the organization', details: [] };
-    case 'organization.updated':
-      return { summary: `Changed the organization's ${fieldList(m.fields)}`, details: [] };
+    case 'organization.updated': {
+      // ADR-0024: the security requirement gets its own sentence, not a field name.
+      const fields = Array.isArray(m.fields)
+        ? m.fields.filter((f) => f !== 'requireMfaForAdmins')
+        : [];
+      const mfaLine =
+        typeof m.requireMfaForAdmins === 'boolean'
+          ? m.requireMfaForAdmins
+            ? 'Required two-step verification for Owners and Admins'
+            : 'Stopped requiring two-step verification for Owners and Admins'
+          : null;
+      if (mfaLine && fields.length === 0) return { summary: mfaLine, details: [] };
+      return {
+        summary: `Changed the organization's ${fieldList(fields)}`,
+        details: mfaLine ? [`${mfaLine}.`] : [],
+      };
+    }
     case 'event.created':
       return {
         summary: `Created the event ${event}`,
