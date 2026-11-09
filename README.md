@@ -25,6 +25,8 @@ Phase 0 (foundation) plus Phase 1 slices:
 - **Audit log** (ADR-0013): filterable, paginated history of who changed what, for Owners and Admins.
 - **Microsites** (ADR-0020): a three-panel editor for each event's page with typed sections,
   drafts, and immutable published revisions; editors save, Event managers publish.
+- **Free registration** (ADR-0023): visitors register on the public page (name, email,
+  privacy consent) and cancel with an emailed link; organizers see attendees, capacity and state.
 - **Public event sites** (ADR-0021): `apps/site` serves published revisions at
   `{org-handle}.{platform domain}/{event-slug}` once an event is published; drafts never.
 - **Design system** (ADR-0019): Apple-inspired tokens with light and dark modes, a shared

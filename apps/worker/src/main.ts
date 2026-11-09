@@ -8,6 +8,10 @@ import { ResendEmailSender } from './adapters/resend-email-sender.ts';
 import { sendInvitationEmailConsumer } from './consumers/send-invitation-email.ts';
 import { sendMfaChangedEmailConsumer } from './consumers/send-mfa-email.ts';
 import {
+  sendRegistrationCancelledConsumer,
+  sendRegistrationConfirmationConsumer,
+} from './consumers/send-registration-email.ts';
+import {
   sendPasswordChangedEmailConsumer,
   sendPasswordResetEmailConsumer,
 } from './consumers/send-password-reset-email.ts';
@@ -56,6 +60,11 @@ const consumers = [
   }),
   sendPasswordChangedEmailConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
   sendMfaChangedEmailConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
+  sendRegistrationConfirmationConsumer(emailSender, {
+    publicSiteUrl: config.publicSiteUrl,
+    tokenSecret: config.emailTokenSecret,
+  }),
+  sendRegistrationCancelledConsumer(emailSender),
 ];
 // PostgreSQL outbox broker (ADR-0009): the outbox table is the durable queue.
 const publisher = new OutboxDispatchPublisher(pool, consumers);

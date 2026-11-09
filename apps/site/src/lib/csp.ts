@@ -1,5 +1,6 @@
 /**
- * Content Security Policy for public event sites (pure, unit-tested). No forms, no framing. Scripts and styles must carry
+ * Content Security Policy for public event sites (pure, unit-tested). Forms post only to this
+ * site (registration, ADR-0023); no framing. Scripts and styles must carry
  * the per-request nonce; 'strict-dynamic' lets Next.js load its chunks. 'unsafe-eval' is added
  * only in development (React debugging). upgrade-insecure-requests only when served over HTTPS,
  * so plain-HTTP local and test runs still load same-origin assets.
@@ -19,7 +20,7 @@ export function buildCsp(nonce: string, options: CspOptions): string {
     "connect-src 'self'",
     "object-src 'none'",
     "base-uri 'none'",
-    "form-action 'none'",
+    "form-action 'self'",
     "frame-ancestors 'none'",
     ...(options.https ? ['upgrade-insecure-requests'] : []),
   ];

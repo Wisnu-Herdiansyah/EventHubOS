@@ -178,6 +178,35 @@ describe('loadWorkerConfig', () => {
     expect(c.passwordResetTtlSeconds).toBe(3_600);
   });
 
+  it('takes an optional public site template, HTTPS outside local and CI (ADR-0023)', () => {
+    expect(loadWorkerConfig({ ...base, EVENTHUB_ENV: 'local' }).publicSiteUrl).toBeNull();
+    expect(
+      loadWorkerConfig({
+        ...base,
+        EVENTHUB_ENV: 'local',
+        PUBLIC_SITE_URL: 'http://{handle}.localhost:3002',
+      }).publicSiteUrl,
+    ).toBe('http://{handle}.localhost:3002');
+    expect(
+      captureError(() =>
+        loadWorkerConfig({
+          ...base,
+          EVENTHUB_ENV: 'local',
+          PUBLIC_SITE_URL: 'https://evil.example',
+        }),
+      ).keys,
+    ).toEqual(['PUBLIC_SITE_URL']);
+    const e = captureError(() =>
+      loadWorkerConfig({
+        ...base,
+        EVENTHUB_ENV: 'production',
+        DATABASE_WORKER_URL: `${localUrl}?sslmode=require`,
+        PUBLIC_SITE_URL: 'http://{handle}.eventhub.example',
+      }),
+    );
+    expect(e.keys).toContain('PUBLIC_SITE_URL');
+  });
+
   it('requires a token secret of at least 32 characters', () => {
     const e = captureError(
       () => loadWorkerConfig({ ...base, EVENTHUB_ENV: 'local', EMAIL_TOKEN_SECRET: 'short' }), // pragma: allowlist secret

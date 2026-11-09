@@ -26,6 +26,24 @@ const record = (
   }) satisfies AuditRecord;
 
 describe('describeAuditEvent', () => {
+  it('describes registrations without personal data', () => {
+    const ev = '22222222-2222-4222-8222-222222222222';
+    expect(
+      describeAuditEvent(
+        record('registration.created', { eventId: ev, source: 'public_site' }),
+        names,
+      ).summary,
+    ).toBe('Someone registered for Jakarta Summit on its public page');
+    expect(
+      describeAuditEvent(record('registration.cancelled', { eventId: ev, by: 'attendee' }), names)
+        .summary,
+    ).toBe('An attendee cancelled their registration for Jakarta Summit');
+    expect(
+      describeAuditEvent(record('registration.cancelled', { eventId: ev, by: 'organizer' }), names)
+        .summary,
+    ).toBe('Cancelled a registration for Jakarta Summit');
+  });
+
   it('describes microsite drafts and publications by version, never by content', () => {
     const id = '22222222-2222-4222-8222-222222222222';
     expect(

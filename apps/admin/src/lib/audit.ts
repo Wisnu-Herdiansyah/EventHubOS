@@ -23,6 +23,7 @@ export const AUDIT_CATEGORIES = [
   { value: 'organization.', label: 'Organization settings' },
   { value: 'membership.', label: 'Team and invitations' },
   { value: 'event.', label: 'Events' },
+  { value: 'registration.', label: 'Registrations' },
 ] as const;
 
 const FIELD_LABELS: Record<string, string> = {
@@ -108,6 +109,23 @@ export function describeAuditEvent(
         summary: `Published the microsite of ${event}`,
         details: typeof m.revision === 'number' ? [`Revision ${m.revision}.`] : [],
       };
+    case 'registration.created': {
+      const ev = typeof m.eventId === 'string' ? names.events.get(m.eventId) : undefined;
+      return {
+        summary: `Someone registered for ${ev ?? 'an event'} on its public page`,
+        details: [],
+      };
+    }
+    case 'registration.cancelled': {
+      const ev = typeof m.eventId === 'string' ? names.events.get(m.eventId) : undefined;
+      return {
+        summary:
+          m.by === 'attendee'
+            ? `An attendee cancelled their registration for ${ev ?? 'an event'}`
+            : `Cancelled a registration for ${ev ?? 'an event'}`,
+        details: [],
+      };
+    }
     case 'membership.invited':
       return {
         summary: `Invited ${typeof m.email === 'string' ? m.email : 'someone'} as ${role(m.role)}`,

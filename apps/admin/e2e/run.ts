@@ -175,6 +175,8 @@ try {
     EMAIL_LOCAL_DIR: mailDir,
     APP_BASE_URL: baseUrl,
     EMAIL_TOKEN_SECRET: randomBytes(32).toString('hex'),
+    // Registration cancel links point at the public sites (ADR-0023).
+    PUBLIC_SITE_URL: siteTemplate,
   });
   start(
     'admin',
@@ -200,6 +202,8 @@ try {
       SITE_API_URL: apiUrl,
       SITE_DOMAIN: 'localhost',
       SITE_HTTPS: '0',
+      // Tests send X-Forwarded-For like a load balancer; the site passes the visitor IP on.
+      SITE_TRUSTED_PROXY_HOPS: '1',
     },
     siteDir,
   );

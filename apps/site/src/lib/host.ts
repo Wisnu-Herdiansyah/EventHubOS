@@ -19,6 +19,8 @@ export function handleFromHost(host: string | null, siteDomain: string): string 
 export function internalPath(handle: string, pathname: string): string | null {
   const parts = pathname.split('/').filter(Boolean);
   if (parts.length === 0) return `/s/${handle}`;
+  // Cancel link from a registration email (ADR-0023); the slug is reserved for this.
+  if (parts.length === 1 && parts[0] === 'cancel-registration') return `/c/${handle}`;
   if (parts.length === 1 && SLUG.test(parts[0]!)) return `/s/${handle}/${parts[0]}`;
   return null;
 }

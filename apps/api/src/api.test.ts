@@ -38,12 +38,15 @@ describe('OpenAPI contract', () => {
       .sort();
     // Password reset is pre-session by nature: the user cannot sign in (ADR-0015).
     // The public site reads published revisions only (ADR-0021). The second sign-in step needs
-    // the single-use challenge from a correct password (ADR-0022).
+    // the single-use challenge from a correct password (ADR-0022). Visitors register and cancel
+    // with the emailed link (ADR-0023).
     expect(publicOps).toEqual([
+      'cancelRegistrationByLink',
       'completeMfaLogin',
       'completePasswordReset',
       'getPublicEventPage',
       'logIn',
+      'registerForEvent',
       'requestPasswordReset',
       'signUp',
       'verifyEmail',
