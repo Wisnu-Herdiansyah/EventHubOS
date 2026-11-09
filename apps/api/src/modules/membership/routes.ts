@@ -6,6 +6,7 @@ import {
   createDomainEvent,
   maskEmail,
   notFound,
+  roleHasPermission,
   ROLES,
   type Actor,
   type Role,
@@ -69,6 +70,11 @@ const memberSchema = z
     role: roleSchema,
     status: z.enum(['active', 'suspended', 'removed']),
     joinedAt: z.iso.datetime().nullable(),
+    /**
+     * Whether the member uses two-step verification (ADR-0025). Present only for roles with
+     * membership.manage, who decide whether to require it.
+     */
+    twoStepEnabled: z.boolean().optional(),
   })
   .meta({ id: 'Member' });
 
@@ -414,6 +420,15 @@ export function membershipRoutes(pool: Pool, invitationTtlSeconds: number): AnyR
                FROM eventhub.organization_members($1) WHERE out_status <> 'removed'`,
               [access.organizationId],
             );
+            // Security posture of colleagues: only for those who manage membership (deny by default).
+            let mfa: Map<string, boolean> | null = null;
+            if (roleHasPermission(access.role, 'membership.manage')) {
+              const res = await client.query<{ out_user_id: string; out_mfa_enabled: boolean }>(
+                'SELECT out_user_id, out_mfa_enabled FROM eventhub.organization_member_mfa($1)',
+                [access.organizationId],
+              );
+              mfa = new Map(res.rows.map((r) => [r.out_user_id, r.out_mfa_enabled]));
+            }
             return {
               status: 200,
               body: {
@@ -424,6 +439,7 @@ export function membershipRoutes(pool: Pool, invitationTtlSeconds: number): AnyR
                   role: r.out_role,
                   status: r.out_status,
                   joinedAt: r.out_accepted_at?.toISOString() ?? null,
+                  ...(mfa ? { twoStepEnabled: mfa.get(r.out_user_id) ?? false } : {}),
                 })),
               },
             };

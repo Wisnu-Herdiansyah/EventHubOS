@@ -86,3 +86,46 @@ test('an Owner requires two-step verification; an Admin without it is held at an
   await page.goto(`/orgs/${orgId}`);
   await expect(page.getByRole('heading', { level: 1, name: 'Secure Org' })).toBeVisible();
 });
+
+test('Owners see who uses two-step verification before and after requiring it', async ({
+  page,
+}) => {
+  const owner = await verifiedAccount('team-mfa-owner');
+  const orgId = await createOrgViaApi(owner.token, 'Posture Org');
+  const admin = await joinAs(owner.token, orgId, 'team-mfa-admin', 'admin');
+  const viewer = await joinAs(owner.token, orgId, 'team-mfa-viewer', 'viewer');
+  const ownerKey = await enableMfaViaApi(owner.token);
+  await signInWithCode(page, owner.email, ownerKey);
+
+  await page.goto(`/orgs/${orgId}/team`);
+  const members = page.getByRole('table', { name: 'Members' });
+  await expect(members.getByRole('columnheader', { name: 'Two-step' })).toBeVisible();
+  const row = (email: string) => members.getByRole('row').filter({ hasText: email });
+  await expect(row(owner.email)).toContainText('On');
+  await expect(row(admin.email)).toContainText('Off');
+  await expect(row(viewer.email)).toContainText('Off');
+  await expect(page.getByRole('main')).toContainText(
+    `1 Owner or Admin doesn’t use two-step verification yet: ${admin.email}.`,
+  );
+  await expectAccessible(page);
+
+  await page.getByRole('link', { name: 'require it' }).click();
+  const security = page.getByRole('region', { name: 'Security', exact: true });
+  await expect(security).toContainText('1 Owner or Admin doesn’t use two-step verification yet.');
+  await security
+    .getByRole('checkbox', { name: 'Require two-step verification for Owners and Admins' })
+    .check();
+  await security.getByRole('button', { name: 'Save security settings' }).click();
+  await expect(
+    page.getByText('Two-step verification is now required for Owners and Admins.'),
+  ).toBeVisible();
+
+  await security.getByRole('link', { name: 'See who on the Team page' }).click();
+  await expect(row(admin.email)).toContainText('Needed');
+  // The viewer is not covered by the requirement.
+  await expect(row(viewer.email)).toContainText('Off');
+  await expect(page.getByRole('main')).toContainText(
+    `1 Owner or Admin can’t open this organization until they set up two-step verification: ${admin.email}.`,
+  );
+  await expectAccessible(page);
+});
