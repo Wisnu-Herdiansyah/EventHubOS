@@ -389,3 +389,61 @@ test('an attendee shows the ticket from their email; the door scans it in once',
   await expect(main.getByRole('alert').filter({ hasText: /camera/i })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Scan ticket' })).toBeVisible();
 });
+
+test('the event report shows sign-ups and attendance, and no attendee details', async ({
+  page,
+  browser,
+}) => {
+  const t = await publishedEvent('report');
+  const analyst = await joinAs(t.owner.token, t.orgId, 'report-analyst', 'analyst');
+  const v = await visitor(browser);
+  for (const name of ['Report Person One', 'Report Person Two']) {
+    await v.page.goto(t.url);
+    const form = v.page.getByRole('region', { name: 'Save your seat' });
+    await form.getByLabel('Name', { exact: true }).fill(name);
+    await form.getByLabel('Email', { exact: true }).fill(uniqueEmail('report'));
+    await form.getByRole('checkbox').check();
+    await form.getByRole('button', { name: 'Save my seat' }).click();
+    await expect(form.getByRole('status')).toContainText('Check your email');
+  }
+  await v.context.close();
+  const regs = await apiCall<{ data: Array<{ id: string }> }>(
+    'GET',
+    `/v1/organizations/${t.orgId}/events/${t.eventId}/registrations`,
+    undefined,
+    t.owner.token,
+  );
+  await apiCall(
+    'POST',
+    `/v1/organizations/${t.orgId}/events/${t.eventId}/registrations/${regs.data[0]!.id}/check-in`,
+    {},
+    t.owner.token,
+  );
+
+  // An Analyst reads the report from the event page; attendee details stay hidden.
+  await signIn(page, analyst.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}`);
+  await page.getByRole('link', { name: 'Report', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Report' })).toBeVisible();
+  const main = page.getByRole('main');
+  await expect(main.getByText('50% of registered')).toBeVisible();
+  await expect(main.getByText('Known once the event ends')).toBeVisible();
+  const signUps = page.getByRole('table', { name: 'Sign-ups by day' });
+  await expect(signUps.getByRole('row').last()).toContainText('2');
+  const checkIns = page.getByRole('table', { name: 'Check-ins by hour' });
+  await expect(checkIns.getByRole('row')).toHaveCount(2); // header + one hour
+  await expect(main).not.toContainText('Report Person');
+  await expectAccessible(page);
+  await page.screenshot({ path: test.info().outputPath('report-light.png'), fullPage: true });
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expectAccessible(page);
+  await page.screenshot({ path: test.info().outputPath('report-dark.png'), fullPage: true });
+  await page.emulateMedia({ colorScheme: 'light' });
+
+  // Viewers have no report.
+  const viewer = await joinAs(t.owner.token, t.orgId, 'report-viewer', 'viewer');
+  await signOut(page);
+  await signIn(page, viewer.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/report`);
+  await expect(page.getByRole('main')).toContainText('can see reports');
+});
