@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CancelRegistrationForm } from '@/components/registration-forms';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, Stat } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -20,6 +21,7 @@ export const metadata: Metadata = { title: 'Registrations' };
 const UUID = /^[0-9a-f-]{36}$/i;
 const NOTICES: Record<string, string> = {
   registration_cancelled: 'Registration cancelled. The attendee has been emailed.',
+  export_denied: 'You don’t have permission to download attendee lists.',
 };
 const FILTERS = [
   { value: undefined, label: 'All' },
@@ -113,7 +115,27 @@ export default async function RegistrationsPage({
           Only Owners, Admins, Event managers and Registration managers can see attendee details.
         </Notice>
       ) : (
-        <Card flush title="Attendees" titleId="attendees-heading">
+        <Card
+          flush
+          title="Attendees"
+          titleId="attendees-heading"
+          actions={
+            can(org.role, 'registration.export_pii') && list.length > 0 ? (
+              // A plain form POST: the browser downloads the file and stays on this page.
+              <form method="post" action={`${base}/export`}>
+                {status ? <input type="hidden" name="status" value={status} /> : null}
+                <Button type="submit" variant="secondary" size="sm" icon="download">
+                  Download CSV
+                </Button>
+              </form>
+            ) : null
+          }
+        >
+          {can(org.role, 'registration.export_pii') ? null : (
+            <p className="card__note text-secondary">
+              Downloading attendee lists needs Owner, Admin or Registration manager.
+            </p>
+          )}
           <nav aria-label="Filter registrations" className="cluster filter-links">
             {FILTERS.map((f) => (
               <Link
