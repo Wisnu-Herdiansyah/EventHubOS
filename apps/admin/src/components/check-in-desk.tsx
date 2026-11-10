@@ -3,11 +3,13 @@
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition, type FormEvent } from 'react';
 import {
+  lookupTicketAction,
   searchCheckInAction,
   setCheckInAction,
   type CheckInSearchResult,
 } from '@/app/actions/check-in';
 import type { components } from '@/lib/api-types';
+import { ticketIdFromScan } from '@/lib/ticket-scan';
 import { timeInZone } from '@/lib/time';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
@@ -15,6 +17,7 @@ import { Card, Stat } from './ui/card';
 import { EmptyState } from './ui/empty-state';
 import { Notice } from './ui/notice';
 import { SearchField } from './ui/search-field';
+import { TicketScanner } from './ticket-scanner';
 
 type Attendee = components['schemas']['Registration'];
 
@@ -34,6 +37,10 @@ export function CheckInDesk(props: {
   const [searched, setSearched] = useState('');
   const [announcement, setAnnouncement] = useState('');
   const [error, setError] = useState<string | null>(null);
+  /** The outcome of the last scanned ticket, shown large for the person at the door. */
+  const [scan, setScan] = useState<{ tone: 'success' | 'warning' | 'danger'; text: string } | null>(
+    null,
+  );
   const [busyId, setBusyId] = useState<string | null>(null);
   const [searching, startSearch] = useTransition();
   const keys = useRef(new Map<string, string>());
@@ -60,12 +67,51 @@ export function CheckInDesk(props: {
     });
   }
 
+  /**
+   * A scanned ticket (camera, or a handheld scanner typing into the search box) checks the
+   * person in straight away: one action per arrival. Problems are said plainly (ADR-0029).
+   */
+  function admitTicket(id: string) {
+    startSearch(async () => {
+      setScan(null);
+      const r = await lookupTicketAction(props.organizationId, props.eventId, id);
+      if (!r.ok) return handleFailure(r);
+      setError(null);
+      setList(r);
+      setSearched('');
+      const a = r.data[0];
+      if (!a) {
+        setScan({ tone: 'danger', text: 'This ticket is not for this event.' });
+        return;
+      }
+      if (a.status === 'cancelled') {
+        setScan({ tone: 'danger', text: `${a.name}’s registration was cancelled.` });
+        return;
+      }
+      if (a.checkedInAt) {
+        setScan({
+          tone: 'warning',
+          text: `${a.name} was already checked in at ${timeInZone(a.checkedInAt, props.timezone)}.`,
+        });
+        return;
+      }
+      await toggle(a, (name) => setScan({ tone: 'success', text: `${name} checked in.` }));
+    });
+  }
+
   function onSubmit(e: FormEvent) {
     e.preventDefault();
+    const ticket = ticketIdFromScan(query);
+    if (ticket) {
+      setQuery('');
+      admitTicket(ticket);
+      return;
+    }
+    setScan(null);
     search(query);
   }
 
-  async function toggle(a: Attendee) {
+  async function toggle(a: Attendee, onDone?: (name: string) => void) {
     const checkIn = a.checkedInAt === null;
     const slot = `${a.id}:${checkIn ? 'in' : 'out'}`;
     const key = keys.current.get(slot) ?? `admin-${crypto.randomUUID()}`;
@@ -88,6 +134,7 @@ export function CheckInDesk(props: {
       data: l.data.map((x) => (x.id === a.id ? { ...x, checkedInAt: r.checkedInAt } : x)),
     }));
     setAnnouncement(checkIn ? `${a.name} checked in.` : `Check-in of ${a.name} undone.`);
+    onDone?.(a.name);
     input.current?.select();
   }
 
@@ -107,6 +154,11 @@ export function CheckInDesk(props: {
       <p className="visually-hidden" role="status" aria-live="polite">
         {announcement}
       </p>
+      {scan ? (
+        <Notice tone={scan.tone} role={scan.tone === 'success' ? 'status' : 'alert'}>
+          <span className="ticket-result">{scan.text}</span>
+        </Notice>
+      ) : null}
       {error ? (
         <Notice tone="danger" role="alert">
           {error}
@@ -117,7 +169,7 @@ export function CheckInDesk(props: {
           <SearchField
             ref={input}
             label="Find an attendee"
-            placeholder="Name or email"
+            placeholder="Name, email or ticket code"
             value={query}
             maxLength={120}
             autoFocus
@@ -127,6 +179,9 @@ export function CheckInDesk(props: {
             Find
           </Button>
         </form>
+        <div className="door-scan">
+          <TicketScanner onTicket={admitTicket} />
+        </div>
         {list.data.length === 0 ? (
           <EmptyState
             icon="search"

@@ -167,6 +167,10 @@ describe('event registration', () => {
     const mail = mails(addr, 'registration_confirmed')[0]!;
     expect(mail.text).toContain(`https://${t.handle}.eventhub.example/${t.slug}`);
     expect(mail.text).toMatch(/cancel-registration#token=[A-Za-z0-9_-]{43}/);
+    // ADR-0029: the ticket link carries the registration ID in the fragment only.
+    expect(mail.text).toContain(
+      `https://${t.handle}.eventhub.example/${t.slug}/ticket#id=${list[0].id}`,
+    );
   });
 
   it('answers a repeat sign-up the same way, without a second registration', async () => {
@@ -587,6 +591,79 @@ describe('event registration', () => {
       const crossed = await t.act(other.id('Ade Wisnu'), 'check-in');
       expect(crossed.statusCode).toBe(404);
       expect((await other.summary()).json().checkedIn).toBe(0);
+    });
+  });
+
+  describe('scanned tickets (ADR-0029)', () => {
+    it('finds the registration a ticket names, in any status, for this event only', async () => {
+      const t = await publishedEvent({}, ['registration_manager']);
+      const a = email();
+      const b = email();
+      await t.register({ name: 'Ticket Holder', email: a });
+      await t.register({ name: 'Cancelled Holder', email: b });
+      const regs = (await t.list()).json().data as Array<{ id: string; email: string }>;
+      const holder = regs.find((r) => r.email === a)!.id;
+      const cancelled = regs.find((r) => r.email === b)!.id;
+      await call({
+        method: 'POST',
+        url: `${t.base}/${cancelled}/cancel`,
+        headers: { ...auth(t.owner), 'idempotency-key': `k-${randomUUID()}` },
+      });
+      const scan = (ticket: string, as = t.members.registration_manager!) =>
+        call({
+          method: 'GET',
+          url: `/v1/organizations/${t.orgId}/events/${t.eventId}/check-in?ticket=${ticket}`,
+          headers: auth(as),
+        });
+
+      const found = (await scan(holder)).json();
+      expect(found).toMatchObject({ confirmed: 1, checkedIn: 0 });
+      expect(found.data).toEqual([
+        expect.objectContaining({ id: holder, name: 'Ticket Holder', status: 'confirmed' }),
+      ]);
+      // Cancelled tickets are found, so the door can say so.
+      expect((await scan(cancelled)).json().data[0]).toMatchObject({ status: 'cancelled' });
+
+      // A ticket for another event of the same organization is not this event's.
+      const otherEvent = await createFixtureEvent(pools.migrator, t.orgId, t.owner.id);
+      const elsewhere = await call({
+        method: 'GET',
+        url: `/v1/organizations/${t.orgId}/events/${otherEvent}/check-in?ticket=${holder}`,
+        headers: auth(t.owner),
+      });
+      expect(elsewhere.json().data).toEqual([]);
+      // A random ID finds nothing.
+      expect((await scan(randomUUID())).json().data).toEqual([]);
+
+      // Malformed input is refused; name and ticket together are refused.
+      expect((await scan('not-a-uuid')).statusCode).toBe(400);
+      const both = await call({
+        method: 'GET',
+        url: `/v1/organizations/${t.orgId}/events/${t.eventId}/check-in?ticket=${holder}&q=x`,
+        headers: auth(t.owner),
+      });
+      expect(both.statusCode).toBe(400);
+    });
+
+    it('keeps tickets inside their organization', async () => {
+      const a = await publishedEvent();
+      const b = await publishedEvent();
+      await a.register({ name: 'A Holder', email: email() });
+      const ticket = (await a.list()).json().data[0].id as string;
+      // b's Owner, scanning a's ticket at b's door: nothing.
+      const res = await call({
+        method: 'GET',
+        url: `/v1/organizations/${b.orgId}/events/${b.eventId}/check-in?ticket=${ticket}`,
+        headers: auth(b.owner),
+      });
+      expect(res.json().data).toEqual([]);
+      // b's Owner at a's door: the organization is not theirs.
+      const foreign = await call({
+        method: 'GET',
+        url: `/v1/organizations/${a.orgId}/events/${a.eventId}/check-in?ticket=${ticket}`,
+        headers: auth(b.owner),
+      });
+      expect(foreign.statusCode).toBe(404);
     });
   });
 });

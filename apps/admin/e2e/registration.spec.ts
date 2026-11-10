@@ -9,6 +9,7 @@ import {
   expectAccessible,
   joinAs,
   mailLink,
+  mailMessage,
   signIn,
   signOut,
   test,
@@ -301,4 +302,90 @@ test('door staff find attendees, check them in once, and undo a mistake', async 
   await signIn(page, t.owner.email);
   await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/registrations`);
   await expect(page.getByRole('main')).toContainText('of 2 registered');
+});
+
+test('an attendee shows the ticket from their email; the door scans it in once', async ({
+  page,
+  browser,
+}) => {
+  const t = await publishedEvent('ticket');
+  const v = await visitor(browser);
+  const attendees: Array<{ name: string; email: string }> = [
+    { name: 'Ticket Holder', email: uniqueEmail('ticket') },
+    { name: 'Gone Holder', email: uniqueEmail('gone') },
+  ];
+  for (const a of attendees) {
+    await v.page.goto(t.url);
+    const form = v.page.getByRole('region', { name: 'Save your seat' });
+    await form.getByLabel('Name', { exact: true }).fill(a.name);
+    await form.getByLabel('Email', { exact: true }).fill(a.email);
+    await form.getByRole('checkbox').check();
+    await form.getByRole('button', { name: 'Save my seat' }).click();
+    await expect(form.getByRole('status')).toContainText('Check your email');
+  }
+  const ticketLink = async (to: string) =>
+    /https?:\/\/\S+\/ticket#id=[0-9a-f-]{36}/.exec(
+      (await mailMessage(to, 'registration_confirmed')).text,
+    )![0];
+  const holderLink = await ticketLink(attendees[0]!.email);
+  const goneLink = await ticketLink(attendees[1]!.email);
+
+  // The ticket page draws the QR code in the browser; the ID never reaches the server.
+  await v.page.goto(holderLink);
+  await expect(v.page.getByRole('heading', { level: 1, name: 'Private Summit' })).toBeVisible();
+  const qr = v.page.getByRole('img', { name: /^Ticket QR code [0-9A-F]{4}-[0-9A-F]{4}$/ });
+  await expect(qr).toBeVisible();
+  await axeScan(v.page);
+  await v.context.close();
+
+  // The organizer cancels one registration.
+  const regs = await apiCall<{ data: Array<{ id: string; name: string }> }>(
+    'GET',
+    `/v1/organizations/${t.orgId}/events/${t.eventId}/registrations`,
+    undefined,
+    t.owner.token,
+  );
+  const gone = regs.data.find((r) => r.name === 'Gone Holder')!;
+  await apiCall(
+    'POST',
+    `/v1/organizations/${t.orgId}/events/${t.eventId}/registrations/${gone.id}/cancel`,
+    {},
+    t.owner.token,
+  );
+
+  await signIn(page, t.owner.email);
+  const res = await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/check-in`);
+  expect(res?.headers()['permissions-policy']).toContain('camera=(self)');
+  const search = page.getByRole('searchbox', { name: 'Find an attendee' });
+  const main = page.getByRole('main');
+
+  // A handheld scanner types the code and presses Enter; a pasted ticket link works too.
+  const holderId = holderLink.split('#id=')[1]!;
+  await search.fill(holderId);
+  await search.press('Enter');
+  await expect(
+    main.getByRole('status').filter({ hasText: 'Ticket Holder checked in.' }).first(),
+  ).toBeVisible();
+  await expect(page.getByText('1 of 1')).toBeVisible();
+  await expect(search).toHaveValue('');
+
+  await search.fill(holderLink);
+  await search.press('Enter');
+  await expect(main.getByRole('alert')).toContainText(
+    /Ticket Holder was already checked in at \d{2}:\d{2}\./,
+  );
+
+  await search.fill(goneLink.split('#id=')[1]!);
+  await search.press('Enter');
+  await expect(main.getByRole('alert')).toContainText('Gone Holder’s registration was cancelled.');
+
+  await search.fill('00000000-0000-4000-8000-000000000000');
+  await search.press('Enter');
+  await expect(main.getByRole('alert')).toContainText('This ticket is not for this event.');
+  await expectAccessible(page);
+
+  // Without a usable camera, the scanner says so and the desk keeps working.
+  await page.getByRole('button', { name: 'Scan ticket' }).click();
+  await expect(main.getByRole('alert').filter({ hasText: /camera/i })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Scan ticket' })).toBeVisible();
 });
