@@ -391,10 +391,16 @@ export function organizationRoutes(pool: Pool): AnyRoute[] {
                     },
                   );
                 }
-                const current = await client.query<{ version: number }>(
-                  'SELECT version FROM eventhub.organization WHERE id = $1 FOR UPDATE',
+                const current = await client.query<{
+                  version: number;
+                  require_mfa_for_admins: boolean;
+                }>(
+                  'SELECT version, require_mfa_for_admins FROM eventhub.organization WHERE id = $1 FOR UPDATE',
                   [access.organizationId],
                 );
+                const mfaRequirementChanged =
+                  body.requireMfaForAdmins !== undefined &&
+                  body.requireMfaForAdmins !== current.rows[0]!.require_mfa_for_admins;
                 const currentVersion = current.rows[0]!.version;
                 if (currentVersion !== body.expectedVersion) {
                   throw new AppError(
@@ -499,6 +505,27 @@ export function organizationRoutes(pool: Pool): AnyRoute[] {
                     payload: { organizationId: access.organizationId, fields },
                   }),
                 );
+                // ADR-0026: Owners hear about security changes, so a misused Admin account or a
+                // takeover does not change them quietly. Only real changes are announced.
+                if (mfaRequirementChanged) {
+                  await enqueueEvent(
+                    client,
+                    createDomainEvent({
+                      eventType: 'organization.security_changed',
+                      schemaVersion: 1,
+                      actor,
+                      organizationId: access.organizationId,
+                      aggregateType: 'organization',
+                      aggregateId: access.organizationId,
+                      correlationId,
+                      payload: {
+                        organizationId: access.organizationId,
+                        setting: 'requireMfaForAdmins',
+                        value: body.requireMfaForAdmins,
+                      },
+                    }),
+                  );
+                }
                 return { status: 200, body: toOrganizationDto(rows[0]!, access.role) };
               },
             ),

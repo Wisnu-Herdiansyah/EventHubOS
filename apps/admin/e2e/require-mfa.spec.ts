@@ -5,6 +5,7 @@ import {
   enableMfaViaApi,
   expectAccessible,
   joinAs,
+  mailMessage,
   signIn,
   signInWithCode,
   signOut,
@@ -119,6 +120,13 @@ test('Owners see who uses two-step verification before and after requiring it', 
   await expect(
     page.getByText('Two-step verification is now required for Owners and Admins.'),
   ).toBeVisible();
+
+  // Owners are told by email who changed it (ADR-0026).
+  const notice = await mailMessage(owner.email, 'organization_security_changed');
+  expect(notice.subject).toBe(
+    'Posture Org now requires two-step verification for Owners and Admins',
+  );
+  expect(notice.text).toContain(`${owner.email} turned on`);
 
   await security.getByRole('link', { name: 'See who on the Team page' }).click();
   await expect(row(admin.email)).toContainText('Needed');

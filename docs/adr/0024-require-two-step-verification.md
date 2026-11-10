@@ -63,5 +63,4 @@ Viewer) are not affected.
   nobody is locked out for good, including the last Owner.
 - Organizations are not told which Owners and Admins still need to set it up. Showing that on
   the Team page needs a membership-scoped view of factor status, planned separately.
-- Changes to the setting are audited but not emailed. Emailing all Owners about security setting
-  changes can come with organization notification preferences.
+- Changes to the setting are audited, and Owners are emailed about them (ADR-0026).

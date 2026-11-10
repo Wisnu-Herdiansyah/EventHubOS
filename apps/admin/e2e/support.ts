@@ -36,6 +36,28 @@ interface Mail {
   text: string;
 }
 
+/** Waits for the worker to write an email for `to` and returns its subject and text. */
+export async function mailMessage(
+  to: string,
+  template: string,
+): Promise<{ subject: string; text: string }> {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    for (const file of await readdir(MAIL_DIR).catch(() => [] as string[])) {
+      try {
+        const mail = JSON.parse(await readFile(join(MAIL_DIR, file), 'utf8')) as Mail & {
+          subject: string;
+        };
+        if (mail.to === to && mail.template === template) return mail;
+      } catch {
+        // Still being written; picked up on the next poll.
+      }
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`No ${template} email arrived for ${to}`);
+}
+
 /** Waits for the worker to write an email for `to` and returns the link it contains. */
 export async function mailLink(to: string, template: string): Promise<string> {
   const deadline = Date.now() + 20_000;
