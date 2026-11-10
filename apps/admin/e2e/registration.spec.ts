@@ -7,8 +7,10 @@ import {
   createEventViaApi,
   createOrgViaApi,
   expectAccessible,
+  joinAs,
   mailLink,
   signIn,
+  signOut,
   test,
   uniqueEmail,
   verifiedAccount,
@@ -211,4 +213,92 @@ test('the organizer cancels a registration; a full event stops taking sign-ups',
   await v.page.reload();
   await expect(v.page.getByLabel('Name', { exact: true })).toBeVisible();
   await v.context.close();
+});
+
+test('door staff find attendees, check them in once, and undo a mistake', async ({
+  page,
+  browser,
+}) => {
+  const t = await publishedEvent('checkin');
+  const staff = await joinAs(t.owner.token, t.orgId, 'checkin-staff', 'registration_manager');
+  const v = await visitor(browser);
+  for (const name of ['Ade Wisnu', 'Budi Santoso']) {
+    await v.page.goto(t.url);
+    const form = v.page.getByRole('region', { name: 'Save your seat' });
+    await form.getByLabel('Name', { exact: true }).fill(name);
+    await form.getByLabel('Email', { exact: true }).fill(uniqueEmail('door'));
+    await form.getByRole('checkbox').check();
+    await form.getByRole('button', { name: 'Save my seat' }).click();
+    await expect(form.getByRole('status')).toContainText('Check your email');
+  }
+  await v.context.close();
+
+  await signIn(page, staff.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/registrations`);
+  await page.getByRole('link', { name: 'Open check-in' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Check-in' })).toBeVisible();
+  await expect(page.getByText('0 of 2')).toBeVisible();
+  // The search box is ready for typing as soon as the page opens.
+  const search = page.getByRole('searchbox', { name: 'Find an attendee' });
+  await expect(search).toBeFocused();
+  await expectAccessible(page);
+
+  await search.fill('budi');
+  await page.getByRole('button', { name: 'Find' }).click();
+  const results = page.getByRole('list', { name: 'Search results' });
+  await expect(results.getByRole('listitem')).toHaveCount(1);
+  // Names typed at the door stay out of the address bar.
+  expect(page.url()).not.toContain('budi');
+
+  await results.getByRole('button', { name: 'Check in Budi Santoso' }).click();
+  await expect(results.getByRole('listitem')).toContainText(/Checked in \d{2}:\d{2}/);
+  await expect(page.getByText('1 of 2')).toBeVisible();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Budi Santoso checked in.' }),
+  ).toBeAttached();
+  await expectAccessible(page);
+
+  // A mistake is undone.
+  await results.getByRole('button', { name: 'Undo check-in of Budi Santoso' }).click();
+  await expect(results.getByRole('button', { name: 'Check in Budi Santoso' })).toBeVisible();
+  await expect(page.getByText('0 of 2')).toBeVisible();
+
+  // Another door already checked Ade in: this desk says so and shows the current state.
+  await search.fill('ade');
+  await page.getByRole('button', { name: 'Find' }).click();
+  await expect(results.getByRole('button', { name: 'Check in Ade Wisnu' })).toBeVisible();
+  const registrations = await apiCall<{ data: Array<{ id: string; name: string }> }>(
+    'GET',
+    `/v1/organizations/${t.orgId}/events/${t.eventId}/registrations`,
+    undefined,
+    t.owner.token,
+  );
+  const ade = registrations.data.find((r) => r.name === 'Ade Wisnu')!;
+  await apiCall(
+    'POST',
+    `/v1/organizations/${t.orgId}/events/${t.eventId}/registrations/${ade.id}/check-in`,
+    {},
+    t.owner.token,
+  );
+  await results.getByRole('button', { name: 'Check in Ade Wisnu' }).click();
+  await expect(page.getByRole('main').getByRole('alert')).toContainText(
+    'This attendee is already checked in.',
+  );
+  await expect(results.getByRole('listitem')).toContainText(/Checked in \d{2}:\d{2}/);
+
+  // Door staff often use phones: the desk fits without sideways scrolling.
+  await page.setViewportSize({ width: 375, height: 740 });
+  await page.reload();
+  await expect(results.getByRole('listitem').first()).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.screenshot({ path: test.info().outputPath('check-in-phone.png') });
+  await page.setViewportSize({ width: 1280, height: 800 });
+
+  // The organizer sees the count.
+  await signOut(page);
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/registrations`);
+  await expect(page.getByRole('main')).toContainText('of 2 registered');
 });

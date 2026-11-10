@@ -144,6 +144,17 @@ export function describeAuditEvent(
         details: [],
       };
     }
+    case 'registration.checked_in':
+    case 'registration.check_in_undone': {
+      const ev = typeof m.eventId === 'string' ? names.events.get(m.eventId) : undefined;
+      return {
+        summary:
+          e.action === 'registration.checked_in'
+            ? `Checked in an attendee at ${ev ?? 'an event'}`
+            : `Undid an attendee’s check-in at ${ev ?? 'an event'}`,
+        details: [],
+      };
+    }
     case 'registration.cancelled': {
       const ev = typeof m.eventId === 'string' ? names.events.get(m.eventId) : undefined;
       return {

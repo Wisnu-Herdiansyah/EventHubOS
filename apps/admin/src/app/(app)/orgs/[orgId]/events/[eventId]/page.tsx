@@ -233,7 +233,13 @@ export default async function EventPage({
             <p>
               <strong>{seatsLabel(regSummary.confirmed, regSummary.capacity)}</strong> registered
             </p>
+            {regSummary.checkedIn > 0 ? (
+              <p className="text-secondary">{regSummary.checkedIn} checked in</p>
+            ) : null}
             <Link href={`/orgs/${orgId}/events/${eventId}/registrations`}>See registrations</Link>
+            {can(org.role, 'attendee.checkin') ? (
+              <Link href={`/orgs/${orgId}/events/${eventId}/check-in`}>Open check-in</Link>
+            ) : null}
           </div>
         </Card>
         <Card title="Public page" titleId="public-page-heading">

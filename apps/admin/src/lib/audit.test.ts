@@ -117,6 +117,18 @@ describe('describeAuditEvent', () => {
     ).toBe("Changed the organization's name, time zone and billing contact");
   });
 
+  it('describes check-ins without naming attendees', () => {
+    const id = [...names.events.keys()][0];
+    const label = id ? names.events.get(id) : undefined;
+    const ev = { eventId: id ?? 'unknown' };
+    expect(describeAuditEvent(record('registration.checked_in', ev), names).summary).toBe(
+      `Checked in an attendee at ${label ?? 'an event'}`,
+    );
+    expect(describeAuditEvent(record('registration.check_in_undone', ev), names).summary).toBe(
+      `Undid an attendee’s check-in at ${label ?? 'an event'}`,
+    );
+  });
+
   it('describes attendee list downloads without naming attendees', () => {
     const e = { ...record('registration.exported', { count: 2, status: 'all', truncated: false }) };
     expect(describeAuditEvent(e, names).summary).toMatch(/^Downloaded the attendee list of /);

@@ -62,6 +62,16 @@ export function formatInZone(iso: string, timeZone: string, locale = 'en-GB'): s
   }).format(new Date(iso));
 }
 
+/** "09:12" in the given time zone (24-hour), for times on the event day. */
+export function timeInZone(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(iso));
+}
+
 /** "just now", "12 minutes ago", "3 hours ago", "2 days ago" (past times only). */
 export function relativeTime(iso: string, now: Date = new Date()): string {
   const seconds = Math.max(0, Math.round((now.getTime() - Date.parse(iso)) / 1000));

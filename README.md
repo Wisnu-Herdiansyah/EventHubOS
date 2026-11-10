@@ -29,7 +29,7 @@ Phase 0 (foundation) plus Phase 1 slices:
   drafts, and immutable published revisions; editors save, Event managers publish.
 - **Free registration** (ADR-0023): visitors register on the public page (name, email,
   privacy consent) and cancel with an emailed link; organizers see attendees, capacity and state,
-  and can download the list as CSV (ADR-0027).
+  can download the list as CSV (ADR-0027), and check attendees in at the door (ADR-0028).
 - **Public event sites** (ADR-0021): `apps/site` serves published revisions at
   `{org-handle}.{platform domain}/{event-slug}` once an event is published; drafts never.
 - **Design system** (ADR-0019): Apple-inspired tokens with light and dark modes, a shared

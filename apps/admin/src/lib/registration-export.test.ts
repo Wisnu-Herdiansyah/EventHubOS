@@ -47,6 +47,7 @@ describe('attendee export (ADR-0027)', () => {
         createdAt: '2027-02-01T02:00:00Z',
         cancelledAt: null,
         cancelledBy: null,
+        checkedInAt: '2027-03-01T01:05:00Z',
       },
       {
         id: '00000000-0000-4000-8000-000000000002',
@@ -56,15 +57,16 @@ describe('attendee export (ADR-0027)', () => {
         createdAt: '2027-02-02T02:00:00Z',
         cancelledAt: '2027-02-03T02:30:00Z',
         cancelledBy: 'organizer' as const,
+        checkedInAt: null,
       },
     ],
   };
 
   it('lists attendees with times in the event time zone', () => {
     expect(registrationsCsv(data).slice(1).split('\r\n')).toEqual([
-      'Name,Email,Status,Registered at (Asia/Jakarta),Cancelled at (Asia/Jakarta),Cancelled by',
-      'Ade Wisnu,ade@example.test,Registered,2027-02-01 09:00,,',
-      "'=cmd,x@example.test,Cancelled,2027-02-02 09:00,2027-02-03 09:30,Organizer",
+      'Name,Email,Status,Registered at (Asia/Jakarta),Cancelled at (Asia/Jakarta),Cancelled by,Checked in at (Asia/Jakarta)',
+      'Ade Wisnu,ade@example.test,Registered,2027-02-01 09:00,,,2027-03-01 08:05',
+      "'=cmd,x@example.test,Cancelled,2027-02-02 09:00,2027-02-03 09:30,Organizer,",
       '',
     ]);
   });
