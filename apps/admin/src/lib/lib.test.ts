@@ -10,7 +10,7 @@ import {
 } from './errors';
 import { safeNext } from './redirect';
 import { formText, submittedValues } from './form-data';
-import { formatInZone, isoToZonedLocal, zonedLocalToIso } from './time';
+import { formatInZone, isoToZonedLocal, timeInZone, zonedLocalToIso } from './time';
 
 describe('safeNext (open-redirect protection)', () => {
   it('allows local paths', () => {
@@ -40,6 +40,7 @@ describe('time-zone conversion', () => {
     expect(zonedLocalToIso('2027-05-10T09:00', 'Asia/Jakarta')).toBe('2027-05-10T02:00:00.000Z');
     expect(isoToZonedLocal('2027-05-10T02:00:00.000Z', 'Asia/Jakarta')).toBe('2027-05-10T09:00');
     expect(zonedLocalToIso('2027-01-15T12:30', 'UTC')).toBe('2027-01-15T12:30:00.000Z');
+    expect(timeInZone('2027-03-01T01:05:00Z', 'Asia/Jakarta')).toBe('08:05');
   });
 
   it('handles daylight-saving time on both sides of the change', () => {

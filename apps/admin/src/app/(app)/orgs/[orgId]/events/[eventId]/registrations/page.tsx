@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { CancelRegistrationForm } from '@/components/registration-forms';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, ButtonLink } from '@/components/ui/button';
 import { Card, Stat } from '@/components/ui/card';
 import { DataTable } from '@/components/ui/data-table';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -86,6 +86,13 @@ export default async function RegistrationsPage({
         ]}
         eyebrow={evt.name}
         title="Registrations"
+        actions={
+          can(org.role, 'attendee.checkin') ? (
+            <ButtonLink href={`/orgs/${orgId}/events/${eventId}/check-in`} icon="check">
+              Open check-in
+            </ButtonLink>
+          ) : null
+        }
         description={
           <span className="cluster">
             <Badge tone={state.tone} dot>
@@ -104,6 +111,11 @@ export default async function RegistrationsPage({
           hint={summary.capacity ? 'Seats taken' : 'No capacity limit set'}
         />
         <Stat label="Cancelled" value={summary.cancelled} />
+        <Stat
+          label="Checked in"
+          value={summary.checkedIn}
+          hint={summary.confirmed > 0 ? `of ${summary.confirmed} registered` : undefined}
+        />
         <Stat
           label="Opens"
           value={summary.opensAt ? formatInZone(summary.opensAt, evt.timezone) : 'When published'}

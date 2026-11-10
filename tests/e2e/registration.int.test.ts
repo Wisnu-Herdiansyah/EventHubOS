@@ -435,4 +435,158 @@ describe('event registration', () => {
       expect(own.data).toEqual([]);
     });
   });
+
+  describe('check-in (ADR-0028)', () => {
+    const idem = () => ({ 'idempotency-key': `k-${randomUUID()}` });
+    async function setup(roles: string[] = []) {
+      const t = await publishedEvent({}, roles);
+      const people = [
+        { name: 'Ade Wisnu', email: email() },
+        { name: 'Budi 100% Santoso', email: email() },
+        { name: 'Citra_Dewi', email: email() },
+      ];
+      for (const p of people) await t.register(p);
+      const list = (await t.list()).json().data as Array<{ id: string; name: string }>;
+      const id = (name: string) => list.find((r) => r.name === name)!.id;
+      const act = (regId: string, action: 'check-in' | 'undo-check-in', as = t.owner) =>
+        call({
+          method: 'POST',
+          url: `${t.base}/${regId}/${action}`,
+          headers: { ...auth(as), ...idem() },
+        });
+      const door = (q?: string, as = t.owner) =>
+        call({
+          method: 'GET',
+          url: `/v1/organizations/${t.orgId}/events/${t.eventId}/check-in${
+            q === undefined ? '' : `?q=${encodeURIComponent(q)}`
+          }`,
+          headers: auth(as),
+        });
+      return { ...t, people, id, act, door };
+    }
+
+    it('checks an attendee in once, can undo, and audits without personal data', async () => {
+      const t = await setup(['registration_manager']);
+      const ade = t.id('Ade Wisnu');
+      const staff = t.members.registration_manager!;
+      const first = await t.act(ade, 'check-in', staff);
+      expect(first.statusCode, first.body).toBe(200);
+      expect(Object.keys(first.json()).sort()).toEqual(['checkedInAt', 'id', 'status']);
+      expect(first.json().checkedInAt).not.toBeNull();
+
+      const again = await t.act(ade, 'check-in', staff);
+      expect(again.statusCode).toBe(409);
+      expect(again.json().error.details.reason).toBe('already_checked_in');
+
+      expect((await t.summary()).json()).toMatchObject({ confirmed: 3, checkedIn: 1 });
+      expect((await t.door()).json()).toMatchObject({ confirmed: 3, checkedIn: 1 });
+      const stored = await pools.migrator.query(
+        'SELECT checked_in_by FROM eventhub.registration WHERE id = $1',
+        [ade],
+      );
+      expect(stored.rows[0].checked_in_by).toBe(staff.id);
+
+      const undo = await t.act(ade, 'undo-check-in', staff);
+      expect(undo.json().checkedInAt).toBeNull();
+      const undoAgain = await t.act(ade, 'undo-check-in', staff);
+      expect(undoAgain.statusCode).toBe(409);
+      expect(undoAgain.json().error.details.reason).toBe('not_checked_in');
+      expect((await t.summary()).json().checkedIn).toBe(0);
+
+      const audit = await pools.migrator.query(
+        `SELECT action, actor_id, metadata FROM eventhub.audit_event
+          WHERE organization_id = $1 AND action LIKE 'registration.check%' ORDER BY occurred_at`,
+        [t.orgId],
+      );
+      expect(audit.rows).toEqual([
+        { action: 'registration.checked_in', actor_id: staff.id, metadata: { eventId: t.eventId } },
+        {
+          action: 'registration.check_in_undone',
+          actor_id: staff.id,
+          metadata: { eventId: t.eventId },
+        },
+      ]);
+    });
+
+    it('refuses cancelled registrations', async () => {
+      const t = await setup();
+      const ade = t.id('Ade Wisnu');
+      await call({
+        method: 'POST',
+        url: `${t.base}/${ade}/cancel`,
+        headers: { ...auth(t.owner), ...idem() },
+      });
+      const res = await t.act(ade, 'check-in');
+      expect(res.statusCode).toBe(409);
+      expect(res.json().error.details.reason).toBe('registration_cancelled');
+      // Cancelled people are not on the door list.
+      expect((await t.door('ade')).json().data).toEqual([]);
+    });
+
+    it('checks in once when two doors scan the same person at the same moment', async () => {
+      const t = await setup();
+      const ade = t.id('Ade Wisnu');
+      // Hold the row so both requests are in flight together, then let them through. Each
+      // request must lock the row before reading it, or both would see "not checked in".
+      const holder = await pools.migrator.connect();
+      let results;
+      try {
+        await holder.query('BEGIN');
+        await holder.query('SELECT 1 FROM eventhub.registration WHERE id = $1 FOR UPDATE', [ade]);
+        const pending = Promise.all([t.act(ade, 'check-in'), t.act(ade, 'check-in')]);
+        await new Promise((r) => setTimeout(r, 300));
+        await holder.query('COMMIT');
+        results = await pending;
+      } finally {
+        await holder.query('ROLLBACK').catch(() => undefined);
+        holder.release();
+      }
+      expect(results.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+      const audit = await pools.migrator.query(
+        `SELECT count(*)::int AS n FROM eventhub.audit_event
+          WHERE organization_id = $1 AND action = 'registration.checked_in'`,
+        [t.orgId],
+      );
+      expect(audit.rows[0].n).toBe(1);
+    });
+
+    it('finds people by part of a name or the start of an email; wildcards are literal', async () => {
+      const t = await setup();
+      const names = async (q?: string) =>
+        ((await t.door(q)).json().data as Array<{ name: string }>).map((r) => r.name);
+      expect(await names()).toEqual(['Ade Wisnu', 'Budi 100% Santoso', 'Citra_Dewi']);
+      expect(await names('WISNU')).toEqual(['Ade Wisnu']);
+      expect(await names(t.people[1]!.email.slice(0, 12))).toEqual(['Budi 100% Santoso']);
+      expect(await names('100%')).toEqual(['Budi 100% Santoso']);
+      expect(await names('%')).toEqual(['Budi 100% Santoso']);
+      expect(await names('_')).toEqual(['Citra_Dewi']);
+      expect(await names('nobody')).toEqual([]);
+      const bad = await t.door('a\u0007b');
+      expect(bad.statusCode).toBe(400);
+    });
+
+    it('needs attendee.checkin, and keeps tenants apart', async () => {
+      const t = await setup(['event_manager', 'viewer', 'admin']);
+      const ade = t.id('Ade Wisnu');
+      for (const role of ['event_manager', 'viewer']) {
+        const as = t.members[role]!;
+        expect((await t.door(undefined, as)).statusCode, role).toBe(403);
+        const res = await t.act(ade, 'check-in', as);
+        expect(res.statusCode, role).toBe(403);
+        expect(res.json().error.details.reason).toBe('missing_permission:attendee.checkin');
+      }
+      expect((await t.act(ade, 'check-in', t.members.admin)).statusCode).toBe(200);
+
+      const other = await setup();
+      // Another organization's Owner: 404 for the list and the action.
+      expect((await t.door(undefined, other.owner)).statusCode).toBe(404);
+      expect((await t.act(t.id('Budi 100% Santoso'), 'check-in', other.owner)).statusCode).toBe(
+        404,
+      );
+      // Another organization's registration under this organization's URL: not found.
+      const crossed = await t.act(other.id('Ade Wisnu'), 'check-in');
+      expect(crossed.statusCode).toBe(404);
+      expect((await other.summary()).json().checkedIn).toBe(0);
+    });
+  });
 });

@@ -68,6 +68,8 @@ const registrationSchema = z
     createdAt: z.iso.datetime(),
     cancelledAt: z.iso.datetime().nullable(),
     cancelledBy: z.enum(['attendee', 'organizer']).nullable(),
+    /** When the attendee was checked in at the event (ADR-0028), or null. */
+    checkedInAt: z.iso.datetime().nullable(),
   })
   .meta({ id: 'Registration' });
 
@@ -75,6 +77,8 @@ const summarySchema = z
   .object({
     confirmed: z.number().int(),
     cancelled: z.number().int(),
+    /** Confirmed attendees who have been checked in (ADR-0028). */
+    checkedIn: z.number().int(),
     capacity: z.number().int().nullable(),
     state: z.enum(['open', 'not_open_yet', 'closed', 'full']),
     opensAt: z.iso.datetime().nullable(),
@@ -92,6 +96,7 @@ interface RegistrationRow {
   created_at: Date;
   cancelled_at: Date | null;
   cancelled_by: 'attendee' | 'organizer' | null;
+  checked_in_at: Date | null;
 }
 
 const toDto = (r: RegistrationRow) => ({
@@ -102,7 +107,23 @@ const toDto = (r: RegistrationRow) => ({
   createdAt: r.created_at.toISOString(),
   cancelledAt: r.cancelled_at?.toISOString() ?? null,
   cancelledBy: r.cancelled_by,
+  checkedInAt: r.checked_in_at?.toISOString() ?? null,
 });
+
+const REGISTRATION_COLUMNS =
+  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at';
+
+/** For the door: no email confirmation, just who and when (ADR-0028). */
+const checkInResultSchema = z
+  .object({
+    id: uuid,
+    status: z.enum(['confirmed', 'cancelled']),
+    checkedInAt: z.iso.datetime().nullable(),
+  })
+  .meta({ id: 'CheckInResult' });
+
+/** `%`, `_` and `\\` are literal in a search, not patterns. */
+const likeEscape = (q: string) => q.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 async function record(
   client: PoolClient,
@@ -312,12 +333,13 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
             const { rows } = await client.query<{
               confirmed: number;
               cancelled: number;
+              checked_in: number;
               capacity: number | null;
               state: 'open' | 'not_open_yet' | 'closed' | 'full';
               opens_at: Date | null;
               closes_at: Date;
             }>(
-              `SELECT c.confirmed, c.cancelled,
+              `SELECT c.confirmed, c.cancelled, c.checked_in,
                       (e.settings->'registration'->>'capacity')::int AS capacity,
                       eventhub.registration_state(e, c.confirmed, now()) AS state,
                       (e.settings->'registration'->>'opensAt')::timestamptz AS opens_at,
@@ -326,7 +348,9 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                  FROM eventhub.event e
                  CROSS JOIN LATERAL (
                    SELECT count(*) FILTER (WHERE r.status = 'confirmed')::int AS confirmed,
-                          count(*) FILTER (WHERE r.status = 'cancelled')::int AS cancelled
+                          count(*) FILTER (WHERE r.status = 'cancelled')::int AS cancelled,
+                          count(*) FILTER (WHERE r.status = 'confirmed'
+                                             AND r.checked_in_at IS NOT NULL)::int AS checked_in
                      FROM eventhub.registration r WHERE r.event_id = e.id
                  ) c
                 WHERE e.organization_id = $1 AND e.id = $2`,
@@ -339,6 +363,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
               body: {
                 confirmed: r.confirmed,
                 cancelled: r.cancelled,
+                checkedIn: r.checked_in,
                 capacity: r.capacity,
                 state: r.state,
                 opensAt: r.opens_at?.toISOString() ?? null,
@@ -380,7 +405,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
             );
             if (ev.rowCount === 0) throw notFound('Event');
             const { rows } = await client.query<RegistrationRow>(
-              `SELECT id, name, email, status, created_at, cancelled_at, cancelled_by
+              `SELECT ${REGISTRATION_COLUMNS}
                  FROM eventhub.registration
                 WHERE organization_id = $1 AND event_id = $2
                   AND ($3::text IS NULL OR status = $3)
@@ -440,7 +465,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
             const event = ev.rows[0];
             if (!event) throw notFound('Event');
             const { rows } = await client.query<RegistrationRow>(
-              `SELECT id, name, email, status, created_at, cancelled_at, cancelled_by
+              `SELECT ${REGISTRATION_COLUMNS}
                  FROM eventhub.registration
                 WHERE organization_id = $1 AND event_id = $2
                   AND ($3::text IS NULL OR status = $3)
@@ -509,7 +534,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                       SET status = 'cancelled', cancelled_at = now(), cancelled_by = 'organizer'
                     WHERE organization_id = $1 AND event_id = $2 AND id = $3
                       AND status = 'confirmed'
-                RETURNING id, name, email, status, created_at, cancelled_at, cancelled_by`,
+                RETURNING ${REGISTRATION_COLUMNS}`,
                   [access.organizationId, params.eventId, params.registrationId],
                 );
                 const row = rows[0];
@@ -540,5 +565,173 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
         );
       },
     }),
+
+    defineRoute({
+      method: 'GET',
+      path: '/v1/organizations/:organizationId/events/:eventId/check-in',
+      operationId: 'searchCheckIn',
+      summary:
+        'Door list: confirmed attendees matching a name or email (up to 25), with check-in counts. attendee.checkin.',
+      tags: ['registrations'],
+      requires: 'attendee.checkin',
+      idempotent: false,
+      schemas: {
+        params: eventParams,
+        query: z
+          .object({
+            q: z
+              .string()
+              .trim()
+              .max(120)
+              // eslint-disable-next-line no-control-regex
+              .regex(/^[^\u0000-\u001f\u007f]*$/)
+              .optional(),
+          })
+          .strict(),
+        response: {
+          status: 200,
+          schema: z
+            .object({
+              confirmed: z.number().int(),
+              checkedIn: z.number().int(),
+              data: z.array(registrationSchema),
+            })
+            .meta({ id: 'CheckInList' }),
+        },
+      },
+      async handler({ principal, params, query }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'attendee.checkin',
+          async (client, access) => {
+            const counts = await client.query<{ confirmed: number; checked_in: number }>(
+              `SELECT count(*) FILTER (WHERE r.status = 'confirmed')::int AS confirmed,
+                      count(*) FILTER (WHERE r.status = 'confirmed'
+                                         AND r.checked_in_at IS NOT NULL)::int AS checked_in
+                 FROM eventhub.event e
+                 LEFT JOIN eventhub.registration r
+                   ON r.organization_id = e.organization_id AND r.event_id = e.id
+                WHERE e.organization_id = $1 AND e.id = $2
+                GROUP BY e.id`,
+              [access.organizationId, params.eventId],
+            );
+            const c = counts.rows[0];
+            if (!c) throw notFound('Event');
+            const q = query.q ?? '';
+            const { rows } = await client.query<RegistrationRow>(
+              `SELECT ${REGISTRATION_COLUMNS}
+                 FROM eventhub.registration
+                WHERE organization_id = $1 AND event_id = $2 AND status = 'confirmed'
+                  AND ($3 = '' OR lower(name) LIKE '%' || $4 || '%' OR email LIKE $4 || '%')
+                ORDER BY lower(name), id
+                LIMIT 25`,
+              [access.organizationId, params.eventId, q, likeEscape(q.toLowerCase())],
+            );
+            return {
+              status: 200,
+              body: { confirmed: c.confirmed, checkedIn: c.checked_in, data: rows.map(toDto) },
+            };
+          },
+        );
+      },
+    }),
+
+    ...(['check-in', 'undo-check-in'] as const).map((action) =>
+      defineRoute({
+        method: 'POST',
+        path: `/v1/organizations/:organizationId/events/:eventId/registrations/:registrationId/${action}`,
+        operationId: action === 'check-in' ? 'checkInRegistration' : 'undoCheckInRegistration',
+        summary:
+          action === 'check-in'
+            ? 'Check a confirmed attendee in at the door. A second check-in is refused (409).'
+            : 'Undo a check-in made by mistake.',
+        tags: ['registrations'],
+        requires: 'attendee.checkin',
+        idempotent: true,
+        schemas: {
+          params: z.object({ organizationId: uuid, eventId: uuid, registrationId: uuid }).strict(),
+          response: { status: 200, schema: checkInResultSchema },
+        },
+        async handler({ principal, params, correlationId, idempotencyKey, idempotencyScope }) {
+          return withOrganization(
+            pool,
+            principal,
+            params.organizationId,
+            'attendee.checkin',
+            (client, access: OrganizationAccess) =>
+              runIdempotentCommand(
+                client,
+                {
+                  actorId: principal.userId,
+                  scope: idempotencyScope,
+                  key: idempotencyKey!,
+                  body: {},
+                },
+                async () => {
+                  // Row lock: two doors scanning the same person at once check them in once.
+                  const current = await client.query<{
+                    status: 'confirmed' | 'cancelled';
+                    checked_in_at: Date | null;
+                  }>(
+                    `SELECT status, checked_in_at FROM eventhub.registration
+                      WHERE organization_id = $1 AND event_id = $2 AND id = $3 FOR UPDATE`,
+                    [access.organizationId, params.eventId, params.registrationId],
+                  );
+                  const reg = current.rows[0];
+                  if (!reg) throw notFound('Registration');
+                  if (action === 'check-in') {
+                    if (reg.status !== 'confirmed') {
+                      throw new AppError('conflict', 'This registration was cancelled.', {
+                        details: { reason: 'registration_cancelled' },
+                      });
+                    }
+                    if (reg.checked_in_at) {
+                      throw new AppError('conflict', 'This attendee is already checked in.', {
+                        details: { reason: 'already_checked_in' },
+                      });
+                    }
+                  } else if (!reg.checked_in_at) {
+                    throw new AppError('conflict', 'This attendee is not checked in.', {
+                      details: { reason: 'not_checked_in' },
+                    });
+                  }
+                  const { rows } = await client.query<RegistrationRow>(
+                    action === 'check-in'
+                      ? `UPDATE eventhub.registration SET checked_in_at = now(), checked_in_by = $4
+                          WHERE organization_id = $1 AND event_id = $2 AND id = $3
+                        RETURNING ${REGISTRATION_COLUMNS}`
+                      : `UPDATE eventhub.registration SET checked_in_at = NULL, checked_in_by = NULL
+                          WHERE organization_id = $1 AND event_id = $2 AND id = $3 AND $4::uuid IS NOT NULL
+                        RETURNING ${REGISTRATION_COLUMNS}`,
+                    [access.organizationId, params.eventId, params.registrationId, access.userId],
+                  );
+                  const row = rows[0]!;
+                  await record(
+                    client,
+                    access.organizationId,
+                    { type: 'user', id: access.userId },
+                    action === 'check-in'
+                      ? 'registration.checked_in'
+                      : 'registration.check_in_undone',
+                    row.id,
+                    correlationId,
+                    { eventId: params.eventId },
+                  );
+                  return {
+                    status: 200,
+                    body: {
+                      id: row.id,
+                      status: row.status,
+                      checkedInAt: row.checked_in_at?.toISOString() ?? null,
+                    },
+                  };
+                },
+              ),
+          );
+        },
+      }),
+    ),
   ];
 }

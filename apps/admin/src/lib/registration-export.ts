@@ -15,7 +15,15 @@ const BY: Record<string, string> = { attendee: 'Attendee', organizer: 'Organizer
 export function registrationsCsv(e: Export): string {
   const tz = e.timezone;
   return toCsv(
-    ['Name', 'Email', 'Status', `Registered at (${tz})`, `Cancelled at (${tz})`, 'Cancelled by'],
+    [
+      'Name',
+      'Email',
+      'Status',
+      `Registered at (${tz})`,
+      `Cancelled at (${tz})`,
+      'Cancelled by',
+      `Checked in at (${tz})`,
+    ],
     e.data.map((r) => [
       r.name,
       r.email,
@@ -23,6 +31,7 @@ export function registrationsCsv(e: Export): string {
       local(r.createdAt, tz),
       local(r.cancelledAt, tz),
       r.cancelledBy ? (BY[r.cancelledBy] ?? r.cancelledBy) : '',
+      local(r.checkedInAt, tz),
     ]),
   );
 }

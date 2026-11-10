@@ -1,12 +1,16 @@
-import type { InputHTMLAttributes } from 'react';
+import type { InputHTMLAttributes, Ref } from 'react';
 import { Icon } from './icons';
 
 /** Search input with a visually hidden label (the magnifier and placeholder are not labels). */
 export function SearchField({
   label,
   size,
+  ref,
   ...rest
-}: { label: string; size?: 'sm' } & Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'>) {
+}: { label: string; size?: 'sm'; ref?: Ref<HTMLInputElement> } & Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'size' | 'type'
+>) {
   const id = rest.id ?? `search-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
   return (
     <div className={size === 'sm' ? 'search-field search-field--sm' : 'search-field'} role="search">
@@ -16,7 +20,7 @@ export function SearchField({
       <span className="search-field__icon">
         <Icon name="search" size={16} />
       </span>
-      <input {...rest} id={id} type="search" className="input" autoComplete="off" />
+      <input {...rest} ref={ref} id={id} type="search" className="input" autoComplete="off" />
     </div>
   );
 }
