@@ -210,3 +210,67 @@ describe('require two-step verification for Owners and Admins', () => {
     expect((await a.get('', a.owner)).json().requireMfaForAdmins).toBe(false);
   });
 });
+
+describe('who uses two-step verification (ADR-0025)', () => {
+  const members = async (url: string, as: FixtureUser) =>
+    app.inject({ method: 'GET', url: url + '/members', headers: auth(as) });
+
+  it('shows Owners and Admins one boolean per member', async () => {
+    const t = await setup();
+    const admin = await t.member('admin');
+    const manager = await withMfa(await t.member('event_manager'));
+    const pending = await t.member('viewer');
+    await withMfa(pending, 'pending');
+
+    for (const as of [t.owner, admin]) {
+      const res = await members(t.orgUrl, as);
+      expect(res.statusCode).toBe(200);
+      const byUser = new Map(
+        res
+          .json()
+          .data.map((m: { userId: string; twoStepEnabled: boolean }) => [
+            m.userId,
+            m.twoStepEnabled,
+          ]),
+      );
+      expect(byUser.get(t.owner.id)).toBe(true);
+      expect(byUser.get(admin.id)).toBe(false);
+      expect(byUser.get(manager.id)).toBe(true);
+      // An unconfirmed setup is not "on".
+      expect(byUser.get(pending.id)).toBe(false);
+    }
+    // Only the boolean: no dates, secrets or code counts.
+    const owner = (await members(t.orgUrl, t.owner))
+      .json()
+      .data.find((m: { userId: string }) => m.userId === t.owner.id);
+    expect(Object.keys(owner).sort()).toEqual(
+      ['email', 'joinedAt', 'membershipId', 'role', 'status', 'twoStepEnabled', 'userId'].sort(),
+    );
+  });
+
+  it('is not readable by other roles, other tenants, or outside tenant context', async () => {
+    const t = await setup();
+    const manager = await t.member('event_manager');
+    expect((await members(t.orgUrl, manager)).statusCode).toBe(403);
+    const other = await setup();
+    expect((await members(t.orgUrl, other.owner)).statusCode).toBe(404);
+
+    // The function itself returns nothing unless the tenant context matches the argument.
+    const client = await pools.app.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('app.organization_id', $1, true)", [other.orgId]);
+      const leaked = await client.query('SELECT * FROM eventhub.organization_member_mfa($1)', [
+        t.orgId,
+      ]);
+      expect(leaked.rowCount).toBe(0);
+      const own = await client.query('SELECT * FROM eventhub.organization_member_mfa($1)', [
+        other.orgId,
+      ]);
+      expect(own.rows).toEqual([{ out_user_id: other.owner.id, out_mfa_enabled: true }]);
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+  });
+});

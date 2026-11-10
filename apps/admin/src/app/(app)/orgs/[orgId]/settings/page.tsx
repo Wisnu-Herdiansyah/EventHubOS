@@ -16,6 +16,7 @@ import { LOCALES, ROLE_LABELS, timeZones } from '@/lib/options';
 import { adminConfig } from '@/lib/config';
 import { settingsAbilities } from '@/lib/permissions';
 import { publicSiteExample, publicSiteUrl } from '@/lib/public-url';
+import { adminsWithoutTwoStep } from '@/lib/status';
 
 export const metadata: Metadata = { title: 'Organization settings' };
 
@@ -28,7 +29,7 @@ export default async function OrganizationSettingsPage({
 }) {
   const { orgId } = await params;
   if (!UUID.test(orgId)) notFound();
-  let org, mfa;
+  let org, mfa, members;
   try {
     const client = await api();
     org = unwrap(
@@ -38,6 +39,12 @@ export default async function OrganizationSettingsPage({
     );
     if (settingsAbilities(org.role).canEditProfile && !org.mfaSetupRequired) {
       mfa = unwrap(await client.GET('/v1/auth/mfa'));
+      // ADR-0025: who the requirement would hold out (membership.manage sees two-step status).
+      members = unwrap(
+        await client.GET('/v1/organizations/{organizationId}/members', {
+          params: { path: { organizationId: orgId } },
+        }),
+      ).data;
     }
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
@@ -48,6 +55,7 @@ export default async function OrganizationSettingsPage({
   if (org.mfaSetupRequired) redirect(twoStepRequiredPath(`/orgs/${orgId}/settings`));
 
   const abilities = settingsAbilities(org.role);
+  const withoutTwoStep = adminsWithoutTwoStep((members ?? []).filter((m) => m.status === 'active'));
   const siteTemplate = adminConfig().publicSiteUrl;
   const siteOrigin = publicSiteUrl(siteTemplate, org.publicHandle);
   const billing = org.billingContact;
@@ -143,6 +151,15 @@ export default async function OrganizationSettingsPage({
                 idempotencyKey={newIdempotencyKey()}
                 required={org.requireMfaForAdmins}
               />
+              {withoutTwoStep.length > 0 ? (
+                <p className="field__hint">
+                  {withoutTwoStep.length === 1
+                    ? '1 Owner or Admin doesn’t'
+                    : `${withoutTwoStep.length} Owners and Admins don’t`}{' '}
+                  use two-step verification yet.{' '}
+                  <Link href={`/orgs/${orgId}/team`}>See who on the Team page</Link>.
+                </p>
+              ) : null}
               {mfa?.status === 'on' ? null : (
                 <p className="field__hint">
                   You don’t use two-step verification yet.{' '}

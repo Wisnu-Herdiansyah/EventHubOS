@@ -32,6 +32,30 @@ export function invitationStatus(status: string): { label: string; tone: Tone } 
   return INVITATION[status] ?? { label: status, tone: 'neutral' };
 }
 
+/** Roles the organization's two-step requirement covers (ADR-0024; kernel MFA_ENFORCED_ROLES). */
+const MFA_ROLES = new Set(['owner', 'admin']);
+
+/**
+ * ADR-0025: a member's two-step verification, as shown on the Team page. "Needed" marks the
+ * people the organization's requirement is currently holding out.
+ */
+export function twoStepStatus(
+  enabled: boolean,
+  role: string,
+  orgRequires: boolean,
+): { label: string; tone: Tone } {
+  if (enabled) return { label: 'On', tone: 'success' };
+  if (orgRequires && MFA_ROLES.has(role)) return { label: 'Needed', tone: 'danger' };
+  return { label: 'Off', tone: 'neutral' };
+}
+
+/** Owners and Admins who do not use two-step verification yet. */
+export function adminsWithoutTwoStep<T extends { role: string; twoStepEnabled?: boolean }>(
+  members: T[],
+): T[] {
+  return members.filter((m) => MFA_ROLES.has(m.role) && m.twoStepEnabled === false);
+}
+
 /** Events per lifecycle state, in lifecycle order, omitting empty states except Draft. */
 export function lifecycleCounts(
   events: Array<{ lifecycle: string }>,

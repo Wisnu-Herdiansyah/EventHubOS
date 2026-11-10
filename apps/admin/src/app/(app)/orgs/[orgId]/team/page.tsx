@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   InviteMemberForm,
@@ -14,11 +15,12 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { Toast } from '@/components/ui/toast';
+import type { components } from '@/lib/api-types';
 import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
 import { ROLE_LABELS } from '@/lib/options';
 import { canManageMember, teamAbilities } from '@/lib/permissions';
-import { invitationStatus } from '@/lib/status';
+import { adminsWithoutTwoStep, invitationStatus, twoStepStatus } from '@/lib/status';
 import { formatInZone } from '@/lib/time';
 
 export const metadata: Metadata = { title: 'Team' };
@@ -30,6 +32,8 @@ const NOTICES: Record<string, string> = {
   member_removed: 'Member removed. Their access has ended.',
   invitation_revoked: 'Invitation revoked. Its link no longer works.',
 };
+
+const countPeople = (n: number) => (n === 1 ? '1 Owner or Admin' : `${n} Owners and Admins`);
 
 export default async function TeamPage({
   params,
@@ -67,6 +71,9 @@ export default async function TeamPage({
     label: ROLE_LABELS[r] ?? r,
   }));
   const pending = (invitations ?? []).filter((i) => i.status === 'pending');
+  // ADR-0025: present only for roles that manage membership.
+  const showTwoStep = (members ?? []).some((m) => m.twoStepEnabled !== undefined);
+  const withoutTwoStep = adminsWithoutTwoStep((members ?? []).filter((m) => m.status === 'active'));
   const history = (invitations ?? []).filter((i) => i.status !== 'pending');
 
   return (
@@ -104,6 +111,24 @@ export default async function TeamPage({
         <Notice>Only Owners and Admins can see and manage the team.</Notice>
       ) : (
         <>
+          {showTwoStep && withoutTwoStep.length > 0 ? (
+            <Notice tone={org.requireMfaForAdmins ? 'warning' : 'info'} role={null}>
+              {org.requireMfaForAdmins ? (
+                <>
+                  {countPeople(withoutTwoStep.length)} can’t open this organization until they set
+                  up two-step verification: {withoutTwoStep.map((m) => m.email).join(', ')}.
+                </>
+              ) : (
+                <>
+                  {countPeople(withoutTwoStep.length)}{' '}
+                  {withoutTwoStep.length === 1 ? 'doesn’t' : 'don’t'} use two-step verification yet:{' '}
+                  {withoutTwoStep.map((m) => m.email).join(', ')}. If you{' '}
+                  <Link href={`/orgs/${orgId}/settings#security-heading`}>require it</Link>, they
+                  can’t open this organization until they set it up.
+                </>
+              )}
+            </Notice>
+          ) : null}
           <Card flush title={`Members (${members.length})`} titleId="members-heading">
             <DataTable
               caption="Members"
@@ -145,6 +170,22 @@ export default async function TeamPage({
                       <Badge>{ROLE_LABELS[m.role] ?? m.role}</Badge>
                     ),
                 },
+                ...(showTwoStep
+                  ? [
+                      {
+                        key: 'twoStep',
+                        header: 'Two-step',
+                        cell: (m: components['schemas']['Member']) => {
+                          const st = twoStepStatus(
+                            m.twoStepEnabled === true,
+                            m.role,
+                            org.requireMfaForAdmins,
+                          );
+                          return <Badge tone={st.tone}>{st.label}</Badge>;
+                        },
+                      },
+                    ]
+                  : []),
                 {
                   key: 'actions',
                   header: 'Actions',

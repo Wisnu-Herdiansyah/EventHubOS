@@ -1073,6 +1073,7 @@ export interface components {
             /** @enum {string} */
             status: "active" | "suspended" | "removed";
             joinedAt: string | null;
+            twoStepEnabled?: boolean;
         };
         MemberList: {
             data: components["schemas"]["Member"][];

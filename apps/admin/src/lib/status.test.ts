@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { barPercent } from '../components/ui/chart';
-import { invitationStatus, lifecycleCounts, lifecycleStatus } from './status';
+import {
+  adminsWithoutTwoStep,
+  invitationStatus,
+  lifecycleCounts,
+  lifecycleStatus,
+  twoStepStatus,
+} from './status';
 
 describe('status tones', () => {
   it('gives every lifecycle state a label and a tone', () => {
@@ -45,5 +51,24 @@ describe('barPercent', () => {
     expect(barPercent(0, 10)).toBe(0);
     expect(barPercent(3, 0)).toBe(0);
     expect(barPercent(Number.NaN, 10)).toBe(0);
+  });
+});
+
+describe('two-step verification on the Team page (ADR-0025)', () => {
+  it('marks Owners and Admins held out by the requirement', () => {
+    expect(twoStepStatus(true, 'owner', true)).toEqual({ label: 'On', tone: 'success' });
+    expect(twoStepStatus(false, 'admin', true)).toEqual({ label: 'Needed', tone: 'danger' });
+    expect(twoStepStatus(false, 'owner', false)).toEqual({ label: 'Off', tone: 'neutral' });
+    expect(twoStepStatus(false, 'viewer', true)).toEqual({ label: 'Off', tone: 'neutral' });
+  });
+  it('counts only Owners and Admins known to be without it', () => {
+    const list = [
+      { role: 'owner', twoStepEnabled: true },
+      { role: 'admin', twoStepEnabled: false },
+      { role: 'owner', twoStepEnabled: false },
+      { role: 'viewer', twoStepEnabled: false },
+      { role: 'admin' },
+    ];
+    expect(adminsWithoutTwoStep(list)).toEqual([list[1], list[2]]);
   });
 });
