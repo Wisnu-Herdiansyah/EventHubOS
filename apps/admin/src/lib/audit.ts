@@ -125,6 +125,18 @@ export function describeAuditEvent(
         summary: `Published the microsite of ${event}`,
         details: typeof m.revision === 'number' ? [`Revision ${m.revision}.`] : [],
       };
+    case 'registration.exported': {
+      const n = count(m.count);
+      const which =
+        m.status === 'confirmed' ? 'registered ' : m.status === 'cancelled' ? 'cancelled ' : '';
+      return {
+        summary: `Downloaded the ${which}attendee list of ${event}`,
+        details: [
+          `${n} ${n === 1 ? 'person' : 'people'}.`,
+          ...(m.truncated === true ? ['The list was cut off at the export limit.'] : []),
+        ],
+      };
+    }
     case 'registration.created': {
       const ev = typeof m.eventId === 'string' ? names.events.get(m.eventId) : undefined;
       return {

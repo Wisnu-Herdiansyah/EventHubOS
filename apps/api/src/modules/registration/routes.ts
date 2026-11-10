@@ -28,6 +28,8 @@ const PUBLIC_REGISTER_LIMIT = { max: 5, timeWindow: '1 minute' };
 const PUBLIC_CANCEL_LIMIT = { max: 10, timeWindow: '1 minute' };
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 const SYSTEM: Actor = { type: 'system', id: null };
+/** Rows in one export (ADR-0027). Larger events need a background export. */
+export const EXPORT_LIMIT = 10_000;
 
 const handle = z.string().regex(/^[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])$/);
 
@@ -387,6 +389,88 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
               [access.organizationId, params.eventId, query.status ?? null],
             );
             return { status: 200, body: { data: rows.map(toDto) } };
+          },
+        );
+      },
+    }),
+
+    defineRoute({
+      method: 'POST',
+      path: '/v1/organizations/:organizationId/events/:eventId/registrations/export',
+      operationId: 'exportRegistrations',
+      summary:
+        'All registrations of an event for download (up to 10,000), oldest first. Personal data: registration.export_pii; every export is audited.',
+      tags: ['registrations'],
+      requires: 'registration.export_pii',
+      idempotent: false,
+      idempotencyExempt:
+        'The response is personal data and must not be stored in the idempotency table; a retry is another audited export.',
+      schemas: {
+        params: eventParams,
+        body: z
+          .object({ status: z.enum(['confirmed', 'cancelled']).optional() })
+          .strict()
+          .meta({ id: 'RegistrationExportRequest' }),
+        response: {
+          status: 200,
+          schema: z
+            .object({
+              eventName: z.string(),
+              eventSlug: z.string(),
+              timezone: z.string(),
+              generatedAt: z.iso.datetime(),
+              /** More registrations exist than one export holds. */
+              truncated: z.boolean(),
+              data: z.array(registrationSchema),
+            })
+            .meta({ id: 'RegistrationExport' }),
+        },
+      },
+      async handler({ principal, params, body, correlationId }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'registration.export_pii',
+          async (client, access) => {
+            const ev = await client.query<{ name: string; slug: string; timezone: string }>(
+              'SELECT name, slug, timezone FROM eventhub.event WHERE organization_id = $1 AND id = $2',
+              [access.organizationId, params.eventId],
+            );
+            const event = ev.rows[0];
+            if (!event) throw notFound('Event');
+            const { rows } = await client.query<RegistrationRow>(
+              `SELECT id, name, email, status, created_at, cancelled_at, cancelled_by
+                 FROM eventhub.registration
+                WHERE organization_id = $1 AND event_id = $2
+                  AND ($3::text IS NULL OR status = $3)
+                ORDER BY created_at, id
+                LIMIT ${EXPORT_LIMIT + 1}`,
+              [access.organizationId, params.eventId, body.status ?? null],
+            );
+            const truncated = rows.length > EXPORT_LIMIT;
+            const data = rows.slice(0, EXPORT_LIMIT).map(toDto);
+            // Who exported what, and how much: never the attendees themselves.
+            await writeAudit(client, {
+              organizationId: access.organizationId,
+              actor: { type: 'user', id: principal.userId },
+              action: 'registration.exported',
+              targetType: 'event',
+              targetId: params.eventId,
+              correlationId,
+              metadata: { count: data.length, status: body.status ?? 'all', truncated },
+            });
+            return {
+              status: 200,
+              body: {
+                eventName: event.name,
+                eventSlug: event.slug,
+                timezone: event.timezone,
+                generatedAt: new Date().toISOString(),
+                truncated,
+                data,
+              },
+            };
           },
         );
       },

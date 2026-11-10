@@ -117,6 +117,17 @@ describe('describeAuditEvent', () => {
     ).toBe("Changed the organization's name, time zone and billing contact");
   });
 
+  it('describes attendee list downloads without naming attendees', () => {
+    const e = { ...record('registration.exported', { count: 2, status: 'all', truncated: false }) };
+    expect(describeAuditEvent(e, names).summary).toMatch(/^Downloaded the attendee list of /);
+    expect(describeAuditEvent(e, names).details).toEqual(['2 people.']);
+    const one = record('registration.exported', { count: 1, status: 'confirmed', truncated: true });
+    expect(describeAuditEvent(one, names)).toMatchObject({
+      details: ['1 person.', 'The list was cut off at the export limit.'],
+    });
+    expect(describeAuditEvent(one, names).summary).toMatch(/registered attendee list/);
+  });
+
   it('describes the two-step verification requirement in words', () => {
     const on = record('organization.updated', {
       fields: ['requireMfaForAdmins'],

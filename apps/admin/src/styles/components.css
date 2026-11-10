@@ -1470,6 +1470,13 @@
   gap: var(--space-1);
 }
 
+/* A short explanatory line at the top of a flush card */
+.card__note {
+  margin: 0;
+  padding: var(--space-4) var(--space-6) 0;
+  font-size: var(--text-sm);
+}
+
 .filter-link {
   display: inline-flex;
   align-items: center;

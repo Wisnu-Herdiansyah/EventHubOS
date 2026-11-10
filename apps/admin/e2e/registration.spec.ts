@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { expect, type Browser } from '@playwright/test';
 import {
   apiCall,
@@ -138,6 +139,28 @@ test('a visitor registers, gets an email, cancels with its link; the organizer s
   await expect(attendees).toContainText('Ade Wisnu');
   await expect(attendees).toContainText(attendee);
   await expectAccessible(page);
+
+  // The organizer downloads the list (ADR-0027).
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    attendees.getByRole('button', { name: 'Download CSV' }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^[a-z0-9-]+-registrations-\d{4}-\d{2}-\d{2}\.csv$/);
+  const csv = await readFile(await download.path(), 'utf8');
+  expect(csv).toContain('Name,Email,Status,Registered at (Asia/Jakarta)');
+  expect(csv).toContain(`Ade Wisnu,${attendee},Registered,`);
+  // Still on the page; the export is in the audit log, without the attendee's details.
+  await expect(page.getByRole('heading', { level: 1, name: 'Registrations' })).toBeVisible();
+  await page.goto(`/orgs/${t.orgId}/audit`);
+  await expect(page.getByRole('main')).toContainText('Downloaded the attendee list of');
+  await expect(page.getByRole('main')).not.toContainText(attendee);
+  // A cross-site form post with the organizer's cookies is refused.
+  const forged = await page.request.post(
+    `/orgs/${t.orgId}/events/${t.eventId}/registrations/export`,
+    { headers: { origin: 'https://evil.example', 'sec-fetch-site': 'cross-site' }, form: {} },
+  );
+  expect(forged.status()).toBe(403);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/registrations`);
 
   // The attendee cancels with the emailed link.
   const link = await mailLink(attendee, 'registration_confirmed');

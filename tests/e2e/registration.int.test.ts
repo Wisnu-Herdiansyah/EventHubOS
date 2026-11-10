@@ -114,7 +114,21 @@ describe('event registration', () => {
     const list = (as = owner) => call({ method: 'GET', url: base, headers: auth(as) });
     const summary = (as = owner) =>
       call({ method: 'GET', url: `${base}/summary`, headers: auth(as) });
-    return { owner, orgId, eventId, handle, slug, members, register, list, summary, base };
+    const exportList = (as = owner, payload: object = {}) =>
+      call({ method: 'POST', url: `${base}/export`, headers: auth(as), payload });
+    return {
+      owner,
+      orgId,
+      eventId,
+      handle,
+      slug,
+      members,
+      register,
+      list,
+      summary,
+      base,
+      exportList,
+    };
   }
   const email = () => `attendee-${randomUUID()}@example.test`;
   const tokenFrom = (text: string) => /#token=([A-Za-z0-9_-]{43})/.exec(text)![1]!;
@@ -329,5 +343,96 @@ describe('event registration', () => {
     expect((await page()).state).toBe('open');
     await t.register({ name: 'Only seat', email: email() });
     expect((await page()).state).toBe('full');
+  });
+
+  describe('export (ADR-0027)', () => {
+    it('exports every registration oldest first, audited without personal data', async () => {
+      const t = await publishedEvent({}, ['registration_manager']);
+      const first = email();
+      const second = email();
+      await t.register({ name: 'First Person', email: first });
+      await t.register({ name: 'Second Person', email: second });
+      const regs = (await t.list()).json().data as Array<{ id: string; email: string }>;
+      const toCancel = regs.find((r) => r.email === second)!;
+      await call({
+        method: 'POST',
+        url: `${t.base}/${toCancel.id}/cancel`,
+        headers: { ...auth(t.owner), 'idempotency-key': `k-${randomUUID()}` },
+      });
+
+      const res = await t.exportList(t.members.registration_manager);
+      expect(res.statusCode, res.body).toBe(200);
+      const body = res.json();
+      expect(body).toMatchObject({ eventSlug: t.slug, timezone: 'UTC', truncated: false });
+      expect(body.data.map((r: { email: string; status: string }) => [r.email, r.status])).toEqual([
+        [first, 'confirmed'],
+        [second, 'cancelled'],
+      ]);
+      const confirmedOnly = (await t.exportList(t.owner, { status: 'confirmed' })).json();
+      expect(confirmedOnly.data).toHaveLength(1);
+
+      const audit = await pools.migrator.query(
+        `SELECT actor_id, target_type, target_id, metadata FROM eventhub.audit_event
+          WHERE organization_id = $1 AND action = 'registration.exported' ORDER BY occurred_at`,
+        [t.orgId],
+      );
+      expect(audit.rows).toEqual([
+        {
+          actor_id: t.members.registration_manager!.id,
+          target_type: 'event',
+          target_id: t.eventId,
+          metadata: { count: 2, status: 'all', truncated: false },
+        },
+        {
+          actor_id: t.owner.id,
+          target_type: 'event',
+          target_id: t.eventId,
+          metadata: { count: 1, status: 'confirmed', truncated: false },
+        },
+      ]);
+      expect(JSON.stringify(audit.rows)).not.toContain(first);
+      // Never stored for replay: the response is personal data.
+      const stored = await pools.migrator.query(
+        `SELECT count(*)::int AS n FROM eventhub.idempotency_key
+          WHERE response_body::text LIKE '%' || $1 || '%'`,
+        [first],
+      );
+      expect(stored.rows[0].n).toBe(0);
+    });
+
+    it('needs registration.export_pii, not just registration.manage', async () => {
+      const t = await publishedEvent({}, ['event_manager', 'viewer', 'admin']);
+      await t.register({ name: 'Someone', email: email() });
+      for (const role of ['event_manager', 'viewer']) {
+        const res = await t.exportList(t.members[role]);
+        expect(res.statusCode, role).toBe(403);
+        expect(res.json().error.details.reason).toBe('missing_permission:registration.export_pii');
+      }
+      expect((await t.exportList(t.members.admin)).statusCode).toBe(200);
+      const denied = await pools.migrator.query(
+        `SELECT count(*)::int AS n FROM eventhub.audit_event
+          WHERE organization_id = $1 AND action = 'registration.exported'`,
+        [t.orgId],
+      );
+      expect(denied.rows[0].n).toBe(1);
+    });
+
+    it('keeps tenants and events apart', async () => {
+      const a = await publishedEvent();
+      const b = await publishedEvent();
+      await a.register({ name: 'A Person', email: email() });
+      // Another organization's Owner: same 404 as a missing organization.
+      expect((await a.exportList(b.owner)).statusCode).toBe(404);
+      // An event of another organization under this organization's URL: not found.
+      const crossed = await call({
+        method: 'POST',
+        url: `/v1/organizations/${a.orgId}/events/${b.eventId}/registrations/export`,
+        headers: auth(a.owner),
+        payload: {},
+      });
+      expect(crossed.statusCode).toBe(404);
+      const own = (await b.exportList()).json();
+      expect(own.data).toEqual([]);
+    });
   });
 });
