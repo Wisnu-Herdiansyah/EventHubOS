@@ -7,6 +7,7 @@ import { LocalFileEmailSender } from './adapters/local-file-email-sender.ts';
 import { ResendEmailSender } from './adapters/resend-email-sender.ts';
 import { sendInvitationEmailConsumer } from './consumers/send-invitation-email.ts';
 import { sendMfaChangedEmailConsumer } from './consumers/send-mfa-email.ts';
+import { sendSecurityChangedEmailConsumer } from './consumers/send-security-change-email.ts';
 import {
   sendRegistrationCancelledConsumer,
   sendRegistrationConfirmationConsumer,
@@ -60,6 +61,7 @@ const consumers = [
   }),
   sendPasswordChangedEmailConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
   sendMfaChangedEmailConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
+  sendSecurityChangedEmailConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
   sendRegistrationConfirmationConsumer(emailSender, {
     publicSiteUrl: config.publicSiteUrl,
     tokenSecret: config.emailTokenSecret,
