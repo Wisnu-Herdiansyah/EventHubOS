@@ -356,6 +356,15 @@ export default async function EventPage({
             >
               Registrations
             </ButtonLink>
+            {can(org.role, 'report.read') ? (
+              <ButtonLink
+                variant="secondary"
+                icon="overview"
+                href={`/orgs/${orgId}/events/${eventId}/report`}
+              >
+                Report
+              </ButtonLink>
+            ) : null}
             <ButtonLink icon="layers" href={`/orgs/${orgId}/events/${eventId}/page`}>
               {can(org.role, 'page.edit') && evt.lifecycle !== 'archived'
                 ? 'Edit microsite'
