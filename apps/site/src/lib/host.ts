@@ -22,5 +22,9 @@ export function internalPath(handle: string, pathname: string): string | null {
   // Cancel link from a registration email (ADR-0023); the slug is reserved for this.
   if (parts.length === 1 && parts[0] === 'cancel-registration') return `/c/${handle}`;
   if (parts.length === 1 && SLUG.test(parts[0]!)) return `/s/${handle}/${parts[0]}`;
+  // An attendee's ticket (ADR-0029); the registration ID stays in the fragment.
+  if (parts.length === 2 && SLUG.test(parts[0]!) && parts[1] === 'ticket') {
+    return `/s/${handle}/${parts[0]}/ticket`;
+  }
   return null;
 }

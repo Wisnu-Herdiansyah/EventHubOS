@@ -571,7 +571,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       path: '/v1/organizations/:organizationId/events/:eventId/check-in',
       operationId: 'searchCheckIn',
       summary:
-        'Door list: confirmed attendees matching a name or email (up to 25), with check-in counts. attendee.checkin.',
+        'Door list: confirmed attendees matching a name or email (up to 25), or the one registration a scanned ticket names (any status), with check-in counts. attendee.checkin.',
       tags: ['registrations'],
       requires: 'attendee.checkin',
       idempotent: false,
@@ -586,8 +586,11 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
               // eslint-disable-next-line no-control-regex
               .regex(/^[^\u0000-\u001f\u007f]*$/)
               .optional(),
+            /** A scanned ticket: the registration ID from the QR code (ADR-0029). */
+            ticket: uuid.optional(),
           })
-          .strict(),
+          .strict()
+          .refine((v) => !(v.q && v.ticket), { message: 'Search by name or by ticket, not both.' }),
         response: {
           status: 200,
           schema: z
@@ -619,6 +622,22 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
             );
             const c = counts.rows[0];
             if (!c) throw notFound('Event');
+            if (query.ticket) {
+              // Any status, so the door can say "cancelled"; only this organization's event.
+              const t = await client.query<RegistrationRow>(
+                `SELECT ${REGISTRATION_COLUMNS} FROM eventhub.registration
+                  WHERE organization_id = $1 AND event_id = $2 AND id = $3`,
+                [access.organizationId, params.eventId, query.ticket],
+              );
+              return {
+                status: 200,
+                body: {
+                  confirmed: c.confirmed,
+                  checkedIn: c.checked_in,
+                  data: t.rows.map(toDto),
+                },
+              };
+            }
             const q = query.q ?? '';
             const { rows } = await client.query<RegistrationRow>(
               `SELECT ${REGISTRATION_COLUMNS}

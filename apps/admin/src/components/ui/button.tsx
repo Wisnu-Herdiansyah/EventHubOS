@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react';
 import { Icon, type IconName } from './icons';
 
 export type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'danger-secondary' | 'plain';
@@ -51,10 +51,12 @@ export function Button({
   className,
   type = 'button',
   children,
+  ref,
   ...rest
-}: ButtonStyleProps & ButtonHTMLAttributes<HTMLButtonElement>) {
+}: ButtonStyleProps & ButtonHTMLAttributes<HTMLButtonElement> & { ref?: Ref<HTMLButtonElement> }) {
   return (
     <button
+      ref={ref}
       type={type}
       className={buttonClass({ variant, size, iconOnly, block, className })}
       {...rest}

@@ -729,7 +729,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Door list: confirmed attendees matching a name or email (up to 25), with check-in counts. attendee.checkin. */
+        /** Door list: confirmed attendees matching a name or email (up to 25), or the one registration a scanned ticket names (any status), with check-in counts. attendee.checkin. */
         get: operations["searchCheckIn"];
         put?: never;
         post?: never;
@@ -5939,6 +5939,7 @@ export interface operations {
         parameters: {
             query?: {
                 q?: string;
+                ticket?: string;
             };
             header?: {
                 "X-Correlation-Id"?: string;

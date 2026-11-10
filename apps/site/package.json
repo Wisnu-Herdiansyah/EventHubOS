@@ -12,6 +12,7 @@
   "dependencies": {
     "@eventhub/microsite": "workspace:*",
     "next": "16.4.2",
+    "qrcode": "1.5.4",
     "react": "19.1.10",
     "react-dom": "19.1.10",
     "server-only": "0.0.1",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@types/node": "22.20.5",
+    "@types/qrcode": "1.5.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "openapi-typescript": "7.13.0",

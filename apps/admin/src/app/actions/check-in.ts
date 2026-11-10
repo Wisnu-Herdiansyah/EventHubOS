@@ -57,6 +57,28 @@ export async function searchCheckInAction(
   }
 }
 
+/** Looks up the one registration a scanned ticket names (ADR-0029). */
+export async function lookupTicketAction(
+  organizationId: string,
+  eventId: string,
+  ticket: string,
+): Promise<CheckInSearchResult> {
+  if (![organizationId, eventId, ticket].every((id) => typeof id === 'string' && UUID.test(id))) {
+    return { ok: false, message: 'That is not a ticket code.' };
+  }
+  try {
+    const client = await api();
+    const list = unwrap(
+      await client.GET('/v1/organizations/{organizationId}/events/{eventId}/check-in', {
+        params: { path: { organizationId, eventId }, query: { ticket } },
+      }),
+    );
+    return { ok: true, ...list };
+  } catch (error) {
+    return failure(error, `/orgs/${organizationId}/events/${eventId}/check-in`);
+  }
+}
+
 export async function setCheckInAction(
   organizationId: string,
   eventId: string,

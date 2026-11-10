@@ -87,6 +87,13 @@ export function sendRegistrationConfirmationConsumer(
             : `You're already registered for ${r.out_event_name}; here are your details again.`,
           `When: ${when(r.out_starts_at, r.out_timezone)}`,
           ...(site ? [`Event page: ${site}/${r.out_event_slug}`] : []),
+          // ADR-0029: the QR code is drawn from the fragment, which browsers never send.
+          ...(site
+            ? [
+                '',
+                `Your ticket (show its QR code at the door): ${site}/${r.out_event_slug}/ticket#id=${payload.registrationId}`,
+              ]
+            : []),
           '',
           site
             ? `Can't come? Cancel your registration: ${site}/cancel-registration#token=${token}`

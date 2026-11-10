@@ -1537,3 +1537,35 @@
 .door-more {
   padding-bottom: var(--space-4);
 }
+
+/* Scanning tickets (ADR-0029) */
+.door-scan {
+  padding: 0 var(--space-6) var(--space-4);
+}
+
+.ticket-scanner {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+
+.ticket-scanner__panel {
+  display: grid;
+  gap: var(--space-3);
+  width: 100%;
+  justify-items: start;
+}
+
+.ticket-scanner__video {
+  width: 100%;
+  max-width: 28rem;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-muted);
+}
+
+.ticket-result {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
