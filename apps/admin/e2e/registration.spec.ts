@@ -440,6 +440,26 @@ test('the event report shows sign-ups and attendance, and no attendee details', 
   await page.screenshot({ path: test.info().outputPath('report-dark.png'), fullPage: true });
   await page.emulateMedia({ colorScheme: 'light' });
 
+  // ADR-0032: the organization's Reports page, from the sidebar.
+  await page.getByRole('navigation').getByRole('link', { name: 'Reports' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Reports' })).toBeVisible();
+  await expect(main.getByText('0 cancelled')).toBeVisible();
+  await expect(main.getByText('Across all events')).toBeVisible();
+  await expect(main.getByText('Known once an event with registrations ends')).toBeVisible();
+  const events = page.getByRole('table', { name: 'Events' });
+  const row = events.getByRole('row').filter({ hasText: 'Private Summit' });
+  await expect(row.getByRole('cell').nth(1)).toHaveText('2');
+  await expect(row.getByRole('cell').nth(2)).toHaveText('1');
+  await expect(row.getByRole('cell').nth(3)).toHaveText('–');
+  await expect(page.getByRole('table', { name: 'Sign-ups by month' }).getByRole('row')).toHaveCount(
+    13,
+  );
+  await expect(main).not.toContainText('Report Person');
+  await expectAccessible(page);
+  await page.screenshot({ path: test.info().outputPath('org-report.png'), fullPage: true });
+  await events.getByRole('link', { name: 'Private Summit' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Report' })).toBeVisible();
+
   // Viewers have no report.
   const viewer = await joinAs(t.owner.token, t.orgId, 'report-viewer', 'viewer');
   await signOut(page);

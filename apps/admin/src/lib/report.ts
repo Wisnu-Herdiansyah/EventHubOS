@@ -36,6 +36,12 @@ export function checkInRows(
   }));
 }
 
+/** "Mar 2027" for a YYYY-MM month. */
+export function monthLabel(month: string): string {
+  const [y, m] = month.split('-').map(Number);
+  return `${MONTHS[(m ?? 1) - 1]} ${y}`;
+}
+
 /** Share of registered people who came, as a whole percentage; null when nobody registered. */
 export function attendanceRate(registered: number, checkedIn: number): number | null {
   return registered > 0 ? Math.round((checkedIn / registered) * 100) : null;

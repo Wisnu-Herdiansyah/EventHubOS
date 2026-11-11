@@ -5,6 +5,9 @@ import { defineRoute, type AnyRoute } from '../../http/route.ts';
 import { uuid } from '../../http/schemas.ts';
 import { withOrganization } from '../tenancy/access.ts';
 
+/** Events in one organization report (ADR-0032); the newest by start date are kept. */
+export const ORG_REPORT_MAX_EVENTS = 500;
+
 /** Days in one report; registrations rarely span more than a year (ADR-0030). */
 export const REPORT_MAX_DAYS = 366;
 
@@ -49,6 +52,44 @@ const reportSchema = z
     truncated: z.boolean(),
   })
   .meta({ id: 'EventReport' });
+
+const orgReportSchema = z
+  .object({
+    timezone: z.string(),
+    totals: z.object({
+      /** All events, including any beyond the listed ones. */
+      events: z.number().int(),
+      registered: z.number().int(),
+      cancelled: z.number().int(),
+      checkedIn: z.number().int(),
+      /** Attendance counts only events that have ended, so the rate is not diluted by future ones. */
+      endedEvents: z.number().int(),
+      endedRegistered: z.number().int(),
+      endedCheckedIn: z.number().int(),
+    }),
+    /** Sign-ups per calendar month in the organization's time zone, the last 12 months. */
+    signUpsByMonth: z.array(
+      z.object({ month: z.string(), signUps: z.number().int() }).meta({ id: 'ReportMonth' }),
+    ),
+    /** Newest first by start date. */
+    events: z.array(
+      z
+        .object({
+          id: uuid,
+          name: z.string(),
+          lifecycle: z.string(),
+          startsAt: z.iso.datetime(),
+          ended: z.boolean(),
+          capacity: z.number().int().nullable(),
+          registered: z.number().int(),
+          cancelled: z.number().int(),
+          checkedIn: z.number().int(),
+        })
+        .meta({ id: 'ReportEventRow' }),
+    ),
+    truncated: z.boolean(),
+  })
+  .meta({ id: 'OrganizationReport' });
 
 /**
  * Event reports (ADR-0030): counts only, never attendees. report.read lets Analysts see how an
@@ -161,6 +202,136 @@ export function reportRoutes(pool: Pool): AnyRoute[] {
                   .reverse(),
                 checkInsByHour: hours.rows.map((h) => ({ hour: h.hour, checkedIn: h.checked_in })),
                 truncated: (days.rows[0]?.total_days ?? 0) > REPORT_MAX_DAYS,
+              },
+            };
+          },
+        );
+      },
+    }),
+
+    defineRoute({
+      method: 'GET',
+      path: '/v1/organizations/:organizationId/report',
+      operationId: 'getOrganizationReport',
+      summary:
+        'Sign-ups and attendance across all events of an organization. Counts only. report.read.',
+      tags: ['reports'],
+      requires: 'report.read',
+      idempotent: false,
+      schemas: {
+        params: z.object({ organizationId: uuid }).strict(),
+        response: { status: 200, schema: orgReportSchema },
+      },
+      async handler({ principal, params }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'report.read',
+          async (client, access) => {
+            const org = await client.query<{ timezone: string }>(
+              'SELECT timezone FROM eventhub.organization WHERE id = $1',
+              [access.organizationId],
+            );
+            const timezone = org.rows[0]!.timezone;
+            const events = await client.query<{
+              id: string;
+              name: string;
+              lifecycle: string;
+              starts_at: Date;
+              ends_at: Date;
+              capacity: number | null;
+              registered: number;
+              cancelled: number;
+              checked_in: number;
+            }>(
+              `SELECT e.id, e.name, e.lifecycle, e.starts_at, e.ends_at,
+                      (e.settings->'registration'->>'capacity')::int AS capacity,
+                      count(r.id) FILTER (WHERE r.status = 'confirmed')::int AS registered,
+                      count(r.id) FILTER (WHERE r.status = 'cancelled')::int AS cancelled,
+                      count(r.id) FILTER (WHERE r.status = 'confirmed'
+                                            AND r.checked_in_at IS NOT NULL)::int AS checked_in
+                 FROM eventhub.event e
+                 LEFT JOIN eventhub.registration r
+                   ON r.organization_id = e.organization_id AND r.event_id = e.id
+                WHERE e.organization_id = $1
+                GROUP BY e.id
+                ORDER BY e.starts_at DESC, e.id
+                LIMIT ${ORG_REPORT_MAX_EVENTS}`,
+              [access.organizationId],
+            );
+            // The last 12 calendar months in the organization's time zone, this month included.
+            const months = await client.query<{ month: string; sign_ups: number }>(
+              `WITH bounds AS (
+                 SELECT date_trunc('month', now() AT TIME ZONE $2)::date AS this_month
+               ), series AS (
+                 SELECT generate_series(this_month - interval '11 months', this_month,
+                                        interval '1 month')::date AS m
+                   FROM bounds
+               )
+               SELECT to_char(s.m, 'YYYY-MM') AS month,
+                      (SELECT count(*) FROM eventhub.registration r
+                        WHERE r.organization_id = $1
+                          AND date_trunc('month', r.created_at AT TIME ZONE $2)::date = s.m)::int
+                        AS sign_ups
+                 FROM series s ORDER BY s.m`,
+              [access.organizationId, timezone],
+            );
+            const now = Date.now();
+            const rows = events.rows.map((e) => ({
+              id: e.id,
+              name: e.name,
+              lifecycle: e.lifecycle,
+              startsAt: e.starts_at.toISOString(),
+              ended: e.ends_at.getTime() <= now,
+              capacity: e.capacity,
+              registered: e.registered,
+              cancelled: e.cancelled,
+              checkedIn: e.checked_in,
+            }));
+            // Totals over every event, not only the listed ones.
+            const totals = await client.query<{
+              events: number;
+              registered: number;
+              cancelled: number;
+              checked_in: number;
+              ended_events: number;
+              ended_registered: number;
+              ended_checked_in: number;
+            }>(
+              `SELECT count(DISTINCT e.id)::int AS events,
+                      count(r.id) FILTER (WHERE r.status = 'confirmed')::int AS registered,
+                      count(r.id) FILTER (WHERE r.status = 'cancelled')::int AS cancelled,
+                      count(r.id) FILTER (WHERE r.status = 'confirmed'
+                                            AND r.checked_in_at IS NOT NULL)::int AS checked_in,
+                      count(DISTINCT e.id) FILTER (WHERE e.ends_at <= now())::int AS ended_events,
+                      count(r.id) FILTER (WHERE e.ends_at <= now()
+                                            AND r.status = 'confirmed')::int AS ended_registered,
+                      count(r.id) FILTER (WHERE e.ends_at <= now() AND r.status = 'confirmed'
+                                            AND r.checked_in_at IS NOT NULL)::int AS ended_checked_in
+                 FROM eventhub.event e
+                 LEFT JOIN eventhub.registration r
+                   ON r.organization_id = e.organization_id AND r.event_id = e.id
+                WHERE e.organization_id = $1`,
+              [access.organizationId],
+            );
+            const t = totals.rows[0]!;
+            return {
+              status: 200,
+              body: {
+                timezone,
+                totals: {
+                  events: t.events,
+                  registered: t.registered,
+                  cancelled: t.cancelled,
+                  checkedIn: t.checked_in,
+                  endedEvents: t.ended_events,
+                  endedRegistered: t.ended_registered,
+                  endedCheckedIn: t.ended_checked_in,
+                },
+                signUpsByMonth: months.rows.map((m) => ({ month: m.month, signUps: m.sign_ups })),
+                events: rows,
+                truncated: t.events > ORG_REPORT_MAX_EVENTS,
               },
             };
           },

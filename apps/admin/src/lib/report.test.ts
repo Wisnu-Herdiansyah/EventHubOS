@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attendanceRate, checkInRows, signUpRows } from './report';
+import { attendanceRate, checkInRows, monthLabel, signUpRows } from './report';
 
 const day = (i: number, registered = 1) => {
   const d = new Date(Date.UTC(2027, 1, 1 + i));
@@ -35,6 +35,11 @@ describe('event report shaping (ADR-0030)', () => {
         { hour: '2027-03-02T09:00', checkedIn: 4 },
       ]).map((r) => r.label),
     ).toEqual(['1 Mar 09:00', '2 Mar 09:00']);
+  });
+
+  it('labels months', () => {
+    expect(monthLabel('2027-03')).toBe('Mar 2027');
+    expect(monthLabel('2026-12')).toBe('Dec 2026');
   });
 
   it('gives the attendance rate, or nothing without registrations', () => {

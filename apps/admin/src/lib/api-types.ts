@@ -807,6 +807,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/organizations/{organizationId}/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sign-ups and attendance across all events of an organization. Counts only. report.read. */
+        get: operations["getOrganizationReport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/organizations/{organizationId}/audit-events": {
         parameters: {
             query?: never;
@@ -1277,6 +1294,21 @@ export interface components {
             /** @enum {string} */
             role: "owner" | "admin" | "billing_admin" | "event_manager" | "content_editor" | "registration_manager" | "analyst" | "viewer";
         };
+        OrganizationReport: {
+            timezone: string;
+            totals: {
+                events: number;
+                registered: number;
+                cancelled: number;
+                checkedIn: number;
+                endedEvents: number;
+                endedRegistered: number;
+                endedCheckedIn: number;
+            };
+            signUpsByMonth: components["schemas"]["ReportMonth"][];
+            events: components["schemas"]["ReportEventRow"][];
+            truncated: boolean;
+        };
         OtherSessionsRevoked: {
             signedOut: number;
         };
@@ -1412,9 +1444,26 @@ export interface components {
             registered: number;
             cancelled: number;
         };
+        ReportEventRow: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            lifecycle: string;
+            /** Format: date-time */
+            startsAt: string;
+            ended: boolean;
+            capacity: number | null;
+            registered: number;
+            cancelled: number;
+            checkedIn: number;
+        };
         ReportHour: {
             hour: string;
             checkedIn: number;
+        };
+        ReportMonth: {
+            month: string;
+            signUps: number;
         };
         SavePageDraftRequest: {
             expectedVersion: number;
@@ -6413,6 +6462,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventReport"];
+                };
+            };
+            /** @description Validation failed or Idempotency-Key missing */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unauthenticated, or invalid credentials on login */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden (missing permission or unverified email) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found (also returned for resources in other organizations) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Idempotency-Key reused with a different payload */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error (generic body with correlation ID) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getOrganizationReport: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Correlation-Id"?: string;
+            };
+            path: {
+                organizationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationReport"];
                 };
             };
             /** @description Validation failed or Idempotency-Key missing */
