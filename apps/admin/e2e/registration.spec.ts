@@ -551,6 +551,7 @@ test('a full event takes a waitlist; freed seats go to people in the order they 
   // The organizer turns the waitlist on; it needs a capacity.
   await signIn(page, t.owner.email);
   await page.goto(`/orgs/${t.orgId}/events/${t.eventId}`);
+  await page.getByRole('tab', { name: 'Settings' }).click();
   const waitlistBox = page.getByRole('checkbox', {
     name: 'Take a waitlist when the event is full',
   });
