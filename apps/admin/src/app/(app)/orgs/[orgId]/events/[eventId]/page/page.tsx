@@ -95,6 +95,7 @@ export default async function EventMicrositePage({
         initialSections={page.draft.sections}
         initialVersion={page.draft.version}
         eventName={evt.name}
+        timezone={evt.timezone}
         live={{
           organizationId: orgId,
           eventId,

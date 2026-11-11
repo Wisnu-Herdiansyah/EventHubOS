@@ -8881,6 +8881,101 @@
         ],
         "additionalProperties": false
       },
+      "AgendaSectionV2": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,40}$"
+          },
+          "version": {
+            "type": "number",
+            "const": 2
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "heading": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "type": {
+            "type": "string",
+            "const": "agenda"
+          },
+          "items": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9-]{1,40}$"
+                },
+                "day": {
+                  "type": "string",
+                  "pattern": "^(\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01]))?$"
+                },
+                "start": {
+                  "type": "string",
+                  "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                },
+                "end": {
+                  "type": "string",
+                  "pattern": "^(([01]\\d|2[0-3]):[0-5]\\d)?$"
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160,
+                  "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+                },
+                "room": {
+                  "type": "string",
+                  "maxLength": 60,
+                  "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 800,
+                  "pattern": "^[^\\u0000-\\u0009\\u000b-\\u001f\\u007f]*$"
+                },
+                "speakerIds": {
+                  "maxItems": 10,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]{1,40}$"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "day",
+                "start",
+                "end",
+                "title",
+                "room",
+                "description",
+                "speakerIds"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "visible",
+          "heading",
+          "type",
+          "items"
+        ],
+        "additionalProperties": false
+      },
       "Announcement": {
         "type": "object",
         "properties": {
@@ -10961,10 +11056,24 @@
             "$ref": "#/components/schemas/TextSection"
           },
           {
-            "$ref": "#/components/schemas/AgendaSection"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgendaSection"
+              },
+              {
+                "$ref": "#/components/schemas/AgendaSectionV2"
+              }
+            ]
           },
           {
-            "$ref": "#/components/schemas/SpeakersSection"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SpeakersSection"
+              },
+              {
+                "$ref": "#/components/schemas/SpeakersSectionV2"
+              }
+            ]
           },
           {
             "$ref": "#/components/schemas/RegisterSection"
@@ -11930,6 +12039,77 @@
               "required": [
                 "name",
                 "role"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "version",
+          "visible",
+          "heading",
+          "type",
+          "items"
+        ],
+        "additionalProperties": false
+      },
+      "SpeakersSectionV2": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9-]{1,40}$"
+          },
+          "version": {
+            "type": "number",
+            "const": 2
+          },
+          "visible": {
+            "type": "boolean"
+          },
+          "heading": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "type": {
+            "type": "string",
+            "const": "speakers"
+          },
+          "items": {
+            "maxItems": 60,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9-]{1,40}$"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 100,
+                  "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+                },
+                "role": {
+                  "type": "string",
+                  "maxLength": 120,
+                  "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+                },
+                "bio": {
+                  "type": "string",
+                  "maxLength": 800,
+                  "pattern": "^[^\\u0000-\\u0009\\u000b-\\u001f\\u007f]*$"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "role",
+                "bio"
               ],
               "additionalProperties": false
             }

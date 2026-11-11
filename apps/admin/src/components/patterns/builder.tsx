@@ -6,8 +6,14 @@ import {
   SECTION_LABELS,
   SECTION_TYPES,
   describeIssues,
+  newAgendaItem,
   newSection,
+  newSpeaker,
+  pageSpeakers,
+  removeSpeaker,
   uniqueSectionId,
+  type AgendaItem,
+  type Speaker,
   type EditorIssue,
   type EventPage,
   type Section,
@@ -28,7 +34,7 @@ import {
   undo,
   type History,
 } from './builder-history';
-import { SitePreview } from '@eventhub/microsite';
+import { SitePreview, upgradeSections } from '@eventhub/microsite';
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
 
@@ -97,14 +103,25 @@ export function PageEditor({
   initialSections,
   initialVersion = 0,
   eventName,
+  timezone,
   live,
 }: {
   initialSections: Section[];
   initialVersion?: number;
   eventName: string;
+  /** The event's time zone, for the agenda preview. */
+  timezone?: string;
   live?: LiveBinding;
 }) {
-  const [history, setHistory] = useState<History<Section[]>>(() => initHistory(initialSections));
+  // ADR-0040: drafts with v1 agenda or speakers open upgraded to v2. The upgrade is an unsaved
+  // change until the organizer saves; people who cannot edit see the page as stored.
+  const [start] = useState<Section[]>(() => {
+    if (live && !live.canEdit) return initialSections;
+    const upgraded = upgradeSections(initialSections) as Section[];
+    return upgraded.some((s, i) => s !== initialSections[i]) ? upgraded : initialSections;
+  });
+  const upgradedOnOpen = start !== initialSections;
+  const [history, setHistory] = useState<History<Section[]>>(() => initHistory(start));
   const [saved, setSaved] = useState<Section[]>(initialSections);
   const [version, setVersion] = useState(initialVersion);
   const [publication, setPublication] = useState({
@@ -250,6 +267,12 @@ export function PageEditor({
 
   return (
     <div className="stack-sm">
+      {upgradedOnOpen && dirty && !result ? (
+        <Notice role={null}>
+          The agenda and speakers now support days, rooms, bios and linked speakers. This page was
+          updated to the new format: save the draft to keep it.
+        </Notice>
+      ) : null}
       {result ? (
         <Notice tone={result.tone} reference={result.reference}>
           {result.message}
@@ -423,7 +446,7 @@ export function PageEditor({
                               s.type,
                               sections.map((x) => x.id),
                             ),
-                          } as Section;
+                          };
                           apply(
                             [...sections.slice(0, i + 1), copy, ...sections.slice(i + 1)],
                             `${name} duplicated`,
@@ -496,7 +519,12 @@ export function PageEditor({
 
         <div className="builder__canvas" aria-label="Preview" role="region">
           <div className={`preview preview--${viewport}`}>
-            <SitePreview name={eventName} sections={sections} selectedId={selectedId} />
+            <SitePreview
+              name={eventName}
+              sections={sections}
+              selectedId={selectedId}
+              timezone={timezone}
+            />
           </div>
         </div>
 
@@ -508,7 +536,14 @@ export function PageEditor({
               edit it.
             </p>
           ) : selected ? (
-            <SectionForm section={selected} edit={edit} update={update} field={field} />
+            <SectionForm
+              section={selected}
+              sections={sections}
+              edit={edit}
+              update={update}
+              apply={apply}
+              field={field}
+            />
           ) : (
             <p className="text-secondary">Select a section to configure it.</p>
           )}
@@ -572,13 +607,17 @@ function TextInput(props: {
 
 function SectionForm({
   section: s,
+  sections,
   edit,
   update,
+  apply,
   field,
 }: {
   section: Section;
+  sections: Section[];
   edit: Edit;
   update: Update;
+  apply: (next: Section[], message: string) => void;
   field: FieldEvents;
 }) {
   const id = (name: string) => `builder-${s.id}-${name}`;
@@ -617,134 +656,226 @@ function SectionForm({
           field={field}
         />
       ) : null}
-      {s.type === 'agenda' ? (
+      {(s.type === 'agenda' || s.type === 'speakers') && s.version === 1 ? (
+        <Notice role={null}>
+          This section uses an older format. It is shown as published; an editor can update it.
+        </Notice>
+      ) : null}
+      {s.type === 'agenda' && s.version === 2 ? (
         <fieldset className="fieldset">
-          <legend className="fieldset__legend">Agenda items</legend>
+          <legend className="fieldset__legend">Sessions</legend>
           <ol className="item-list">
-            {s.items.map((item, n) => (
-              <li key={n} className="item-row">
-                <label className="visually-hidden" htmlFor={id(`time-${n}`)}>
-                  {`Item ${n + 1} time`}
-                </label>
-                <input
-                  id={id(`time-${n}`)}
-                  className="input item-row__time"
-                  type="time"
-                  value={item.time}
-                  onChange={(e) =>
-                    edit(s.id, {
-                      items: s.items.map((x, k) => (k === n ? { ...x, time: e.target.value } : x)),
-                    })
-                  }
-                  {...field}
-                />
-                <label className="visually-hidden" htmlFor={id(`title-${n}`)}>
-                  {`Item ${n + 1} title`}
-                </label>
-                <input
-                  id={id(`title-${n}`)}
-                  className="input"
-                  maxLength={160}
-                  value={item.title}
-                  onChange={(e) =>
-                    edit(s.id, {
-                      items: s.items.map((x, k) => (k === n ? { ...x, title: e.target.value } : x)),
-                    })
-                  }
-                  {...field}
-                />
-                <Button
-                  variant="plain"
-                  size="sm"
-                  icon="trash"
-                  iconOnly
-                  onClick={() =>
-                    update(
-                      s.id,
-                      { items: s.items.filter((_, k) => k !== n) },
-                      `Item ${n + 1} removed`,
-                    )
-                  }
-                >
-                  {`Remove item ${n + 1}`}
-                </Button>
-              </li>
-            ))}
+            {s.items.map((item, n) => {
+              const set = (patch: Partial<AgendaItem>) =>
+                edit(s.id, {
+                  items: s.items.map((x, k) => (k === n ? { ...x, ...patch } : x)),
+                });
+              const label = (text: string) => (
+                <>
+                  {text}
+                  <span className="visually-hidden">{` (session ${n + 1})`}</span>
+                </>
+              );
+              const speakers = pageSpeakers(sections);
+              return (
+                <li key={item.id} className="session-editor">
+                  <div className="session-editor__row">
+                    <div className="field">
+                      <label className="field__label" htmlFor={id(`day-${n}`)}>
+                        {label('Day')}
+                      </label>
+                      <input
+                        id={id(`day-${n}`)}
+                        className="input"
+                        type="date"
+                        value={item.day}
+                        onChange={(e) => set({ day: e.target.value })}
+                        {...field}
+                      />
+                    </div>
+                    <div className="field">
+                      <label className="field__label" htmlFor={id(`start-${n}`)}>
+                        {label('Starts')}
+                      </label>
+                      <input
+                        id={id(`start-${n}`)}
+                        className="input"
+                        type="time"
+                        value={item.start}
+                        onChange={(e) => set({ start: e.target.value })}
+                        {...field}
+                      />
+                    </div>
+                    <div className="field">
+                      <label className="field__label" htmlFor={id(`end-${n}`)}>
+                        {label('Ends')}
+                      </label>
+                      <input
+                        id={id(`end-${n}`)}
+                        className="input"
+                        type="time"
+                        value={item.end}
+                        onChange={(e) => set({ end: e.target.value })}
+                        {...field}
+                      />
+                    </div>
+                  </div>
+                  <div className="field">
+                    <label className="field__label" htmlFor={id(`title-${n}`)}>
+                      {label('Title')}
+                    </label>
+                    <input
+                      id={id(`title-${n}`)}
+                      className="input"
+                      maxLength={160}
+                      value={item.title}
+                      onChange={(e) => set({ title: e.target.value })}
+                      {...field}
+                    />
+                  </div>
+                  <div className="field">
+                    <label className="field__label" htmlFor={id(`room-${n}`)}>
+                      {label('Room')}
+                    </label>
+                    <input
+                      id={id(`room-${n}`)}
+                      className="input"
+                      maxLength={60}
+                      value={item.room}
+                      onChange={(e) => set({ room: e.target.value })}
+                      {...field}
+                    />
+                  </div>
+                  {speakers.length > 0 ? (
+                    <fieldset className="fieldset session-editor__speakers">
+                      <legend className="field__label">{label('Speakers')}</legend>
+                      {speakers.map((p) => (
+                        <label key={p.id} className="checkbox">
+                          <input
+                            type="checkbox"
+                            checked={item.speakerIds.includes(p.id)}
+                            onChange={(e) =>
+                              update(
+                                s.id,
+                                {
+                                  items: s.items.map((x, k) =>
+                                    k === n
+                                      ? {
+                                          ...x,
+                                          speakerIds: e.target.checked
+                                            ? [...x.speakerIds, p.id]
+                                            : x.speakerIds.filter((v) => v !== p.id),
+                                        }
+                                      : x,
+                                  ),
+                                },
+                                `${p.name || 'Speaker'} ${e.target.checked ? 'added to' : 'removed from'} session ${n + 1}`,
+                              )
+                            }
+                          />
+                          <span>{p.name || 'Unnamed speaker'}</span>
+                        </label>
+                      ))}
+                    </fieldset>
+                  ) : null}
+                  <TextInput
+                    id={id(`description-${n}`)}
+                    label={`Description (session ${n + 1})`}
+                    multiline
+                    value={item.description}
+                    maxLength={800}
+                    onChange={(v) => set({ description: v })}
+                    field={field}
+                  />
+                  <div>
+                    <Button
+                      variant="plain"
+                      size="sm"
+                      icon="trash"
+                      onClick={() =>
+                        update(
+                          s.id,
+                          { items: s.items.filter((_, k) => k !== n) },
+                          `Session ${n + 1} removed`,
+                        )
+                      }
+                    >
+                      {`Remove session ${n + 1}`}
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ol>
           <div>
             <Button
               variant="secondary"
               size="sm"
               icon="plus"
-              disabled={s.items.length >= 50}
+              disabled={s.items.length >= 100}
               onClick={() =>
-                update(
-                  s.id,
-                  { items: [...s.items, { time: '09:00', title: 'Session' }] },
-                  'Item added',
-                )
+                update(s.id, { items: [...s.items, newAgendaItem(s)] }, 'Session added')
               }
             >
-              Add item
+              Add session
             </Button>
           </div>
         </fieldset>
       ) : null}
-      {s.type === 'speakers' ? (
+      {s.type === 'speakers' && s.version === 2 ? (
         <fieldset className="fieldset">
           <legend className="fieldset__legend">Speakers</legend>
           <ol className="item-list">
-            {s.items.map((item, n) => (
-              <li key={n} className="item-row item-row--two">
-                <label className="visually-hidden" htmlFor={id(`name-${n}`)}>
-                  {`Speaker ${n + 1} name`}
-                </label>
-                <input
-                  id={id(`name-${n}`)}
-                  className="input"
-                  placeholder="Name"
-                  maxLength={100}
-                  value={item.name}
-                  onChange={(e) =>
-                    edit(s.id, {
-                      items: s.items.map((x, k) => (k === n ? { ...x, name: e.target.value } : x)),
-                    })
-                  }
-                  {...field}
-                />
-                <label className="visually-hidden" htmlFor={id(`role-${n}`)}>
-                  {`Speaker ${n + 1} role`}
-                </label>
-                <input
-                  id={id(`role-${n}`)}
-                  className="input"
-                  placeholder="Role"
-                  maxLength={120}
-                  value={item.role}
-                  onChange={(e) =>
-                    edit(s.id, {
-                      items: s.items.map((x, k) => (k === n ? { ...x, role: e.target.value } : x)),
-                    })
-                  }
-                  {...field}
-                />
-                <Button
-                  variant="plain"
-                  size="sm"
-                  icon="trash"
-                  iconOnly
-                  onClick={() =>
-                    update(
-                      s.id,
-                      { items: s.items.filter((_, k) => k !== n) },
-                      `Speaker ${n + 1} removed`,
-                    )
-                  }
-                >
-                  {`Remove speaker ${n + 1}`}
-                </Button>
-              </li>
-            ))}
+            {s.items.map((item, n) => {
+              const set = (patch: Partial<Speaker>) =>
+                edit(s.id, {
+                  items: s.items.map((x, k) => (k === n ? { ...x, ...patch } : x)),
+                });
+              return (
+                <li key={item.id} className="session-editor">
+                  <div className="session-editor__row session-editor__row--two">
+                    <TextInput
+                      id={id(`name-${n}`)}
+                      label={`Name (speaker ${n + 1})`}
+                      value={item.name}
+                      maxLength={100}
+                      onChange={(v) => set({ name: v })}
+                      field={field}
+                    />
+                    <TextInput
+                      id={id(`role-${n}`)}
+                      label={`Role (speaker ${n + 1})`}
+                      value={item.role}
+                      maxLength={120}
+                      onChange={(v) => set({ role: v })}
+                      field={field}
+                    />
+                  </div>
+                  <TextInput
+                    id={id(`bio-${n}`)}
+                    label={`Bio (speaker ${n + 1})`}
+                    multiline
+                    value={item.bio}
+                    maxLength={800}
+                    onChange={(v) => set({ bio: v })}
+                    field={field}
+                    hint="A few sentences. Leave a blank line between paragraphs."
+                  />
+                  <div>
+                    <Button
+                      variant="plain"
+                      size="sm"
+                      icon="trash"
+                      onClick={() =>
+                        apply(removeSpeaker(sections, s.id, item.id), `Speaker ${n + 1} removed`)
+                      }
+                    >
+                      {`Remove speaker ${n + 1}`}
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
           </ol>
           <div>
             <Button
@@ -753,11 +884,7 @@ function SectionForm({
               icon="plus"
               disabled={s.items.length >= 60}
               onClick={() =>
-                update(
-                  s.id,
-                  { items: [...s.items, { name: 'Speaker name', role: '' }] },
-                  'Speaker added',
-                )
+                update(s.id, { items: [...s.items, newSpeaker(sections)] }, 'Speaker added')
               }
             >
               Add speaker
