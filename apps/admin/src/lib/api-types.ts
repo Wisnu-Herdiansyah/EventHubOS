@@ -558,7 +558,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List events in the organization, newest first (cursor pagination). */
+        /** List events in the organization, newest first (cursor pagination). Filter by lifecycle, by name or slug, and by upcoming or past. */
         get: operations["listEvents"];
         put?: never;
         /** Create a draft event in the organization (EVT-01). */
@@ -5162,6 +5162,8 @@ export interface operations {
                 limit?: number;
                 cursor?: string;
                 lifecycle?: "draft" | "scheduled" | "published" | "live" | "ended" | "archived";
+                q?: string;
+                when?: "upcoming" | "past";
             };
             header?: {
                 "X-Correlation-Id"?: string;

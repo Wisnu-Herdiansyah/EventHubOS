@@ -137,8 +137,22 @@ const listQuery = z
     limit: z.coerce.number().int().min(1).max(100).default(25),
     cursor: z.string().regex(CURSOR_RE).optional(),
     lifecycle: z.enum(EVENT_LIFECYCLES).optional(),
+    /** Name or slug contains this, case-insensitive; `%` and `_` are literal. */
+    q: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      // eslint-disable-next-line no-control-regex
+      .regex(/^[^\u0000-\u001f\u007f]*$/, 'Use plain text.')
+      .optional(),
+    /** upcoming: not over yet; past: over (by end time, whatever the lifecycle). */
+    when: z.enum(['upcoming', 'past']).optional(),
   })
   .strict();
+
+/** `%`, `_` and `\\` are literal in a search, not patterns. */
+const likeEscape = (q: string) => q.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 export interface EventRow {
   id: string;
@@ -420,7 +434,8 @@ export function eventRoutes(pool: Pool): AnyRoute[] {
       method: 'GET',
       path: '/v1/organizations/:organizationId/events',
       operationId: 'listEvents',
-      summary: 'List events in the organization, newest first (cursor pagination).',
+      summary:
+        'List events in the organization, newest first (cursor pagination). Filter by lifecycle, by name or slug, and by upcoming or past.',
       tags: ['events'],
       requires: 'event.read',
       idempotent: false,
@@ -449,6 +464,10 @@ export function eventRoutes(pool: Pool): AnyRoute[] {
                 AND ($2::bigint IS NULL
                      OR (created_at, id) < (timestamptz 'epoch' + $2::bigint * interval '1 microsecond', $3::uuid))
                 AND ($5::text IS NULL OR lifecycle = $5)
+                AND ($6::text IS NULL OR lower(name) LIKE '%' || $6 || '%' OR slug LIKE '%' || $6 || '%')
+                AND ($7::text IS NULL
+                     OR ($7 = 'upcoming' AND ends_at > now())
+                     OR ($7 = 'past' AND ends_at <= now()))
               ORDER BY created_at DESC, id DESC
               LIMIT $4`,
               [
@@ -457,6 +476,8 @@ export function eventRoutes(pool: Pool): AnyRoute[] {
                 cursor?.id ?? null,
                 query.limit + 1,
                 query.lifecycle ?? null,
+                query.q ? likeEscape(query.q.toLowerCase()) : null,
+                query.when ?? null,
               ],
             );
             const page = rows.slice(0, query.limit);
