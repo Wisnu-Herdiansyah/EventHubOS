@@ -203,6 +203,7 @@ export interface SettingsDefaults {
   closesAt: string;
   capacity: string;
   waitlist: boolean;
+  waitlistLimit: string;
 }
 
 /** Waitlist on or off (ADR-0035), with its field error from the form state. */
@@ -350,6 +351,17 @@ export function EventSettingsForm(props: {
           />
         </div>
         <WaitlistField state={state} defaultChecked={d.waitlist} />
+        <div className="form__row">
+          <Field
+            name="waitlistLimit"
+            label="Waitlist limit"
+            type="number"
+            min={1}
+            state={state}
+            defaultValue={d.waitlistLimit}
+            hint="Optional. Once this many people are waiting, the event shows as full. When registration closes, everyone still waiting is emailed that no seat became free."
+          />
+        </div>
       </fieldset>
       <div className="form__actions">
         <SubmitButton pendingLabel="Saving…">Save settings</SubmitButton>

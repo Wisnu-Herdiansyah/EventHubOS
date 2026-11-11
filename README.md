@@ -32,7 +32,7 @@ Phase 0 (foundation) plus Phase 1 slices:
 - **Free registration** (ADR-0023): visitors register on the public page (name, email,
   privacy consent) and cancel with an emailed link; organizers see attendees, capacity and state,
   can download the list as CSV (ADR-0027), keep a waitlist that fills freed seats in order
-  (ADR-0035), email everyone signed up with a plain-text announcement (ADR-0037), and check
+  and tells people when it closes (ADR-0035, ADR-0038), email everyone signed up with a plain-text announcement (ADR-0037), and check
   attendees in at the door (ADR-0028),
   by name or by scanning the QR ticket from their email (ADR-0029). Each event has a report of
   sign-ups and attendance, and Reports sums them across the organization, for any period, with

@@ -26,6 +26,8 @@ const sections = {
       capacity: z.number().int().min(1).max(1_000_000).optional(),
       /** When full, sign-ups join a waitlist and get freed seats in order (ADR-0035). */
       waitlist: z.boolean().optional(),
+      /** At most this many people waiting; then the event is full again (ADR-0038). */
+      waitlistLimit: z.number().int().min(1).max(10_000).optional(),
     })
     .strict(),
   sharing: z
@@ -127,6 +129,12 @@ export function settingsIssues(
     issues.push({
       path: 'body.settings.registration.closesAt',
       message: 'Registration cannot close after the event ends.',
+    });
+  }
+  if (reg?.waitlistLimit !== undefined && !reg.waitlist) {
+    issues.push({
+      path: 'body.settings.registration.waitlistLimit',
+      message: 'A waitlist limit needs the waitlist turned on.',
     });
   }
   if (reg?.waitlist && reg.capacity === undefined) {

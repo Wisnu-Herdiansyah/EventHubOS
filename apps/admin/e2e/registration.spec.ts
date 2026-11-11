@@ -561,9 +561,12 @@ test('a full event takes a waitlist; freed seats go to people in the order they 
   await expect(page.getByText('Set a capacity to use a waitlist.')).toBeVisible();
   await expect(waitlistBox).toBeChecked();
   await page.getByLabel('Capacity', { exact: true }).fill('1');
+  // ADR-0038: at most three people waiting.
+  await page.getByLabel('Waitlist limit', { exact: true }).fill('3');
   await page.getByRole('button', { name: 'Save settings' }).click();
   await expect(page.getByText('Settings saved.')).toBeVisible();
   await expect(waitlistBox).toBeChecked();
+  await expect(page.getByLabel('Waitlist limit', { exact: true })).toHaveValue('3');
 
   // One seat, then a waitlist on the public page, in joining order.
   const v = await visitor(browser);
@@ -583,6 +586,10 @@ test('a full event takes a waitlist; freed seats go to people in the order they 
   await signUp('First Waiting', people.first, 'Join the waitlist');
   await signUp('Second Waiting', people.second, 'Join the waitlist');
   await signUp('Changed Mind', people.leaver, 'Join the waitlist');
+  // The waitlist is at its limit, so the event is simply full.
+  await v.page.goto(t.url);
+  await expect(v.page.getByText('This event is full.', { exact: true })).toBeVisible();
+  await expect(v.page.getByRole('button', { name: 'Join the waitlist' })).toHaveCount(0);
   const waitMail = await mailMessage(people.first, 'registration_waitlisted');
   expect(waitMail.subject).toMatch(/^You're on the waitlist: /);
   expect(waitMail.text).not.toContain('/ticket#id=');
@@ -591,6 +598,9 @@ test('a full event takes a waitlist; freed seats go to people in the order they 
   await v.page.goto(await mailLink(people.leaver, 'registration_waitlisted'));
   await v.page.getByRole('button', { name: 'Yes, cancel my place' }).click();
   await expect(v.page.getByRole('status')).toContainText('You’ve left the waitlist for');
+  // A place on the waitlist is free again.
+  await v.page.goto(t.url);
+  await expect(v.page.getByRole('button', { name: 'Join the waitlist' })).toBeVisible();
   await v.context.close();
 
   // The organizer sees the waitlist in order.

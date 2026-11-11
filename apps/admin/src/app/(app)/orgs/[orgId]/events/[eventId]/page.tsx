@@ -128,6 +128,7 @@ export default async function EventPage({
     closesAt: local(s.registration?.closesAt),
     capacity: s.registration?.capacity ? String(s.registration.capacity) : '',
     waitlist: s.registration?.waitlist === true,
+    waitlistLimit: s.registration?.waitlistLimit ? String(s.registration.waitlistLimit) : '',
   };
   const warnings = checklist.items
     .filter((i) => i.severity === 'recommended' && !i.complete)

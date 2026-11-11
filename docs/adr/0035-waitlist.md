@@ -87,7 +87,7 @@ the promotion email follows.
 ## Consequences
 
 - A cancellation can now send two emails: the cancellation, and the next person's seat.
-- The waitlist has no size limit beyond the public rate limit; a cap can be added to the setting
-  if abuse appears.
-- When registration closes, people still waiting are not told. A "the waitlist has closed" email
-  is a follow-up.
+- The waitlist has no size limit beyond the public rate limit. (An optional limit was added in
+  ADR-0038.)
+- When registration closes, people still waiting are not told. (Added later, with a waitlist
+  limit: ADR-0038.)
