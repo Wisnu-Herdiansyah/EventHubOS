@@ -8,9 +8,12 @@ export type Section = components['schemas']['PageSection'];
 export type SectionType = Section['type'];
 export type EventPage = components['schemas']['EventPage'];
 export type AgendaV2 = Extract<Section, { type: 'agenda'; version: 2 }>;
-export type SpeakersV2 = Extract<Section, { type: 'speakers'; version: 2 }>;
+export type SpeakersV3 = Extract<Section, { type: 'speakers'; version: 3 }>;
 export type AgendaItem = AgendaV2['items'][number];
-export type Speaker = SpeakersV2['items'][number];
+/** Speakers are edited as v3 (photos, ADR-0042); older versions are upgraded when the editor opens. */
+export type Speaker = SpeakersV3['items'][number];
+/** A library image, as the photo picker lists it. */
+export type LibraryImage = components['schemas']['Asset'];
 
 export const SECTION_TYPES: Array<{ type: SectionType; label: string; description: string }> = [
   { type: 'hero', label: 'Hero', description: 'Large title, short text and a call to action' },
@@ -41,7 +44,7 @@ export function newSection(type: SectionType, taken: Iterable<string>): Section 
     case 'agenda':
       return { ...base, version: 2, type, heading: 'Agenda', items: [] };
     case 'speakers':
-      return { ...base, version: 2, type, heading: 'Speakers', items: [] };
+      return { ...base, version: 3, type, heading: 'Speakers', items: [] };
     case 'register':
       return { ...base, type, heading: 'Save your seat', body: '', ctaLabel: 'Register now' };
   }
@@ -53,9 +56,9 @@ function nextId(prefix: string, taken: Iterable<string>): string {
   for (let n = 1; ; n++) if (!used.has(`${prefix}-${n}`)) return `${prefix}-${n}`;
 }
 
-/** Every v2 speaker on the page, for session checkboxes. */
-export function pageSpeakers(sections: Section[]): Speaker[] {
-  return sections.flatMap((s) => (s.type === 'speakers' && s.version === 2 ? s.items : []));
+/** Every speaker with an ID on the page (v2 and v3), for session checkboxes. */
+export function pageSpeakers(sections: Section[]): Array<Pick<Speaker, 'id' | 'name'>> {
+  return sections.flatMap((s) => (s.type === 'speakers' && s.version !== 1 ? s.items : []));
 }
 
 /** A new session after the last one: same day, an hour later. */
@@ -86,6 +89,7 @@ export function newSpeaker(sections: Section[]): Speaker {
     name: 'Speaker name',
     role: '',
     bio: '',
+    photoAssetId: null,
   };
 }
 
@@ -96,7 +100,7 @@ export function removeSpeaker(
   speakerId: string,
 ): Section[] {
   return sections.map((s) => {
-    if (s.id === sectionId && s.type === 'speakers' && s.version === 2) {
+    if (s.id === sectionId && s.type === 'speakers' && s.version === 3) {
       return { ...s, items: s.items.filter((p) => p.id !== speakerId) };
     }
     if (
@@ -124,6 +128,7 @@ const FIELD_LABELS: Record<string, string> = {
   description: 'Description',
   speakerIds: 'Speakers',
   bio: 'Bio',
+  photoAssetId: 'Photo',
   heading: 'Heading',
   body: 'Text',
   ctaLabel: 'Button label',

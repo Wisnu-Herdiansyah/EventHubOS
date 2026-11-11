@@ -1707,3 +1707,55 @@
   margin: 0;
   white-space: pre-wrap;
 }
+
+/* Image library (ADR-0042): a grid of cards that wraps on narrow screens. */
+.image-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.image-card {
+  display: flex;
+  flex-direction: column;
+  border: var(--border-width) solid var(--color-divider);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.image-card__thumb {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: var(--color-divider);
+}
+
+.image-card__body {
+  padding: var(--space-3);
+}
+
+/* Speaker photo picker in the page editor. */
+.photo-picker {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.photo-picker__thumb {
+  width: 3rem;
+  height: 3rem;
+  flex: none;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+  background: var(--color-divider);
+}
+
+.photo-picker .field {
+  flex: 1;
+  min-width: 0;
+}

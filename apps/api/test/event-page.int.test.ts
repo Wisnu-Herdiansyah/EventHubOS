@@ -355,12 +355,12 @@ describe('program sections v2 (ADR-0040)', () => {
     json(): { error: { details: { fields: Array<{ path: string }> } } };
   }) => res.json().error.details.fields.map((f) => f.path);
 
-  it('starts new pages with v2 agenda and speakers', async () => {
+  it('starts new pages with v2 agenda and v3 speakers (photos, ADR-0042)', async () => {
     const t = await setup();
     const draft = (await t.get()).json().draft.sections as Array<{ type: string; version: number }>;
     expect(draft.filter((s) => s.type === 'agenda' || s.type === 'speakers')).toMatchObject([
       { type: 'agenda', version: 2 },
-      { type: 'speakers', version: 2 },
+      { type: 'speakers', version: 3 },
     ]);
   });
 

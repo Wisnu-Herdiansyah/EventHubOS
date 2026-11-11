@@ -9,6 +9,8 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Workspace packages ship TypeScript source (e.g. the shared permission catalog).
   transpilePackages: ['@eventhub/kernel', '@eventhub/microsite'],
+  // Image uploads (ADR-0042) go through a server action: 8 MB files plus form overhead.
+  experimental: { serverActions: { bodySizeLimit: '9mb' } },
   headers() {
     return Promise.resolve([
       {

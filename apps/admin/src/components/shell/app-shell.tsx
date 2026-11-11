@@ -14,6 +14,7 @@ import { Tooltip } from '../ui/tooltip';
 const SECTION_ICONS: Record<SectionKey, IconName> = {
   overview: 'overview',
   reports: 'chart',
+  images: 'image',
   team: 'users',
   settings: 'gear',
   audit: 'history',

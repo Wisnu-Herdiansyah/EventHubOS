@@ -16,6 +16,7 @@ import {
   type Speaker,
   type EditorIssue,
   type EventPage,
+  type LibraryImage,
   type Section,
   type SectionType,
 } from '@/lib/page-editor';
@@ -34,7 +35,8 @@ import {
   undo,
   type History,
 } from './builder-history';
-import { SitePreview, upgradeSections } from '@eventhub/microsite';
+import { SitePreview, upgradeSections, type ImageUrl } from '@eventhub/microsite';
+import { adminImageUrl } from '@/lib/images';
 
 type Viewport = 'desktop' | 'tablet' | 'mobile';
 
@@ -105,6 +107,7 @@ export function PageEditor({
   eventName,
   timezone,
   live,
+  images = [],
 }: {
   initialSections: Section[];
   initialVersion?: number;
@@ -112,8 +115,14 @@ export function PageEditor({
   /** The event's time zone, for the agenda preview. */
   timezone?: string;
   live?: LiveBinding;
+  /** The organization's image library, for speaker photos (ADR-0042). */
+  images?: LibraryImage[];
 }) {
-  // ADR-0040: drafts with v1 agenda or speakers open upgraded to v2. The upgrade is an unsaved
+  // Previews load library images through the admin's own authenticated proxy.
+  const imageUrl: ImageUrl | undefined = live
+    ? (assetId) => adminImageUrl(live.organizationId, assetId, 'small')
+    : undefined;
+  // ADR-0040, ADR-0042: drafts with older agenda or speakers open upgraded. The upgrade is an unsaved
   // change until the organizer saves; people who cannot edit see the page as stored.
   const [start] = useState<Section[]>(() => {
     if (live && !live.canEdit) return initialSections;
@@ -269,8 +278,8 @@ export function PageEditor({
     <div className="stack-sm">
       {upgradedOnOpen && dirty && !result ? (
         <Notice role={null}>
-          The agenda and speakers now support days, rooms, bios and linked speakers. This page was
-          updated to the new format: save the draft to keep it.
+          The agenda and speakers now support days, rooms, bios, linked speakers and photos. This
+          page was updated to the new format: save the draft to keep it.
         </Notice>
       ) : null}
       {result ? (
@@ -524,6 +533,7 @@ export function PageEditor({
               sections={sections}
               selectedId={selectedId}
               timezone={timezone}
+              imageUrl={imageUrl}
             />
           </div>
         </div>
@@ -543,6 +553,9 @@ export function PageEditor({
               update={update}
               apply={apply}
               field={field}
+              images={images}
+              imageUrl={imageUrl}
+              libraryHref={live ? `/orgs/${live.organizationId}/images` : undefined}
             />
           ) : (
             <p className="text-secondary">Select a section to configure it.</p>
@@ -605,6 +618,62 @@ function TextInput(props: {
   );
 }
 
+/**
+ * A speaker's photo from the image library (ADR-0042), or none (initials). A photo the list
+ * does not contain (e.g. the library could not be loaded) stays selected as "Current photo".
+ */
+function PhotoPicker(props: {
+  id: string;
+  label: string;
+  value: string | null;
+  images: LibraryImage[];
+  imageUrl?: ImageUrl;
+  libraryHref?: string;
+  onChange: (assetId: string | null) => void;
+}) {
+  const known = props.images.some((i) => i.id === props.value);
+  const hintId = `${props.id}-hint`;
+  return (
+    <div className="photo-picker">
+      {props.value && props.imageUrl ? (
+        <img
+          className="photo-picker__thumb"
+          src={props.imageUrl(props.value)}
+          alt=""
+          width={48}
+          height={48}
+        />
+      ) : (
+        <span className="photo-picker__thumb" aria-hidden="true" />
+      )}
+      <div className="field">
+        <label className="field__label" htmlFor={props.id}>
+          {props.label}
+        </label>
+        <select
+          id={props.id}
+          className="select"
+          value={props.value ?? ''}
+          onChange={(e) => props.onChange(e.target.value || null)}
+          aria-describedby={hintId}
+        >
+          <option value="">No photo (show initials)</option>
+          {props.value && !known ? <option value={props.value}>Current photo</option> : null}
+          {props.images.map((img) => (
+            <option key={img.id} value={img.id}>
+              {img.name}
+            </option>
+          ))}
+        </select>
+        <span className="field__hint" id={hintId}>
+          {props.images.length === 0 ? 'Your image library is empty. ' : null}
+          {props.libraryHref ? <a href={props.libraryHref}>Upload images in the library</a> : null}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function SectionForm({
   section: s,
   sections,
@@ -612,6 +681,9 @@ function SectionForm({
   update,
   apply,
   field,
+  images,
+  imageUrl,
+  libraryHref,
 }: {
   section: Section;
   sections: Section[];
@@ -619,6 +691,9 @@ function SectionForm({
   update: Update;
   apply: (next: Section[], message: string) => void;
   field: FieldEvents;
+  images: LibraryImage[];
+  imageUrl?: ImageUrl;
+  libraryHref?: string;
 }) {
   const id = (name: string) => `builder-${s.id}-${name}`;
   return (
@@ -822,7 +897,7 @@ function SectionForm({
           </div>
         </fieldset>
       ) : null}
-      {s.type === 'speakers' && s.version === 2 ? (
+      {s.type === 'speakers' && s.version === 3 ? (
         <fieldset className="fieldset">
           <legend className="fieldset__legend">Speakers</legend>
           <ol className="item-list">
@@ -851,6 +926,25 @@ function SectionForm({
                       field={field}
                     />
                   </div>
+                  <PhotoPicker
+                    id={id(`photo-${n}`)}
+                    label={`Photo (speaker ${n + 1})`}
+                    value={item.photoAssetId}
+                    images={images}
+                    imageUrl={imageUrl}
+                    libraryHref={libraryHref}
+                    onChange={(photoAssetId) =>
+                      update(
+                        s.id,
+                        {
+                          items: s.items.map((x, k) => (k === n ? { ...x, photoAssetId } : x)),
+                        },
+                        photoAssetId
+                          ? `Photo chosen for speaker ${n + 1}`
+                          : `Photo removed from speaker ${n + 1}`,
+                      )
+                    }
+                  />
                   <TextInput
                     id={id(`bio-${n}`)}
                     label={`Bio (speaker ${n + 1})`}

@@ -77,3 +77,87 @@ export class InMemoryEmailSender implements EmailSender {
     return Promise.resolve();
   }
 }
+
+/**
+ * Object storage for uploaded files (ADR-0042). The production provider (bucket, region) is
+ * an open decision (D1, D7); until it is made only the local adapters exist, and configuration
+ * refuses them in staging/production. Keys are server-generated (`OBJECT_KEY`), never taken from
+ * a client. `get` of a missing key returns null; `delete` of a missing key succeeds (deletion is
+ * retried by the outbox, so it must be idempotent).
+ */
+export interface StoredObject {
+  data: Buffer;
+  contentType: string;
+}
+
+export interface ObjectStore {
+  readonly name: string;
+  put(key: string, object: StoredObject): Promise<void>;
+  get(key: string): Promise<StoredObject | null>;
+  delete(key: string): Promise<void>;
+}
+
+/** Lowercase path segments of letters, digits and hyphens, an optional extension; no `..`. */
+export const OBJECT_KEY = /^[a-z0-9-]+(\/[a-z0-9-]+)*(\.[a-z0-9]+)?$/;
+
+export function assertObjectKey(key: string): void {
+  if (!OBJECT_KEY.test(key) || key.length > 300) throw new Error('Invalid object key');
+}
+
+/** In-memory store: a local/test fake only. Refused by config in staging/production. */
+export class InMemoryObjectStore implements ObjectStore {
+  readonly name = 'in_memory';
+  readonly #objects = new Map<string, StoredObject>();
+  #failNext = 0;
+
+  /** Test hook: make the next `count` operations reject (simulates a storage outage). */
+  failNext(count: number): void {
+    this.#failNext = count;
+  }
+
+  #maybeFail(): void {
+    if (this.#failNext > 0) {
+      this.#failNext -= 1;
+      throw new Error('in-memory object store: simulated outage');
+    }
+  }
+
+  keys(): string[] {
+    return [...this.#objects.keys()].sort();
+  }
+
+  put(key: string, object: StoredObject): Promise<void> {
+    try {
+      assertObjectKey(key);
+      this.#maybeFail();
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    }
+    this.#objects.set(key, { data: Buffer.from(object.data), contentType: object.contentType });
+    return Promise.resolve();
+  }
+
+  get(key: string): Promise<StoredObject | null> {
+    try {
+      assertObjectKey(key);
+      this.#maybeFail();
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    }
+    const found = this.#objects.get(key);
+    return Promise.resolve(
+      found ? { data: Buffer.from(found.data), contentType: found.contentType } : null,
+    );
+  }
+
+  delete(key: string): Promise<void> {
+    try {
+      assertObjectKey(key);
+      this.#maybeFail();
+    } catch (error) {
+      return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+    }
+    this.#objects.delete(key);
+    return Promise.resolve();
+  }
+}

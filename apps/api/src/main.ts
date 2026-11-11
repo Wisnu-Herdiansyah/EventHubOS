@@ -1,6 +1,8 @@
 import { loadApiConfig } from '@eventhub/config';
 import { simpleWebAuthnRelyingParty } from './adapters/simplewebauthn-passkeys.ts';
 import { createPool } from '@eventhub/db';
+import { InMemoryObjectStore, type ObjectStore } from '@eventhub/kernel';
+import { LocalDirectoryObjectStore } from '@eventhub/kernel/object-stores';
 import { buildApp, loggerOptions } from './app.ts';
 import { Argon2idPasswordHasher } from './adapters/argon2id-password-hasher.ts';
 import { DatabaseSessionAuthenticator } from './modules/identity/authenticator.ts';
@@ -10,7 +12,16 @@ const pool = createPool({
   connectionString: config.database.appUrl,
   applicationName: 'eventhub-api',
 });
+function selectObjectStore(): ObjectStore | null {
+  const c = config.objectStore;
+  if (!c) return null;
+  return c.adapter === 'local_directory'
+    ? new LocalDirectoryObjectStore(c.directory!)
+    : new InMemoryObjectStore();
+}
+
 const app = await buildApp({
+  objectStore: selectObjectStore(),
   pool,
   authenticator: new DatabaseSessionAuthenticator(pool, {
     idleSeconds: config.auth.sessionIdleSeconds,

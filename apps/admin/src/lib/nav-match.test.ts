@@ -16,6 +16,7 @@ describe('activeNav', () => {
     expect(activeNav(`/orgs/${ORG}/settings`)).toMatchObject({ section: 'settings' });
     expect(activeNav(`/orgs/${ORG}/audit`)).toMatchObject({ section: 'audit' });
     expect(activeNav(`/orgs/${ORG}/reports`)).toMatchObject({ section: 'reports' });
+    expect(activeNav(`/orgs/${ORG}/images`)).toMatchObject({ section: 'images' });
   });
 
   it('files event pages under Overview', () => {

@@ -25,7 +25,7 @@ export default async function EventMicrositePage({
   const { orgId, eventId } = await params;
   if (!UUID.test(orgId) || !UUID.test(eventId)) notFound();
   const path = { organizationId: orgId, eventId };
-  let org, evt, page, revisions;
+  let org, evt, page, revisions, images;
   try {
     const client = await api();
     org = unwrap(
@@ -33,7 +33,7 @@ export default async function EventMicrositePage({
         params: { path: { organizationId: orgId } },
       }),
     );
-    [evt, page, revisions] = await Promise.all([
+    [evt, page, revisions, images] = await Promise.all([
       client
         .GET('/v1/organizations/{organizationId}/events/{eventId}', { params: { path } })
         .then(unwrap),
@@ -45,6 +45,13 @@ export default async function EventMicrositePage({
           params: { path },
         })
         .then(unwrap),
+      // Speaker photos come from the image library (ADR-0042).
+      client
+        .GET('/v1/organizations/{organizationId}/assets', {
+          params: { path: { organizationId: orgId } },
+        })
+        .then(unwrap)
+        .then((r) => r.data),
     ]);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
@@ -104,6 +111,7 @@ export default async function EventMicrositePage({
           published: page.published,
           hasUnpublishedChanges: page.hasUnpublishedChanges,
         }}
+        images={images}
       />
 
       <Card flush title="Published revisions" titleId="revisions-heading">

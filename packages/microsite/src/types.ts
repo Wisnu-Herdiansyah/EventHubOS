@@ -1,7 +1,7 @@
 /**
  * Section shapes as published by the API (PageSection). The admin passes its generated API types
  * into these components, so a mismatch fails its typecheck. Published revisions are immutable,
- * so older section versions stay here and keep rendering (ADR-0020, ADR-0040).
+ * so older section versions stay here and keep rendering (ADR-0020, ADR-0040, ADR-0042).
  */
 interface Base {
   id: string;
@@ -29,6 +29,11 @@ export interface SpeakerV2 {
   bio: string;
 }
 
+/** Speakers v3 (ADR-0042): an optional photo from the organization's image library. */
+export interface SpeakerV3 extends SpeakerV2 {
+  photoAssetId: string | null;
+}
+
 export type Section =
   | (Base & { version: 1; type: 'hero'; body: string; ctaLabel: string })
   | (Base & { version: 1; type: 'text'; body: string })
@@ -36,4 +41,5 @@ export type Section =
   | (Base & { version: 2; type: 'agenda'; items: AgendaItemV2[] })
   | (Base & { version: 1; type: 'speakers'; items: Array<{ name: string; role: string }> })
   | (Base & { version: 2; type: 'speakers'; items: SpeakerV2[] })
+  | (Base & { version: 3; type: 'speakers'; items: SpeakerV3[] })
   | (Base & { version: 1; type: 'register'; body: string; ctaLabel: string });

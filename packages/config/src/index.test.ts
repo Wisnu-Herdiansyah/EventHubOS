@@ -342,3 +342,58 @@ describe('loadMigratorConfig', () => {
     });
   });
 });
+
+describe('object storage (ADR-0042)', () => {
+  const api = { EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl };
+  const worker = {
+    EVENTHUB_ENV: 'ci',
+    DATABASE_WORKER_URL: localUrl,
+    EVENT_PUBLISHER: 'postgres_outbox',
+    EMAIL_SENDER: 'in_memory',
+    APP_BASE_URL: 'http://localhost:3001',
+    EMAIL_TOKEN_SECRET: 'x'.repeat(32),
+  };
+
+  it('is optional: unset means uploads are unavailable', () => {
+    expect(loadApiConfig(api).objectStore).toBeNull();
+    expect(loadWorkerConfig(worker).objectStore).toBeNull();
+  });
+
+  it('accepts the local adapters locally and in CI', () => {
+    expect(loadApiConfig({ ...api, OBJECT_STORE: 'in_memory' }).objectStore).toEqual({
+      adapter: 'in_memory',
+      directory: undefined,
+    });
+    expect(
+      loadWorkerConfig({ ...worker, OBJECT_STORE: 'local_directory', OBJECT_STORE_DIR: '/tmp/o' })
+        .objectStore,
+    ).toEqual({ adapter: 'local_directory', directory: '/tmp/o' });
+  });
+
+  it('needs a directory for local_directory', () => {
+    expect(
+      captureError(() => loadApiConfig({ ...api, OBJECT_STORE: 'local_directory' })).keys,
+    ).toEqual(['OBJECT_STORE_DIR']);
+  });
+
+  it('rejects an unknown adapter', () => {
+    expect(captureError(() => loadApiConfig({ ...api, OBJECT_STORE: 's3' })).keys).toEqual([
+      'OBJECT_STORE',
+    ]);
+  });
+
+  it('refuses the local adapters in staging and production', () => {
+    for (const env of ['staging', 'production']) {
+      const e = captureError(() =>
+        loadApiConfig({
+          EVENTHUB_ENV: env,
+          DATABASE_APP_URL: `${localUrl}?sslmode=require`,
+          MFA_ENCRYPTION_KEY: MFA_KEY,
+          OBJECT_STORE: 'local_directory',
+          OBJECT_STORE_DIR: '/srv/objects',
+        }),
+      );
+      expect(e.keys).toEqual(['OBJECT_STORE']);
+    }
+  });
+});

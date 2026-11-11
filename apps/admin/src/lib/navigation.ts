@@ -2,7 +2,7 @@ import 'server-only';
 import { ROLE_LABELS } from './options';
 import { can, settingsAbilities, teamAbilities } from './permissions';
 
-export type SectionKey = 'overview' | 'reports' | 'team' | 'settings' | 'audit';
+export type SectionKey = 'overview' | 'reports' | 'images' | 'team' | 'settings' | 'audit';
 
 export interface NavSection {
   key: SectionKey;
@@ -30,6 +30,9 @@ export function navOrganization(org: {
   const sections: NavSection[] = [{ key: 'overview', href: base, label: 'Overview' }];
   if (can(org.role, 'report.read'))
     sections.push({ key: 'reports', href: `${base}/reports`, label: 'Reports' });
+  // The image library (ADR-0042): for the roles that upload; others see photos on pages.
+  if (can(org.role, 'asset.manage'))
+    sections.push({ key: 'images', href: `${base}/images`, label: 'Images' });
   if (teamAbilities(org.role).canRead)
     sections.push({ key: 'team', href: `${base}/team`, label: 'Team' });
   if (settingsAbilities(org.role).canOpen)

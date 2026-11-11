@@ -6,7 +6,7 @@ import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
 } from 'fastify';
-import { AppError, internalErrorBody, LOG_REDACT_PATHS } from '@eventhub/kernel';
+import { AppError, internalErrorBody, LOG_REDACT_PATHS, type ObjectStore } from '@eventhub/kernel';
 import { canonicalJson, type Pool } from '@eventhub/db';
 import { parseInput, type AnyRoute, type RouteResult } from './http/route.ts';
 import { parseBearerToken, type SessionAuthenticator } from './modules/identity/authenticator.ts';
@@ -24,6 +24,7 @@ import { publicSiteRoutes } from './modules/public-site/routes.ts';
 import { registrationRoutes } from './modules/registration/routes.ts';
 import { reportRoutes } from './modules/report/routes.ts';
 import { announcementRoutes } from './modules/announcement/routes.ts';
+import { assetRoutes } from './modules/asset/routes.ts';
 
 export interface AppDependencies {
   pool: Pool;
@@ -39,6 +40,8 @@ export interface AppDependencies {
   rateLimitPerMinute?: number;
   /** Validate responses against their contract (enable outside production). */
   validateResponses?: boolean;
+  /** Image storage (ADR-0042); without it, uploads and image bytes answer 503. */
+  objectStore?: ObjectStore | null;
 }
 
 const CORRELATION_RE = /^[A-Za-z0-9._:-]{8,128}$/;
@@ -49,6 +52,7 @@ export interface RouteFactoryDeps {
   passwordHasher: PasswordHasher;
   identity: IdentitySettings;
   invitationTtlSeconds?: number;
+  objectStore?: ObjectStore | null;
 }
 
 export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
@@ -65,6 +69,7 @@ export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
     ...registrationRoutes(deps.pool),
     ...reportRoutes(deps.pool),
     ...announcementRoutes(deps.pool),
+    ...assetRoutes(deps.pool, deps.objectStore ?? null),
     ...auditRoutes(deps.pool),
   ];
 }
@@ -95,7 +100,8 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
 
   app.addHook('onSend', (request, reply, payload, done) => {
     reply.header('x-correlation-id', request.id);
-    reply.header('cache-control', 'no-store');
+    // Binary routes (images) set their own caching; everything else is never cached.
+    if (!reply.hasHeader('cache-control')) reply.header('cache-control', 'no-store');
     reply.header('x-content-type-options', 'nosniff');
     reply.header('referrer-policy', 'no-referrer');
     reply.header('x-frame-options', 'DENY');
@@ -149,6 +155,7 @@ function registerRoute(app: FastifyInstance, route: AnyRoute, deps: AppDependenc
     method: route.method,
     url: route.path,
     ...(route.rateLimit ? { config: { rateLimit: route.rateLimit } } : {}),
+    ...(route.bodyLimit ? { bodyLimit: route.bodyLimit } : {}),
     handler: async (request, reply) => {
       let result: RouteResult;
       const rawAgent = request.headers['user-agent'];
@@ -213,6 +220,18 @@ function registerRoute(app: FastifyInstance, route: AnyRoute, deps: AppDependenc
         if (extra.length > 0) {
           throw new Error(`Response has fields missing from its schema: ${extra.join(', ')}`);
         }
+      }
+      if (result.binary) {
+        if (route.schemas.response.contentType !== result.binary.contentType) {
+          throw new Error('Binary response type differs from the route contract');
+        }
+        return reply
+          .status(result.status)
+          .header('content-type', result.binary.contentType)
+          .header('cache-control', result.binary.cacheControl)
+          .header('content-security-policy', "default-src 'none'; sandbox")
+          .header('content-disposition', 'inline')
+          .send(result.body);
       }
       if (result.replayed) reply.header('idempotent-replayed', 'true');
       if (result.status === 204) return reply.status(204).send();

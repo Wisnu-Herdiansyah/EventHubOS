@@ -124,16 +124,25 @@ export function buildOpenApiDocument(routes: AnyRoute[]): Json {
           }
         : {}),
       responses: {
-        [String(route.schemas.response.status)]: route.schemas.response.schema
+        [String(route.schemas.response.status)]: route.schemas.response.contentType
           ? {
-              description: 'Success',
+              description: 'Success (bytes)',
               content: {
-                'application/json': {
-                  schema: jsonSchema(route.schemas.response.schema, 'output', components),
+                [route.schemas.response.contentType]: {
+                  schema: { type: 'string', format: 'binary' },
                 },
               },
             }
-          : { description: 'Success (no content)' },
+          : route.schemas.response.schema
+            ? {
+                description: 'Success',
+                content: {
+                  'application/json': {
+                    schema: jsonSchema(route.schemas.response.schema, 'output', components),
+                  },
+                },
+              }
+            : { description: 'Success (no content)' },
         ...errorResponses,
       },
     };
