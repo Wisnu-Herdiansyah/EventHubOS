@@ -93,6 +93,8 @@ function settingsFromForm(
   const capacity = capacityRaw ? Number(capacityRaw) : undefined;
   if (capacityRaw && (!Number.isInteger(capacity) || capacity! < 1))
     fields.capacity = 'Enter a whole number of at least 1.';
+  const waitlist = form.get('waitlist') === 'on' ? true : undefined;
+  if (waitlist && !capacityRaw) fields.waitlist = 'Set a capacity to use a waitlist.';
   return {
     visibility: (str(form, 'visibility') || 'public') as SettingsPatch['visibility'],
     sharing: section({ title: opt('title'), description: opt('description') }),
@@ -102,6 +104,7 @@ function settingsFromForm(
       opensAt: instant(form, 'opensAt', timeZone, fields),
       closesAt: instant(form, 'closesAt', timeZone, fields),
       capacity,
+      waitlist,
     }),
   };
 }

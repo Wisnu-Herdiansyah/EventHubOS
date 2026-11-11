@@ -1,7 +1,14 @@
 import type { Tone } from '@/components/ui/badge';
 
-/** Registration state as people read it (pure; unit-tested). */
-export function registrationStateLabel(state: string): { label: string; tone: Tone } {
+/**
+ * Registration state as people read it (pure; unit-tested). A full event that takes a waitlist
+ * (ADR-0035) still accepts sign-ups, onto the waitlist.
+ */
+export function registrationStateLabel(
+  state: string,
+  waitlist = false,
+): { label: string; tone: Tone } {
+  if (state === 'full' && waitlist) return { label: 'Full, waitlist open', tone: 'warning' };
   switch (state) {
     case 'open':
       return { label: 'Open', tone: 'success' };

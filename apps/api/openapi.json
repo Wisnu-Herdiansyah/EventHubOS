@@ -6208,7 +6208,7 @@
     "/v1/public/sites/{handle}/events/{eventSlug}/registrations": {
       "post": {
         "operationId": "registerForEvent",
-        "summary": "Register for a published event. Answers the same whether or not the address was already registered (no enumeration); 409 when registration is not open or the event is full.",
+        "summary": "Register for a published event, or join its waitlist when it is full and takes one (ADR-0035). Answers the same whether or not the address was already registered or waiting (no enumeration); 409 when registration is not open or the event is full without a waitlist.",
         "tags": [
           "public"
         ],
@@ -6357,7 +6357,7 @@
     "/v1/public/registrations/cancel": {
       "post": {
         "operationId": "cancelRegistrationByLink",
-        "summary": "Cancel a registration with the link from its confirmation email. Invalid, used and stale links all answer the same.",
+        "summary": "Cancel a registration, or leave the waitlist, with the link from its email. Invalid, used and stale links all answer the same. A freed seat goes to the waitlist.",
         "tags": [
           "public"
         ],
@@ -6624,7 +6624,7 @@
     "/v1/organizations/{organizationId}/events/{eventId}/registrations": {
       "get": {
         "operationId": "listRegistrations",
-        "summary": "Attendees of an event, newest first (up to 1,000). Personal data: registration.manage.",
+        "summary": "Attendees of an event, newest first (up to 1,000); the waitlist in joining order. Personal data: registration.manage.",
         "tags": [
           "registrations"
         ],
@@ -6663,7 +6663,8 @@
               "type": "string",
               "enum": [
                 "confirmed",
-                "cancelled"
+                "cancelled",
+                "waitlisted"
               ]
             }
           },
@@ -6923,7 +6924,164 @@
     "/v1/organizations/{organizationId}/events/{eventId}/registrations/{registrationId}/cancel": {
       "post": {
         "operationId": "cancelRegistration",
-        "summary": "Cancel an attendee’s registration. The attendee is told by email.",
+        "summary": "Cancel an attendee’s registration or remove someone from the waitlist. They are told by email; a freed seat goes to the waitlist.",
+        "tags": [
+          "registrations"
+        ],
+        "security": [
+          {
+            "sessionToken": []
+          }
+        ],
+        "x-eventhub-requires": "registration.manage",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          {
+            "name": "registrationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_.:-]{8,255}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Registration"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or Idempotency-Key missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated, or invalid credentials on login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (missing permission or unverified email)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found (also returned for resources in other organizations)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Idempotency-Key reused with a different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (generic body with correlation ID)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/organizations/{organizationId}/events/{eventId}/registrations/{registrationId}/promote": {
+      "post": {
+        "operationId": "promoteRegistration",
+        "summary": "Give a seat to someone on the waitlist, out of turn and even beyond capacity (ADR-0035). They are emailed their confirmation.",
         "tags": [
           "registrations"
         ],
@@ -8455,7 +8613,8 @@
             "type": "string",
             "enum": [
               "confirmed",
-              "cancelled"
+              "cancelled",
+              "waitlisted"
             ]
           },
           "checkedInAt": {
@@ -9226,6 +9385,9 @@
                 "type": "integer",
                 "minimum": 1,
                 "maximum": 1000000
+              },
+              "waitlist": {
+                "type": "boolean"
               }
             },
             "additionalProperties": false
@@ -9332,6 +9494,9 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 1000000
+                  },
+                  "waitlist": {
+                    "type": "boolean"
                   }
                 },
                 "additionalProperties": false
@@ -10457,7 +10622,8 @@
                   "open",
                   "not_open_yet",
                   "closed",
-                  "full"
+                  "full",
+                  "waitlist"
                 ]
               },
               "opensAt": {
@@ -10619,7 +10785,8 @@
             "type": "string",
             "enum": [
               "confirmed",
-              "cancelled"
+              "cancelled",
+              "waitlisted"
             ]
           },
           "createdAt": {
@@ -10664,6 +10831,32 @@
                 "type": "null"
               }
             ]
+          },
+          "promotedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "promotedBy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "waitlist",
+                  "organizer"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -10674,7 +10867,9 @@
           "createdAt",
           "cancelledAt",
           "cancelledBy",
-          "checkedInAt"
+          "checkedInAt",
+          "promotedAt",
+          "promotedBy"
         ],
         "additionalProperties": false
       },
@@ -10704,11 +10899,15 @@
           },
           "eventName": {
             "type": "string"
+          },
+          "wasWaitlisted": {
+            "type": "boolean"
           }
         },
         "required": [
           "status",
-          "eventName"
+          "eventName",
+          "wasWaitlisted"
         ],
         "additionalProperties": false
       },
@@ -10756,7 +10955,8 @@
             "type": "string",
             "enum": [
               "confirmed",
-              "cancelled"
+              "cancelled",
+              "waitlisted"
             ]
           }
         },
@@ -10790,6 +10990,11 @@
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
           },
+          "waitlisted": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
           "checkedIn": {
             "type": "integer",
             "minimum": -9007199254740991,
@@ -10806,6 +11011,9 @@
                 "type": "null"
               }
             ]
+          },
+          "waitlist": {
+            "type": "boolean"
           },
           "state": {
             "type": "string",
@@ -10837,8 +11045,10 @@
         "required": [
           "confirmed",
           "cancelled",
+          "waitlisted",
           "checkedIn",
           "capacity",
+          "waitlist",
           "state",
           "opensAt",
           "closesAt"

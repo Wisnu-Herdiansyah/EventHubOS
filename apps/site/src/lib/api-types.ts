@@ -715,7 +715,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Register for a published event. Answers the same whether or not the address was already registered (no enumeration); 409 when registration is not open or the event is full. */
+        /** Register for a published event, or join its waitlist when it is full and takes one (ADR-0035). Answers the same whether or not the address was already registered or waiting (no enumeration); 409 when registration is not open or the event is full without a waitlist. */
         post: operations["registerForEvent"];
         delete?: never;
         options?: never;
@@ -732,7 +732,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancel a registration with the link from its confirmation email. Invalid, used and stale links all answer the same. */
+        /** Cancel a registration, or leave the waitlist, with the link from its email. Invalid, used and stale links all answer the same. A freed seat goes to the waitlist. */
         post: operations["cancelRegistrationByLink"];
         delete?: never;
         options?: never;
@@ -764,7 +764,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Attendees of an event, newest first (up to 1,000). Personal data: registration.manage. */
+        /** Attendees of an event, newest first (up to 1,000); the waitlist in joining order. Personal data: registration.manage. */
         get: operations["listRegistrations"];
         put?: never;
         post?: never;
@@ -800,8 +800,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Cancel an attendee’s registration. The attendee is told by email. */
+        /** Cancel an attendee’s registration or remove someone from the waitlist. They are told by email; a freed seat goes to the waitlist. */
         post: operations["cancelRegistration"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/organizations/{organizationId}/events/{eventId}/registrations/{registrationId}/promote": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Give a seat to someone on the waitlist, out of turn and even beyond capacity (ADR-0035). They are emailed their confirmation. */
+        post: operations["promoteRegistration"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1001,7 +1018,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             /** @enum {string} */
-            status: "confirmed" | "cancelled";
+            status: "confirmed" | "cancelled" | "waitlisted";
             checkedInAt: string | null;
         };
         CompleteMfaLoginRequest: {
@@ -1161,6 +1178,7 @@ export interface components {
                 /** Format: date-time */
                 closesAt?: string;
                 capacity?: number;
+                waitlist?: boolean;
             };
             sharing?: {
                 title?: string;
@@ -1202,6 +1220,7 @@ export interface components {
                 /** Format: date-time */
                 closesAt?: string;
                 capacity?: number;
+                waitlist?: boolean;
             } | null;
             sharing?: {
                 title?: string;
@@ -1462,7 +1481,7 @@ export interface components {
             privacyPolicyUrl: string | null;
             registration: {
                 /** @enum {string} */
-                state: "open" | "not_open_yet" | "closed" | "full";
+                state: "open" | "not_open_yet" | "closed" | "full" | "waitlist";
                 opensAt: string | null;
                 closesAt: string;
             };
@@ -1497,12 +1516,14 @@ export interface components {
             name: string;
             email: string;
             /** @enum {string} */
-            status: "confirmed" | "cancelled";
+            status: "confirmed" | "cancelled" | "waitlisted";
             /** Format: date-time */
             createdAt: string;
             cancelledAt: string | null;
             cancelledBy: ("attendee" | "organizer") | null;
             checkedInAt: string | null;
+            promotedAt: string | null;
+            promotedBy: ("waitlist" | "organizer") | null;
         };
         RegistrationAccepted: {
             /** @constant */
@@ -1513,6 +1534,7 @@ export interface components {
             /** @constant */
             status: "cancelled";
             eventName: string;
+            wasWaitlisted: boolean;
         };
         RegistrationExport: {
             eventName: string;
@@ -1525,7 +1547,7 @@ export interface components {
         };
         RegistrationExportRequest: {
             /** @enum {string} */
-            status?: "confirmed" | "cancelled";
+            status?: "confirmed" | "cancelled" | "waitlisted";
         };
         RegistrationList: {
             data: components["schemas"]["Registration"][];
@@ -1533,8 +1555,10 @@ export interface components {
         RegistrationSummary: {
             confirmed: number;
             cancelled: number;
+            waitlisted: number;
             checkedIn: number;
             capacity: number | null;
+            waitlist: boolean;
             /** @enum {string} */
             state: "open" | "not_open_yet" | "closed" | "full";
             opensAt: string | null;
@@ -6458,7 +6482,7 @@ export interface operations {
     listRegistrations: {
         parameters: {
             query?: {
-                status?: "confirmed" | "cancelled";
+                status?: "confirmed" | "cancelled" | "waitlisted";
             };
             header?: {
                 "X-Correlation-Id"?: string;
@@ -6656,6 +6680,105 @@ export interface operations {
         };
     };
     cancelRegistration: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Correlation-Id"?: string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                organizationId: string;
+                eventId: string;
+                registrationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Registration"];
+                };
+            };
+            /** @description Validation failed or Idempotency-Key missing */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unauthenticated, or invalid credentials on login */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden (missing permission or unverified email) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found (also returned for resources in other organizations) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Idempotency-Key reused with a different payload */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error (generic body with correlation ID) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    promoteRegistration: {
         parameters: {
             query?: never;
             header: {

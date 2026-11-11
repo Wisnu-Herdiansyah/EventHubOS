@@ -4,26 +4,32 @@ import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { registerAction, type RegisterState } from '@/app/actions';
 
-function Submit({ label }: { label: string }) {
+function Submit({ label, waitlist }: { label: string; waitlist: boolean }) {
   const { pending } = useFormStatus();
   return (
     <button type="submit" className="site-cta" disabled={pending} aria-busy={pending}>
-      {pending ? 'Registering…' : label}
+      {pending ? (waitlist ? 'Joining…' : 'Registering…') : label}
     </button>
   );
 }
 
-/** Free registration form (ADR-0023). Works without JavaScript too (server action). */
+/**
+ * Free registration form (ADR-0023), or the waitlist form when the event is full (ADR-0035).
+ * Works without JavaScript too (server action). The answer is the same either way, so it never
+ * reveals whether an address was already registered.
+ */
 export function RegisterForm({
   handle,
   eventSlug,
   privacyPolicyUrl,
   ctaLabel,
+  waitlist = false,
 }: {
   handle: string;
   eventSlug: string;
   privacyPolicyUrl: string | null;
   ctaLabel: string;
+  waitlist?: boolean;
 }) {
   const [state, action] = useActionState<RegisterState, FormData>(
     registerAction.bind(null, handle, eventSlug),
@@ -40,6 +46,11 @@ export function RegisterForm({
   const describe = (id: string, has?: string) => (has ? `${id}-error` : undefined);
   return (
     <form action={action} className="site-form" noValidate>
+      {waitlist ? (
+        <p className="site-notice" role="status">
+          This event is full. Join the waitlist and we’ll email you if a seat opens up.
+        </p>
+      ) : null}
       {state.status === 'error' && state.message ? (
         <p className="site-error" role="alert">
           {state.message}
@@ -116,7 +127,7 @@ export function RegisterForm({
         </span>
       ) : null}
       <div>
-        <Submit label={ctaLabel} />
+        <Submit label={waitlist ? 'Join the waitlist' : ctaLabel} waitlist={waitlist} />
       </div>
     </form>
   );

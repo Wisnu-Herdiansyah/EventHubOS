@@ -7,10 +7,10 @@ import { publicEventPage, type PublicEventPage as PublicEventPageData } from '@/
 
 type Params = Promise<{ handle: string; eventSlug: string }>;
 
-/** The registration form while open; otherwise a short status (ADR-0023). */
+/** The registration form while open or taking a waitlist; otherwise a short status (ADR-0023). */
 function registerSlot(page: PublicEventPageData, handle: string, eventSlug: string) {
   const r = page.registration;
-  if (r.state === 'open') {
+  if (r.state === 'open' || r.state === 'waitlist') {
     const register = page.sections.find((s) => s.type === 'register');
     return (
       <RegisterForm
@@ -18,6 +18,7 @@ function registerSlot(page: PublicEventPageData, handle: string, eventSlug: stri
         eventSlug={eventSlug}
         privacyPolicyUrl={page.privacyPolicyUrl}
         ctaLabel={(register?.type === 'register' && register.ctaLabel) || 'Register'}
+        waitlist={r.state === 'waitlist'}
       />
     );
   }

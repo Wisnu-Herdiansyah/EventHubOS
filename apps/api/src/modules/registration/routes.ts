@@ -24,6 +24,9 @@ import { withOrganization, type OrganizationAccess } from '../tenancy/access.ts'
 export const REGISTRATION_CONFIRMATION_REQUESTED = 'registration.confirmation_requested';
 export const REGISTRATION_CANCELLED = 'registration.cancelled';
 
+const STATUSES = ['confirmed', 'cancelled', 'waitlisted'] as const;
+type Status = (typeof STATUSES)[number];
+
 const PUBLIC_REGISTER_LIMIT = { max: 5, timeWindow: '1 minute' };
 const PUBLIC_CANCEL_LIMIT = { max: 10, timeWindow: '1 minute' };
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
@@ -64,12 +67,15 @@ const registrationSchema = z
     id: uuid,
     name: z.string(),
     email: z.string(),
-    status: z.enum(['confirmed', 'cancelled']),
+    status: z.enum(STATUSES),
     createdAt: z.iso.datetime(),
     cancelledAt: z.iso.datetime().nullable(),
     cancelledBy: z.enum(['attendee', 'organizer']).nullable(),
     /** When the attendee was checked in at the event (ADR-0028), or null. */
     checkedInAt: z.iso.datetime().nullable(),
+    /** When a waitlisted person got a seat (ADR-0035), or null. */
+    promotedAt: z.iso.datetime().nullable(),
+    promotedBy: z.enum(['waitlist', 'organizer']).nullable(),
   })
   .meta({ id: 'Registration' });
 
@@ -77,9 +83,13 @@ const summarySchema = z
   .object({
     confirmed: z.number().int(),
     cancelled: z.number().int(),
+    /** People waiting for a seat (ADR-0035). */
+    waitlisted: z.number().int(),
     /** Confirmed attendees who have been checked in (ADR-0028). */
     checkedIn: z.number().int(),
     capacity: z.number().int().nullable(),
+    /** Whether sign-ups join a waitlist once the event is full. */
+    waitlist: z.boolean(),
     state: z.enum(['open', 'not_open_yet', 'closed', 'full']),
     opensAt: z.iso.datetime().nullable(),
     closesAt: z.iso.datetime(),
@@ -92,11 +102,13 @@ interface RegistrationRow {
   id: string;
   name: string;
   email: string;
-  status: 'confirmed' | 'cancelled';
+  status: Status;
   created_at: Date;
   cancelled_at: Date | null;
   cancelled_by: 'attendee' | 'organizer' | null;
   checked_in_at: Date | null;
+  promoted_at: Date | null;
+  promoted_by: 'waitlist' | 'organizer' | null;
 }
 
 const toDto = (r: RegistrationRow) => ({
@@ -108,16 +120,18 @@ const toDto = (r: RegistrationRow) => ({
   cancelledAt: r.cancelled_at?.toISOString() ?? null,
   cancelledBy: r.cancelled_by,
   checkedInAt: r.checked_in_at?.toISOString() ?? null,
+  promotedAt: r.promoted_at?.toISOString() ?? null,
+  promotedBy: r.promoted_by,
 });
 
 const REGISTRATION_COLUMNS =
-  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at';
+  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at, promoted_at, promoted_by';
 
 /** For the door: no email confirmation, just who and when (ADR-0028). */
 const checkInResultSchema = z
   .object({
     id: uuid,
-    status: z.enum(['confirmed', 'cancelled']),
+    status: z.enum(STATUSES),
     checkedInAt: z.iso.datetime().nullable(),
   })
   .meta({ id: 'CheckInResult' });
@@ -161,6 +175,36 @@ async function record(
   }
 }
 
+/**
+ * Gives freed seats to the waitlist in joining order (ADR-0035), recording each promotion with an
+ * audit entry and a confirmation email. Call it in the same transaction as whatever freed seats
+ * (a cancellation, a larger capacity), with the tenant context set.
+ */
+export async function fillWaitlist(
+  client: PoolClient,
+  organizationId: string,
+  eventId: string,
+  correlationId: string,
+): Promise<string[]> {
+  const { rows } = await client.query<{ out_registration_id: string }>(
+    'SELECT out_registration_id FROM eventhub.fill_waitlist($1, $2)',
+    [organizationId, eventId],
+  );
+  for (const r of rows) {
+    await record(
+      client,
+      organizationId,
+      SYSTEM,
+      'registration.promoted',
+      r.out_registration_id,
+      correlationId,
+      { eventId, by: 'waitlist' },
+      { eventType: REGISTRATION_CONFIRMATION_REQUESTED, payload: { eventId, kind: 'promoted' } },
+    );
+  }
+  return rows.map((r) => r.out_registration_id);
+}
+
 export function registrationRoutes(pool: Pool): AnyRoute[] {
   return [
     definePublicRoute({
@@ -168,7 +212,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       path: '/v1/public/sites/:handle/events/:eventSlug/registrations',
       operationId: 'registerForEvent',
       summary:
-        'Register for a published event. Answers the same whether or not the address was already registered (no enumeration); 409 when registration is not open or the event is full.',
+        'Register for a published event, or join its waitlist when it is full and takes one (ADR-0035). Answers the same whether or not the address was already registered or waiting (no enumeration); 409 when registration is not open or the event is full without a waitlist.',
       tags: ['public'],
       idempotent: false,
       idempotencyExempt:
@@ -211,6 +255,20 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                   payload: { eventId: r.out_event_id, kind: 'new' },
                 },
               );
+            } else if (r.out_outcome === 'waitlisted') {
+              await record(
+                client,
+                r.out_organization_id,
+                SYSTEM,
+                'registration.waitlisted',
+                r.out_registration_id,
+                correlationId,
+                { eventId: r.out_event_id, source: 'public_site' },
+                {
+                  eventType: REGISTRATION_CONFIRMATION_REQUESTED,
+                  payload: { eventId: r.out_event_id, kind: 'waitlisted' },
+                },
+              );
             } else if (r.out_outcome === 'already_registered') {
               // Re-send the confirmation (with a fresh cancel link) to the address itself.
               await enqueueEvent(
@@ -236,6 +294,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
         });
         switch (outcome) {
           case 'registered':
+          case 'waitlisted':
           case 'already_registered':
           case 'already_registered_quiet':
             return { status: 202, body: ACCEPTED };
@@ -262,7 +321,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       path: '/v1/public/registrations/cancel',
       operationId: 'cancelRegistrationByLink',
       summary:
-        'Cancel a registration with the link from its confirmation email. Invalid, used and stale links all answer the same.',
+        'Cancel a registration, or leave the waitlist, with the link from its email. Invalid, used and stale links all answer the same. A freed seat goes to the waitlist.',
       tags: ['public'],
       idempotent: false,
       idempotencyExempt: 'Single-use link: a repeat finds nothing to cancel.',
@@ -275,7 +334,12 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
         response: {
           status: 200,
           schema: z
-            .object({ status: z.literal('cancelled'), eventName: z.string() })
+            .object({
+              status: z.literal('cancelled'),
+              eventName: z.string(),
+              /** The link was for a place on the waitlist, not a seat. */
+              wasWaitlisted: z.boolean(),
+            })
             .meta({ id: 'RegistrationCancelled' }),
         },
       },
@@ -287,7 +351,8 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
             out_organization_id: string;
             out_event_id: string;
             out_event_name: string;
-          }>('SELECT * FROM eventhub.public_cancel_registration($1)', [hash]);
+            out_previous_status: 'confirmed' | 'waitlisted';
+          }>('SELECT * FROM eventhub.public_leave_registration($1)', [hash]);
           const r = rows[0];
           if (!r) return null;
           await setTenantContext(client, r.out_organization_id);
@@ -298,10 +363,19 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
             'registration.cancelled',
             r.out_registration_id,
             correlationId,
-            { eventId: r.out_event_id, by: 'attendee' },
-            { eventType: REGISTRATION_CANCELLED, payload: { by: 'attendee' } },
+            { eventId: r.out_event_id, by: 'attendee', from: r.out_previous_status },
+            {
+              eventType: REGISTRATION_CANCELLED,
+              payload: { by: 'attendee', from: r.out_previous_status },
+            },
           );
-          return r.out_event_name;
+          if (r.out_previous_status === 'confirmed') {
+            await fillWaitlist(client, r.out_organization_id, r.out_event_id, correlationId);
+          }
+          return {
+            eventName: r.out_event_name,
+            wasWaitlisted: r.out_previous_status === 'waitlisted',
+          };
         });
         if (result === null) {
           throw new AppError(
@@ -310,7 +384,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
             { details: { reason: 'invalid_or_used_link' } },
           );
         }
-        return { status: 200, body: { status: 'cancelled', eventName: result } };
+        return { status: 200, body: { status: 'cancelled', ...result } };
       },
     }),
 
@@ -333,14 +407,18 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
             const { rows } = await client.query<{
               confirmed: number;
               cancelled: number;
+              waitlisted: number;
               checked_in: number;
               capacity: number | null;
+              waitlist: boolean;
               state: 'open' | 'not_open_yet' | 'closed' | 'full';
               opens_at: Date | null;
               closes_at: Date;
             }>(
-              `SELECT c.confirmed, c.cancelled, c.checked_in,
+              `SELECT c.confirmed, c.cancelled, c.waitlisted, c.checked_in,
                       (e.settings->'registration'->>'capacity')::int AS capacity,
+                      coalesce((e.settings->'registration'->>'waitlist')::boolean, false)
+                        AS waitlist,
                       eventhub.registration_state(e, c.confirmed, now()) AS state,
                       (e.settings->'registration'->>'opensAt')::timestamptz AS opens_at,
                       coalesce((e.settings->'registration'->>'closesAt')::timestamptz, e.ends_at)
@@ -349,6 +427,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                  CROSS JOIN LATERAL (
                    SELECT count(*) FILTER (WHERE r.status = 'confirmed')::int AS confirmed,
                           count(*) FILTER (WHERE r.status = 'cancelled')::int AS cancelled,
+                          count(*) FILTER (WHERE r.status = 'waitlisted')::int AS waitlisted,
                           count(*) FILTER (WHERE r.status = 'confirmed'
                                              AND r.checked_in_at IS NOT NULL)::int AS checked_in
                      FROM eventhub.registration r WHERE r.event_id = e.id
@@ -363,8 +442,10 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
               body: {
                 confirmed: r.confirmed,
                 cancelled: r.cancelled,
+                waitlisted: r.waitlisted,
                 checkedIn: r.checked_in,
                 capacity: r.capacity,
+                waitlist: r.waitlist,
                 state: r.state,
                 opensAt: r.opens_at?.toISOString() ?? null,
                 closesAt: r.closes_at.toISOString(),
@@ -380,13 +461,13 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       path: '/v1/organizations/:organizationId/events/:eventId/registrations',
       operationId: 'listRegistrations',
       summary:
-        'Attendees of an event, newest first (up to 1,000). Personal data: registration.manage.',
+        'Attendees of an event, newest first (up to 1,000); the waitlist in joining order. Personal data: registration.manage.',
       tags: ['registrations'],
       requires: 'registration.manage',
       idempotent: false,
       schemas: {
         params: eventParams,
-        query: z.object({ status: z.enum(['confirmed', 'cancelled']).optional() }).strict(),
+        query: z.object({ status: z.enum(STATUSES).optional() }).strict(),
         response: {
           status: 200,
           schema: z.object({ data: z.array(registrationSchema) }).meta({ id: 'RegistrationList' }),
@@ -409,7 +490,9 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                  FROM eventhub.registration
                 WHERE organization_id = $1 AND event_id = $2
                   AND ($3::text IS NULL OR status = $3)
-                ORDER BY created_at DESC, id DESC
+                ORDER BY CASE WHEN $3 = 'waitlisted' THEN created_at END,
+                         CASE WHEN $3 = 'waitlisted' THEN id END,
+                         created_at DESC, id DESC
                 LIMIT 1000`,
               [access.organizationId, params.eventId, query.status ?? null],
             );
@@ -433,7 +516,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       schemas: {
         params: eventParams,
         body: z
-          .object({ status: z.enum(['confirmed', 'cancelled']).optional() })
+          .object({ status: z.enum(STATUSES).optional() })
           .strict()
           .meta({ id: 'RegistrationExportRequest' }),
         response: {
@@ -505,7 +588,8 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       method: 'POST',
       path: '/v1/organizations/:organizationId/events/:eventId/registrations/:registrationId/cancel',
       operationId: 'cancelRegistration',
-      summary: 'Cancel an attendee’s registration. The attendee is told by email.',
+      summary:
+        'Cancel an attendee’s registration or remove someone from the waitlist. They are told by email; a freed seat goes to the waitlist.',
       tags: ['registrations'],
       requires: 'registration.manage',
       idempotent: true,
@@ -529,11 +613,96 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                 body: {},
               },
               async () => {
+                // Event first, then the entry: the lock order of every path that changes seats.
+                await client.query(
+                  'SELECT 1 FROM eventhub.event WHERE organization_id = $1 AND id = $2 FOR UPDATE',
+                  [access.organizationId, params.eventId],
+                );
+                const current = await client.query<{ status: Status }>(
+                  `SELECT status FROM eventhub.registration
+                    WHERE organization_id = $1 AND event_id = $2 AND id = $3 FOR UPDATE`,
+                  [access.organizationId, params.eventId, params.registrationId],
+                );
+                const previous = current.rows[0]?.status;
+                if (!previous) throw notFound('Registration');
+                if (previous === 'cancelled') {
+                  throw new AppError('conflict', 'This registration is already cancelled.', {
+                    details: { reason: 'already_cancelled' },
+                  });
+                }
                 const { rows } = await client.query<RegistrationRow>(
                   `UPDATE eventhub.registration
                       SET status = 'cancelled', cancelled_at = now(), cancelled_by = 'organizer'
                     WHERE organization_id = $1 AND event_id = $2 AND id = $3
-                      AND status = 'confirmed'
+                RETURNING ${REGISTRATION_COLUMNS}`,
+                  [access.organizationId, params.eventId, params.registrationId],
+                );
+                const row = rows[0]!;
+                await record(
+                  client,
+                  access.organizationId,
+                  { type: 'user', id: access.userId },
+                  'registration.cancelled',
+                  row.id,
+                  correlationId,
+                  { eventId: params.eventId, by: 'organizer', from: previous },
+                  {
+                    eventType: REGISTRATION_CANCELLED,
+                    payload: { by: 'organizer', from: previous },
+                  },
+                );
+                if (previous === 'confirmed') {
+                  await fillWaitlist(client, access.organizationId, params.eventId, correlationId);
+                }
+                return { status: 200, body: toDto(row) };
+              },
+            ),
+        );
+      },
+    }),
+
+    defineRoute({
+      method: 'POST',
+      path: '/v1/organizations/:organizationId/events/:eventId/registrations/:registrationId/promote',
+      operationId: 'promoteRegistration',
+      summary:
+        'Give a seat to someone on the waitlist, out of turn and even beyond capacity (ADR-0035). They are emailed their confirmation.',
+      tags: ['registrations'],
+      requires: 'registration.manage',
+      idempotent: true,
+      schemas: {
+        params: z.object({ organizationId: uuid, eventId: uuid, registrationId: uuid }).strict(),
+        response: { status: 200, schema: registrationSchema },
+      },
+      async handler({ principal, params, correlationId, idempotencyKey, idempotencyScope }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'registration.manage',
+          (client, access: OrganizationAccess) =>
+            runIdempotentCommand(
+              client,
+              {
+                actorId: principal.userId,
+                scope: idempotencyScope,
+                key: idempotencyKey!,
+                body: {},
+              },
+              async () => {
+                // The event lock orders this with sign-ups and automatic promotions.
+                const ev = await client.query<{ capacity: number | null }>(
+                  `SELECT (settings->'registration'->>'capacity')::int AS capacity
+                     FROM eventhub.event WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
+                  [access.organizationId, params.eventId],
+                );
+                const event = ev.rows[0];
+                if (!event) throw notFound('Registration');
+                const { rows } = await client.query<RegistrationRow>(
+                  `UPDATE eventhub.registration
+                      SET status = 'confirmed', promoted_at = now(), promoted_by = 'organizer'
+                    WHERE organization_id = $1 AND event_id = $2 AND id = $3
+                      AND status = 'waitlisted'
                 RETURNING ${REGISTRATION_COLUMNS}`,
                   [access.organizationId, params.eventId, params.registrationId],
                 );
@@ -545,19 +714,29 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                     [access.organizationId, params.eventId, params.registrationId],
                   );
                   if (exists.rowCount === 0) throw notFound('Registration');
-                  throw new AppError('conflict', 'This registration is already cancelled.', {
-                    details: { reason: 'already_cancelled' },
+                  throw new AppError('conflict', 'This person is not on the waitlist.', {
+                    details: { reason: 'not_waitlisted' },
                   });
                 }
+                const confirmed = await client.query<{ n: number }>(
+                  `SELECT count(*)::int AS n FROM eventhub.registration
+                    WHERE organization_id = $1 AND event_id = $2 AND status = 'confirmed'`,
+                  [access.organizationId, params.eventId],
+                );
+                const overCapacity =
+                  event.capacity !== null && confirmed.rows[0]!.n > event.capacity;
                 await record(
                   client,
                   access.organizationId,
                   { type: 'user', id: access.userId },
-                  'registration.cancelled',
+                  'registration.promoted',
                   row.id,
                   correlationId,
-                  { eventId: params.eventId, by: 'organizer' },
-                  { eventType: REGISTRATION_CANCELLED, payload: { by: 'organizer' } },
+                  { eventId: params.eventId, by: 'organizer', overCapacity },
+                  {
+                    eventType: REGISTRATION_CONFIRMATION_REQUESTED,
+                    payload: { eventId: params.eventId, kind: 'promoted' },
+                  },
                 );
                 return { status: 200, body: toDto(row) };
               },
@@ -691,7 +870,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                 async () => {
                   // Row lock: two doors scanning the same person at once check them in once.
                   const current = await client.query<{
-                    status: 'confirmed' | 'cancelled';
+                    status: Status;
                     checked_in_at: Date | null;
                   }>(
                     `SELECT status, checked_in_at FROM eventhub.registration
@@ -701,6 +880,11 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                   const reg = current.rows[0];
                   if (!reg) throw notFound('Registration');
                   if (action === 'check-in') {
+                    if (reg.status === 'waitlisted') {
+                      throw new AppError('conflict', 'This person is on the waitlist.', {
+                        details: { reason: 'registration_waitlisted' },
+                      });
+                    }
                     if (reg.status !== 'confirmed') {
                       throw new AppError('conflict', 'This registration was cancelled.', {
                         details: { reason: 'registration_cancelled' },

@@ -8,7 +8,11 @@ type Export = components['schemas']['RegistrationExport'];
 const local = (iso: string | null, timeZone: string) =>
   iso ? isoToZonedLocal(iso, timeZone).replace('T', ' ') : '';
 
-const STATUS: Record<string, string> = { confirmed: 'Registered', cancelled: 'Cancelled' };
+const STATUS: Record<string, string> = {
+  confirmed: 'Registered',
+  cancelled: 'Cancelled',
+  waitlisted: 'On the waitlist',
+};
 const BY: Record<string, string> = { attendee: 'Attendee', organizer: 'Organizer' };
 
 /** The attendee list as CSV (ADR-0027), times in the event's time zone. */

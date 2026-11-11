@@ -24,6 +24,8 @@ const sections = {
       opensAt: z.iso.datetime({ offset: true }).optional(),
       closesAt: z.iso.datetime({ offset: true }).optional(),
       capacity: z.number().int().min(1).max(1_000_000).optional(),
+      /** When full, sign-ups join a waitlist and get freed seats in order (ADR-0035). */
+      waitlist: z.boolean().optional(),
     })
     .strict(),
   sharing: z
@@ -125,6 +127,12 @@ export function settingsIssues(
     issues.push({
       path: 'body.settings.registration.closesAt',
       message: 'Registration cannot close after the event ends.',
+    });
+  }
+  if (reg?.waitlist && reg.capacity === undefined) {
+    issues.push({
+      path: 'body.settings.registration.waitlist',
+      message: 'A waitlist needs a capacity.',
     });
   }
   return issues;
