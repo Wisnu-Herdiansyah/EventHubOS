@@ -40,7 +40,8 @@ const publicEventPageSchema = z
     privacyPolicyUrl: z.string().nullable(),
     /** Whether visitors can register now (ADR-0023). */
     registration: z.object({
-      state: z.enum(['open', 'not_open_yet', 'closed', 'full']),
+      /** 'waitlist': full, and sign-ups join the waitlist (ADR-0035). */
+      state: z.enum(['open', 'not_open_yet', 'closed', 'full', 'waitlist']),
       opensAt: z.string().nullable(),
       closesAt: z.string(),
     }),
@@ -85,7 +86,7 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
           );
           if (!rows[0]) return null;
           const reg = await client.query<{
-            out_state: 'open' | 'not_open_yet' | 'closed' | 'full';
+            out_state: 'open' | 'not_open_yet' | 'closed' | 'full' | 'waitlist';
             out_opens_at: Date | null;
             out_closes_at: Date;
             out_privacy_policy_url: string | null;

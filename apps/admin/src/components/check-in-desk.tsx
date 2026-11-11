@@ -88,6 +88,11 @@ export function CheckInDesk(props: {
         setScan({ tone: 'danger', text: `${a.name}’s registration was cancelled.` });
         return;
       }
+      if (a.status === 'waitlisted') {
+        // ADR-0035: waiting people get no ticket, but say it plainly if one turns up.
+        setScan({ tone: 'danger', text: `${a.name} is on the waitlist and has no seat.` });
+        return;
+      }
       if (a.checkedInAt) {
         setScan({
           tone: 'warning',

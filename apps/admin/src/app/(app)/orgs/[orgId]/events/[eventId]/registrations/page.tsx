@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CancelRegistrationForm } from '@/components/registration-forms';
+import { CancelRegistrationForm, PromoteRegistrationForm } from '@/components/registration-forms';
 import { Badge } from '@/components/ui/badge';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Card, Stat } from '@/components/ui/card';
@@ -21,11 +21,14 @@ export const metadata: Metadata = { title: 'Registrations' };
 const UUID = /^[0-9a-f-]{36}$/i;
 const NOTICES: Record<string, string> = {
   registration_cancelled: 'Registration cancelled. The attendee has been emailed.',
+  waitlist_removed: 'Removed from the waitlist. They have been emailed.',
+  registration_promoted: 'They have a seat now and have been emailed their ticket.',
   export_denied: 'You don’t have permission to download attendee lists.',
 };
 const FILTERS = [
   { value: undefined, label: 'All' },
   { value: 'confirmed', label: 'Registered' },
+  { value: 'waitlisted', label: 'Waitlist' },
   { value: 'cancelled', label: 'Cancelled' },
 ] as const;
 
@@ -40,7 +43,10 @@ export default async function RegistrationsPage({
   const { orgId, eventId } = await params;
   const sp = await searchParams;
   if (!UUID.test(orgId) || !UUID.test(eventId)) notFound();
-  const status = sp.status === 'confirmed' || sp.status === 'cancelled' ? sp.status : undefined;
+  const status =
+    sp.status === 'confirmed' || sp.status === 'cancelled' || sp.status === 'waitlisted'
+      ? sp.status
+      : undefined;
   const notice = typeof sp.notice === 'string' ? NOTICES[sp.notice] : undefined;
   const path = { organizationId: orgId, eventId };
   let org, evt, summary, list;
@@ -72,7 +78,7 @@ export default async function RegistrationsPage({
     if (error instanceof ApiError && error.status === 404) notFound();
     signInOn401(error, `/orgs/${orgId}/events/${eventId}/registrations`);
   }
-  const state = registrationStateLabel(summary.state);
+  const state = registrationStateLabel(summary.state, summary.waitlist);
   const base = `/orgs/${orgId}/events/${eventId}/registrations`;
 
   return (
@@ -110,6 +116,13 @@ export default async function RegistrationsPage({
           value={seatsLabel(summary.confirmed, summary.capacity)}
           hint={summary.capacity ? 'Seats taken' : 'No capacity limit set'}
         />
+        {summary.waitlist || summary.waitlisted > 0 ? (
+          <Stat
+            label="Waitlist"
+            value={summary.waitlisted}
+            hint={summary.waitlist ? 'Freed seats go to them in order' : 'Waitlist is off'}
+          />
+        ) : null}
         <Stat label="Cancelled" value={summary.cancelled} />
         <Stat
           label="Checked in"
@@ -163,8 +176,20 @@ export default async function RegistrationsPage({
           {list.length === 0 ? (
             <EmptyState
               icon="users"
-              title={status ? 'No registrations here' : 'No registrations yet'}
-              description="People register on the event’s public page once it is published."
+              title={
+                status === 'waitlisted'
+                  ? 'Nobody is waiting'
+                  : status
+                    ? 'No registrations here'
+                    : 'No registrations yet'
+              }
+              description={
+                status === 'waitlisted'
+                  ? summary.waitlist
+                    ? 'When the event is full, new sign-ups wait here and get freed seats in order.'
+                    : 'Turn on the waitlist in the event settings to let people wait for a seat.'
+                  : 'People register on the event’s public page once it is published.'
+              }
             />
           ) : (
             <DataTable
@@ -194,7 +219,11 @@ export default async function RegistrationsPage({
                   cell: (r) =>
                     r.status === 'confirmed' ? (
                       <Badge tone="success" dot>
-                        Registered
+                        {r.promotedBy ? 'Registered from waitlist' : 'Registered'}
+                      </Badge>
+                    ) : r.status === 'waitlisted' ? (
+                      <Badge tone="warning" dot>
+                        Waiting
                       </Badge>
                     ) : (
                       <Badge>
@@ -216,6 +245,26 @@ export default async function RegistrationsPage({
                         name={r.name}
                         idempotencyKey={newIdempotencyKey()}
                       />
+                    ) : r.status === 'waitlisted' ? (
+                      <span className="cluster row-actions">
+                        <PromoteRegistrationForm
+                          organizationId={orgId}
+                          eventId={eventId}
+                          registrationId={r.id}
+                          name={r.name}
+                          idempotencyKey={newIdempotencyKey()}
+                          confirmed={summary.confirmed}
+                          capacity={summary.capacity}
+                        />
+                        <CancelRegistrationForm
+                          organizationId={orgId}
+                          eventId={eventId}
+                          registrationId={r.id}
+                          name={r.name}
+                          idempotencyKey={newIdempotencyKey()}
+                          waitlisted
+                        />
+                      </span>
                     ) : null,
                 },
               ]}

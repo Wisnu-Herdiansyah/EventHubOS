@@ -36,7 +36,7 @@ export function CancelRegistration() {
   }
   return (
     <div className="site-form">
-      <p>Cancel your registration? Your place goes to someone else.</p>
+      <p>Cancel your registration, or leave the waitlist? Your place goes to the next person.</p>
       <div>
         <button
           type="button"
@@ -45,7 +45,7 @@ export function CancelRegistration() {
           aria-busy={pending}
           onClick={() => start(async () => setResult(await cancelRegistrationAction(token)))}
         >
-          {pending ? 'Cancelling…' : 'Cancel my registration'}
+          {pending ? 'Cancelling…' : 'Yes, cancel my place'}
         </button>
       </div>
     </div>

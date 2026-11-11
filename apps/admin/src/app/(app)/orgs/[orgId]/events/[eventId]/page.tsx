@@ -111,6 +111,7 @@ export default async function EventPage({
     opensAt: local(s.registration?.opensAt),
     closesAt: local(s.registration?.closesAt),
     capacity: s.registration?.capacity ? String(s.registration.capacity) : '',
+    waitlist: s.registration?.waitlist === true,
   };
   const warnings = checklist.items
     .filter((i) => i.severity === 'recommended' && !i.complete)
@@ -145,7 +146,7 @@ export default async function EventPage({
   ];
 
   const status = lifecycleStatus(evt.lifecycle);
-  const regState = registrationStateLabel(regSummary.state);
+  const regState = registrationStateLabel(regSummary.state, regSummary.waitlist);
   const done = checklist.items.filter((i) => i.complete).length;
 
   const overview = (
@@ -233,6 +234,9 @@ export default async function EventPage({
             <p>
               <strong>{seatsLabel(regSummary.confirmed, regSummary.capacity)}</strong> registered
             </p>
+            {regSummary.waitlisted > 0 ? (
+              <p className="text-secondary">{regSummary.waitlisted} on the waitlist</p>
+            ) : null}
             {regSummary.checkedIn > 0 ? (
               <p className="text-secondary">{regSummary.checkedIn} checked in</p>
             ) : null}

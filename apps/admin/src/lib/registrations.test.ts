@@ -10,6 +10,15 @@ describe('registration labels', () => {
     expect(registrationStateLabel('anything').label).toBe('Closed');
   });
 
+  it('says when a full event is still taking a waitlist (ADR-0035)', () => {
+    expect(registrationStateLabel('full', true)).toEqual({
+      label: 'Full, waitlist open',
+      tone: 'warning',
+    });
+    expect(registrationStateLabel('open', true).label).toBe('Open');
+    expect(registrationStateLabel('full', false).label).toBe('Full');
+  });
+
   it('shows seats against capacity when there is one', () => {
     expect(seatsLabel(12, 100)).toBe('12 of 100');
     expect(seatsLabel(12, null)).toBe('12');

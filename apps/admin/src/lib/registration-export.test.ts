@@ -48,6 +48,8 @@ describe('attendee export (ADR-0027)', () => {
         cancelledAt: null,
         cancelledBy: null,
         checkedInAt: '2027-03-01T01:05:00Z',
+        promotedAt: null,
+        promotedBy: null,
       },
       {
         id: '00000000-0000-4000-8000-000000000002',
@@ -58,6 +60,8 @@ describe('attendee export (ADR-0027)', () => {
         cancelledAt: '2027-02-03T02:30:00Z',
         cancelledBy: 'organizer' as const,
         checkedInAt: null,
+        promotedAt: null,
+        promotedBy: null,
       },
     ],
   };

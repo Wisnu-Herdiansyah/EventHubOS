@@ -13,7 +13,7 @@ import {
   updatePublicHandleAction,
   updateTwoStepRequirementAction,
 } from '@/app/actions/orgs';
-import { initialFormState } from '@/lib/errors';
+import { initialFormState, type FormState } from '@/lib/errors';
 import { VENUE_MODES, VISIBILITY } from '@/lib/options';
 import { Field, FormMessage, Select, SubmitButton } from './form';
 import { Icon } from './ui/icons';
@@ -144,6 +144,39 @@ export interface SettingsDefaults {
   opensAt: string;
   closesAt: string;
   capacity: string;
+  waitlist: boolean;
+}
+
+/** Waitlist on or off (ADR-0035), with its field error from the form state. */
+function WaitlistField({ state, defaultChecked }: { state: FormState; defaultChecked: boolean }) {
+  const error = state.fields?.waitlist;
+  const values = state.values;
+  // After a failed save, show what was submitted rather than the stored value.
+  const checked = values ? values.waitlist === 'on' : defaultChecked;
+  return (
+    <div className="field">
+      <label className="checkbox">
+        <input
+          type="checkbox"
+          name="waitlist"
+          defaultChecked={checked}
+          aria-describedby={error ? 'waitlist-error waitlist-hint' : 'waitlist-hint'}
+          aria-invalid={error ? true : undefined}
+        />
+        <span>Take a waitlist when the event is full</span>
+      </label>
+      <span className="field__hint" id="waitlist-hint">
+        Needs a capacity. When someone cancels or you raise the capacity, the next person waiting
+        gets the seat and an email with their ticket.
+      </span>
+      {error ? (
+        <div className="field__error" id="waitlist-error">
+          <Icon name="error" size={16} />
+          <span>{error}</span>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function EventSettingsForm(props: {
@@ -258,6 +291,7 @@ export function EventSettingsForm(props: {
             defaultValue={d.capacity}
           />
         </div>
+        <WaitlistField state={state} defaultChecked={d.waitlist} />
       </fieldset>
       <div className="form__actions">
         <SubmitButton pendingLabel="Saving…">Save settings</SubmitButton>

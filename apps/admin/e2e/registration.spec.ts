@@ -169,7 +169,7 @@ test('a visitor registers, gets an email, cancels with its link; the organizer s
   const link = await mailLink(attendee, 'registration_confirmed');
   expect(link).toContain('/cancel-registration#token=');
   await v.page.goto(link);
-  await v.page.getByRole('button', { name: 'Cancel my registration' }).click();
+  await v.page.getByRole('button', { name: 'Yes, cancel my place' }).click();
   await expect(v.page.getByRole('status')).toContainText('is cancelled');
   expect(new URL(v.page.url()).hash).toBe('');
   await axeScan(v.page);
@@ -534,4 +534,106 @@ test('the event report shows sign-ups and attendance, and no attendee details', 
   expect(denied.status()).toBe(303);
   expect(denied.headers()['location']).toContain(`/orgs/${t.orgId}/reports`);
   expect(denied.headers()['content-type'] ?? '').not.toContain('text/csv');
+});
+
+test('a full event takes a waitlist; freed seats go to people in the order they joined', async ({
+  page,
+  browser,
+}) => {
+  const t = await publishedEvent('waitlist', { capacity: 1 });
+  const people = {
+    seated: uniqueEmail('wl-seated'),
+    first: uniqueEmail('wl-first'),
+    second: uniqueEmail('wl-second'),
+    leaver: uniqueEmail('wl-leaver'),
+  };
+
+  // The organizer turns the waitlist on; it needs a capacity.
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}`);
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  const waitlistBox = page.getByRole('checkbox', {
+    name: 'Take a waitlist when the event is full',
+  });
+  await page.getByLabel('Capacity', { exact: true }).fill('');
+  await waitlistBox.check();
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(page.getByText('Set a capacity to use a waitlist.')).toBeVisible();
+  await expect(waitlistBox).toBeChecked();
+  await page.getByLabel('Capacity', { exact: true }).fill('1');
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(page.getByText('Settings saved.')).toBeVisible();
+  await expect(waitlistBox).toBeChecked();
+
+  // One seat, then a waitlist on the public page, in joining order.
+  const v = await visitor(browser);
+  const signUp = async (name: string, email: string, button: string) => {
+    await v.page.goto(t.url);
+    const form = v.page.getByRole('region', { name: 'Save your seat' });
+    await form.getByLabel('Name', { exact: true }).fill(name);
+    await form.getByLabel('Email', { exact: true }).fill(email);
+    await form.getByRole('checkbox').check();
+    await form.getByRole('button', { name: button }).click();
+    await expect(form.getByRole('status').last()).toContainText('Check your email');
+  };
+  await signUp('Seated Person', people.seated, 'Save my seat');
+  await v.page.reload();
+  await expect(v.page.getByText('This event is full. Join the waitlist')).toBeVisible();
+  await axeScan(v.page);
+  await signUp('First Waiting', people.first, 'Join the waitlist');
+  await signUp('Second Waiting', people.second, 'Join the waitlist');
+  await signUp('Changed Mind', people.leaver, 'Join the waitlist');
+  const waitMail = await mailMessage(people.first, 'registration_waitlisted');
+  expect(waitMail.subject).toMatch(/^You're on the waitlist: /);
+  expect(waitMail.text).not.toContain('/ticket#id=');
+
+  // Someone leaves the waitlist with their emailed link.
+  await v.page.goto(await mailLink(people.leaver, 'registration_waitlisted'));
+  await v.page.getByRole('button', { name: 'Yes, cancel my place' }).click();
+  await expect(v.page.getByRole('status')).toContainText('You’ve left the waitlist for');
+  await v.context.close();
+
+  // The organizer sees the waitlist in order.
+  const base = `/orgs/${t.orgId}/events/${t.eventId}/registrations`;
+  await page.goto(base);
+  const main = page.getByRole('main');
+  await expect(main.getByText('Registration full, waitlist open')).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Filter registrations' })
+    .getByRole('link', { name: 'Waitlist' })
+    .click();
+  const attendees = page.getByRole('region', { name: 'Attendees' });
+  const rows = attendees.getByRole('row');
+  await expect(rows.nth(1)).toContainText('First Waiting');
+  await expect(rows.nth(2)).toContainText('Second Waiting');
+  await expect(rows).toHaveCount(3);
+  await expectAccessible(page);
+  await page.screenshot({ path: test.info().outputPath('waitlist.png'), fullPage: true });
+
+  // Cancelling the seat gives it to the first person waiting, who is emailed a ticket.
+  await page.getByRole('link', { name: 'Registered', exact: true }).click();
+  await page.getByRole('button', { name: /^Cancel the registration of Seated Person/ }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Cancel registration', exact: true })
+    .click();
+  await expect(page.locator('.toast')).toContainText('Registration cancelled.');
+  const promoted = await mailMessage(people.first, 'registration_promoted');
+  expect(promoted.subject).toMatch(/^A seat opened up: you're registered for /);
+  expect(promoted.text).toContain('/ticket#id=');
+  await page.goto(`${base}?status=confirmed`);
+  await expect(attendees.getByRole('row').filter({ hasText: 'First Waiting' })).toContainText(
+    'Registered from waitlist',
+  );
+
+  // The organizer squeezes the second person in, over capacity, knowingly.
+  await page.goto(`${base}?status=waitlisted`);
+  await attendees.getByRole('button', { name: /^Give a seat to Second Waiting/ }).click();
+  const dialog = page.getByRole('dialog', { name: 'Give Second Waiting a seat?' });
+  await expect(dialog).toContainText('this goes over capacity');
+  await expectAccessible(page);
+  await dialog.getByRole('button', { name: 'Give a seat over capacity' }).click();
+  await expect(page.locator('.toast')).toContainText('They have a seat now');
+  await expect(main.getByText('Nobody is waiting')).toBeVisible();
+  await mailMessage(people.second, 'registration_promoted');
 });

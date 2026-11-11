@@ -18,6 +18,7 @@ import {
 import { runIdempotentCommand } from '../../http/idempotent-command.ts';
 import { defineRoute, type AnyRoute } from '../../http/route.ts';
 import { ianaTimeZone, languageTag, uuid } from '../../http/schemas.ts';
+import { fillWaitlist } from '../registration/routes.ts';
 import { withOrganization, type OrganizationAccess } from '../tenancy/access.ts';
 import { buildChecklist, evaluateForScheduling } from './checklist.ts';
 import { checkTransition, LIFECYCLES, TRANSITIONS, type Lifecycle } from './lifecycle.ts';
@@ -326,6 +327,10 @@ export function eventManagementRoutes(pool: Pool): AnyRoute[] {
                 }
                 // Field names only: values may contain contact details.
                 await record(client, access, correlationId, 'event.updated', row.id, { fields });
+                // A larger (or removed) capacity frees seats for the waitlist (ADR-0035).
+                if (body.settings?.registration !== undefined) {
+                  await fillWaitlist(client, access.organizationId, row.id, correlationId);
+                }
                 return { status: 200, body: toEventDto(updated) };
               },
             ),
