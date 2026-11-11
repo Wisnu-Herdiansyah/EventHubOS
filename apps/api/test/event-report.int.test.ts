@@ -115,6 +115,7 @@ describe('event report', () => {
       cancelled: 2,
       checkedIn: 2,
       noShows: 1,
+      pageViews: 0,
     });
     expect(r.byDay.slice(0, 5)).toEqual([
       { date: '2027-02-02', registered: 3, cancelled: 0 },
@@ -136,7 +137,14 @@ describe('event report', () => {
     const t = await setup([], "now() + interval '30 days'");
     const r = (await t.report()).json();
     expect(r.ended).toBe(false);
-    expect(r.totals).toEqual({ signUps: 0, registered: 0, cancelled: 0, checkedIn: 0, noShows: 0 });
+    expect(r.totals).toEqual({
+      signUps: 0,
+      registered: 0,
+      cancelled: 0,
+      checkedIn: 0,
+      noShows: 0,
+      pageViews: 0,
+    });
     expect(r.byDay).toEqual([]);
     expect(r.checkInsByHour).toEqual([]);
   });

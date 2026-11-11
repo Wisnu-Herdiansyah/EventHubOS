@@ -42,10 +42,12 @@ describe('OpenAPI contract', () => {
     // with the emailed link (ADR-0023). Passkey sign-in options need that same challenge (ADR-0033).
     // Images are served only while a public page's published revision uses them (ADR-0042).
     // The email provider's webhook is authenticated by its signature, not a session (ADR-0043).
+    // The site counts views of public pages; only a daily number is stored (ADR-0044).
     expect(publicOps).toEqual([
       'cancelRegistrationByLink',
       'completeMfaLogin',
       'completePasswordReset',
+      'countPublicPageView',
       'getPublicAsset',
       'getPublicEventPage',
       'logIn',

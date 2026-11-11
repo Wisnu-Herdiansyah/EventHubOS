@@ -8,7 +8,7 @@ import { PageHeader } from '@/components/ui/page-header';
 import { api, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
 import { can } from '@/lib/permissions';
-import { attendanceRate, checkInRows, signUpRows } from '@/lib/report';
+import { attendanceRate, checkInRows, signUpRows, viewRows } from '@/lib/report';
 
 export const metadata: Metadata = { title: 'Report' };
 
@@ -74,6 +74,8 @@ export default async function EventReportPage({
   const rate = attendanceRate(t.registered, t.checkedIn);
   const days = signUpRows(report.byDay);
   const hours = checkInRows(report.checkInsByHour);
+  const views = viewRows(report.pageViewsByDay);
+  const viewsByWeek = report.pageViewsByDay.length > 31;
   const zone = `Times in ${report.timezone}.`;
 
   return (
@@ -96,6 +98,11 @@ export default async function EventReportPage({
           hint={report.ended ? 'Registered, never checked in' : 'Known once the event ends'}
         />
         <Stat label="Cancelled" value={t.cancelled} />
+        <Stat
+          label="Page views"
+          value={t.pageViews}
+          hint="Visits to the public page; approximate"
+        />
       </div>
 
       <Card
@@ -116,6 +123,26 @@ export default async function EventReportPage({
             footnote={`Days in ${report.timezone}.${
               report.truncated ? ' Only the most recent year is shown.' : ''
             }`}
+          />
+        )}
+      </Card>
+
+      <Card
+        title={viewsByWeek ? 'Page views by week' : 'Page views by day'}
+        titleId="views-heading"
+      >
+        {views.length === 0 ? (
+          <EmptyState
+            icon="eye"
+            title="No page views yet"
+            description="Visits to the public event page are counted once it is published."
+          />
+        ) : (
+          <BarChart
+            caption={viewsByWeek ? 'Page views by week' : 'Page views by day'}
+            valueHeader="Views"
+            data={views.map((d) => ({ ...d, series: 1 as const }))}
+            footnote={`Days in ${report.timezone}. Counts full page loads by people, not bots or link previews; nothing about visitors is stored.`}
           />
         )}
       </Card>

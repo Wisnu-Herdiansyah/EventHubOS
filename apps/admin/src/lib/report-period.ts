@@ -140,6 +140,7 @@ export const REPORT_CSV_HEADER = [
   'Cancelled',
   'Checked in',
   'Attendance %',
+  'Page views',
 ];
 
 /** One row per listed event; times in the organization's zone. Attendance only once ended. */
@@ -157,6 +158,7 @@ export function reportCsv(report: Pick<OrganizationReport, 'events' | 'timezone'
         String(e.cancelled),
         String(e.checkedIn),
         rate === null ? '' : String(rate),
+        String(e.pageViews),
       ];
     }),
   );

@@ -127,6 +127,7 @@ describe('organization report', () => {
       endedEvents: 1,
       endedRegistered: 2,
       endedCheckedIn: 1,
+      pageViews: 0,
     });
     // Newest start first.
     expect(r.events.map((e: { name: string }) => e.name)).toEqual(['Future Forum', 'Past Summit']);

@@ -104,8 +104,13 @@ async function publishedEvent(label: string, registration: Record<string, unknow
   };
 }
 
+/** A person on the public site: an ordinary browser, so their page loads count as views. */
+const PERSON_UA =
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36';
+
 async function visitor(browser: Browser) {
   const context = await browser.newContext({
+    userAgent: PERSON_UA,
     extraHTTPHeaders: { 'x-forwarded-for': `198.18.${randomBytes(1)[0]}.${randomBytes(1)[0]}` },
   });
   return { context, page: await context.newPage() };
@@ -433,6 +438,13 @@ test('the event report shows sign-ups and attendance, and no attendee details', 
   await expect(signUps.getByRole('row').last()).toContainText('2');
   const checkIns = page.getByRole('table', { name: 'Check-ins by hour' });
   await expect(checkIns.getByRole('row')).toHaveCount(2); // header + one hour
+  // The visitor loaded the public page twice (ADR-0044); counting happens just after each load.
+  await expect(async () => {
+    await page.reload();
+    await expect(
+      page.getByRole('table', { name: 'Page views by day' }).getByRole('row').last(),
+    ).toContainText('2', { timeout: 1000 });
+  }).toPass({ timeout: 15_000 });
   await expect(main).not.toContainText('Report Person');
   await expectAccessible(page);
   await page.screenshot({ path: test.info().outputPath('report-light.png'), fullPage: true });
@@ -500,10 +512,12 @@ test('the event report shows sign-ups and attendance, and no attendee details', 
     .trim()
     .split('\r\n');
   expect(lines[0]).toBe(
-    'Event,Starts,Status,Registered,Capacity,Cancelled,Checked in,Attendance %',
+    'Event,Starts,Status,Registered,Capacity,Cancelled,Checked in,Attendance %,Page views',
   );
   expect(lines).toHaveLength(2);
-  expect(lines[1]).toMatch(/^Private Summit,\d{4}-\d{2}-\d{2} \d{2}:\d{2},[A-Z][a-z]+,2,\d*,0,1,$/);
+  expect(lines[1]).toMatch(
+    /^Private Summit,\d{4}-\d{2}-\d{2} \d{2}:\d{2},[A-Z][a-z]+,2,\d*,0,1,,2$/,
+  );
   expect(csv).not.toContain('Report Person');
   expect(csv).not.toContain('@');
 

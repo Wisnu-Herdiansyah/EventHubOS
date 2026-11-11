@@ -6385,6 +6385,138 @@
         }
       }
     },
+    "/v1/public/sites/{handle}/events/{eventSlug}/views": {
+      "post": {
+        "operationId": "countPublicPageView",
+        "summary": "Counts one view of a public event page (ADR-0044). Called by the site server after serving the page; stores a daily count only, nothing about the visitor.",
+        "tags": [
+          "public"
+        ],
+        "security": [],
+        "x-eventhub-requires": "public",
+        "x-eventhub-idempotency-exempt": "Counts are approximate by design: a retried request counts again, like a reload.",
+        "x-eventhub-rate-limit": {
+          "max": 30,
+          "timeWindow": "1 minute"
+        },
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])$"
+            }
+          },
+          {
+            "name": "eventSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$"
+            }
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Success (no content)"
+          },
+          "400": {
+            "description": "Validation failed or Idempotency-Key missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated, or invalid credentials on login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (missing permission or unverified email)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found (also returned for resources in other organizations)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Idempotency-Key reused with a different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (generic body with correlation ID)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/public/sites/{handle}/events/{eventSlug}/registrations": {
       "post": {
         "operationId": "registerForEvent",
@@ -11060,6 +11192,11 @@
                 "type": "integer",
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
+              },
+              "pageViews": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               }
             },
             "required": [
@@ -11067,7 +11204,8 @@
               "registered",
               "cancelled",
               "checkedIn",
-              "noShows"
+              "noShows",
+              "pageViews"
             ],
             "additionalProperties": false
           },
@@ -11083,6 +11221,12 @@
               "$ref": "#/components/schemas/ReportHour"
             }
           },
+          "pageViewsByDay": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportViewDay"
+            }
+          },
           "truncated": {
             "type": "boolean"
           }
@@ -11096,6 +11240,7 @@
           "totals",
           "byDay",
           "checkInsByHour",
+          "pageViewsByDay",
           "truncated"
         ],
         "additionalProperties": false
@@ -12030,6 +12175,11 @@
                 "type": "integer",
                 "minimum": -9007199254740991,
                 "maximum": 9007199254740991
+              },
+              "pageViews": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
               }
             },
             "required": [
@@ -12039,7 +12189,8 @@
               "checkedIn",
               "endedEvents",
               "endedRegistered",
-              "endedCheckedIn"
+              "endedCheckedIn",
+              "pageViews"
             ],
             "additionalProperties": false
           },
@@ -13037,6 +13188,11 @@
             "type": "integer",
             "minimum": -9007199254740991,
             "maximum": 9007199254740991
+          },
+          "pageViews": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -13048,7 +13204,8 @@
           "capacity",
           "registered",
           "cancelled",
-          "checkedIn"
+          "checkedIn",
+          "pageViews"
         ],
         "additionalProperties": false
       },
@@ -13085,6 +13242,24 @@
         "required": [
           "month",
           "signUps"
+        ],
+        "additionalProperties": false
+      },
+      "ReportViewDay": {
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string"
+          },
+          "views": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "date",
+          "views"
         ],
         "additionalProperties": false
       },
