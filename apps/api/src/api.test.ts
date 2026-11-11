@@ -41,6 +41,7 @@ describe('OpenAPI contract', () => {
     // the single-use challenge from a correct password (ADR-0022). Visitors register and cancel
     // with the emailed link (ADR-0023). Passkey sign-in options need that same challenge (ADR-0033).
     // Images are served only while a public page's published revision uses them (ADR-0042).
+    // The email provider's webhook is authenticated by its signature, not a session (ADR-0043).
     expect(publicOps).toEqual([
       'cancelRegistrationByLink',
       'completeMfaLogin',
@@ -48,6 +49,7 @@ describe('OpenAPI contract', () => {
       'getPublicAsset',
       'getPublicEventPage',
       'logIn',
+      'receiveEmailFeedback',
       'registerForEvent',
       'requestPasswordReset',
       'signUp',

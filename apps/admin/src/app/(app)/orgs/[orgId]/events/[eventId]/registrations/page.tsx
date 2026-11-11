@@ -85,6 +85,8 @@ export default async function RegistrationsPage({
   const state = registrationStateLabel(summary.state, summary.waitlist);
   const questions = evt.settings.registration?.questions ?? [];
   const base = `/orgs/${orgId}/events/${eventId}/registrations`;
+  // Attendees whose email bounces or was refused (ADR-0043).
+  const undelivered = list?.filter((r) => r.emailUndeliverable).length ?? 0;
 
   return (
     <div className="stack">
@@ -166,6 +168,11 @@ export default async function RegistrationsPage({
               Downloading attendee lists needs Owner, Admin or Registration manager.
             </p>
           )}
+          {undelivered > 0 ? (
+            <p className="card__note text-secondary">
+              {`Email to ${undelivered === 1 ? '1 attendee' : `${undelivered} attendees`} is not being delivered (marked below). Announcements skip them; ask them for another address if you need to reach them.`}
+            </p>
+          ) : null}
           <nav aria-label="Filter registrations" className="cluster filter-links">
             {FILTERS.map((f) => (
               <Link
@@ -211,7 +218,17 @@ export default async function RegistrationsPage({
                 {
                   key: 'email',
                   header: 'Email',
-                  cell: (r) => <span className="wrap-anywhere">{r.email}</span>,
+                  // ADR-0043: email to this address bounces or was refused. Why is not shown.
+                  cell: (r) => (
+                    <span className="stack-sm">
+                      <span className="wrap-anywhere">{r.email}</span>
+                      {r.emailUndeliverable ? (
+                        <span>
+                          <Badge tone="warning">Email not delivered</Badge>
+                        </span>
+                      ) : null}
+                    </span>
+                  ),
                 },
                 ...(questions.length > 0
                   ? [

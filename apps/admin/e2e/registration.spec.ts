@@ -1,7 +1,8 @@
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { expect, type Browser } from '@playwright/test';
 import {
+  API_URL,
   apiCall,
   axeScan,
   createEventViaApi,
@@ -794,4 +795,65 @@ test('an organizer asks registration questions and reads the answers (ADR-0041)'
   expect(csv).toContain(',Company,Lunch');
   expect(csv).toContain(`Ana Answer,${attendee},Registered,`);
   expect(csv).toContain(',"Acme, Inc.",Vegan');
+});
+
+/** A delivery of the email provider's webhook (ADR-0043), signed like Standard Webhooks. */
+async function providerReports(type: 'email.bounced' | 'email.delivered', to: string) {
+  const secret = process.env.E2E_EMAIL_WEBHOOK_SECRET ?? '';
+  const key = Buffer.from(secret.replace(/^whsec_/, ''), 'base64');
+  const id = `msg_${randomBytes(8).toString('hex')}`;
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const body = JSON.stringify({
+    type,
+    created_at: new Date().toISOString(),
+    data: { email_id: `email-${id}`, to: [to], from: 'x@example.test', subject: 's' },
+  });
+  const signature = createHmac('sha256', key).update(`${id}.${timestamp}.${body}`).digest('base64');
+  const res = await fetch(`${API_URL}/v1/webhooks/email-feedback`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'svix-id': id,
+      'svix-timestamp': timestamp,
+      'svix-signature': `v1,${signature}`,
+    },
+    body,
+  });
+  expect(res.status).toBe(204);
+}
+
+test('organizers see which attendees email does not reach (ADR-0043)', async ({
+  page,
+  browser,
+}) => {
+  const t = await publishedEvent('bounce');
+  const v = await visitor(browser);
+  await v.page.goto(t.url);
+  const form = v.page.getByRole('region', { name: 'Save your seat' });
+  const attendee = uniqueEmail('mailbox');
+  await form.getByLabel('Name', { exact: true }).fill('Rina Mailbox');
+  await form.getByLabel('Email', { exact: true }).fill(attendee);
+  await form.getByRole('checkbox').check();
+  await form.getByRole('button', { name: 'Save my seat' }).click();
+  await expect(form.getByRole('status')).toContainText('Check your email');
+  await v.context.close();
+
+  // The provider reports that the mailbox does not exist.
+  await providerReports('email.bounced', attendee);
+
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/registrations`);
+  const attendees = page.getByRole('region', { name: 'Attendees' });
+  const row = attendees.getByRole('row').filter({ hasText: attendee });
+  await expect(row.getByText('Email not delivered')).toBeVisible();
+  await expect(attendees).toContainText('Email to 1 attendee is not being delivered');
+  // The reason (bounce or complaint) is not shown to organizers.
+  await expect(attendees).not.toContainText(/bounce|complain|spam/i);
+  await axeScan(page);
+
+  // A later delivery to that address clears it.
+  await providerReports('email.delivered', attendee);
+  await page.reload();
+  await expect(row.getByText('Email not delivered')).toHaveCount(0);
+  await expect(attendees).not.toContainText('is not being delivered');
 });

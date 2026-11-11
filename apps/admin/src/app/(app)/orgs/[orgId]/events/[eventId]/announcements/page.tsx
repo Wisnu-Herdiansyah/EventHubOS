@@ -130,7 +130,9 @@ export default async function AnnouncementsPage({
                         {a.audience === 'registered_and_waitlist'
                           ? 'Registered and waitlist'
                           : 'Registered'}
-                        {a.skipped > 0 ? ` · ${a.skipped} skipped (cancelled meanwhile)` : ''}
+                        {a.skipped > 0
+                          ? ` · ${a.skipped} skipped (cancelled meanwhile, or email not delivered)`
+                          : ''}
                       </p>
                       <p className="announcement__body">{a.body}</p>
                     </li>

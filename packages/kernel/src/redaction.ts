@@ -13,6 +13,8 @@ export const LOG_REDACT_PATHS: readonly string[] = [
   '*.token',
   '*.secret',
   '*.email',
+  // Email feedback (ADR-0043): recipient addresses from the provider.
+  '*.recipients',
   'body',
   'req.body',
 ];

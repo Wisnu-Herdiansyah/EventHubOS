@@ -11,6 +11,7 @@ import {
 } from '@eventhub/kernel';
 import { LocalDirectoryObjectStore } from '@eventhub/kernel/object-stores';
 import { deleteAssetObjectsConsumer } from './consumers/delete-asset-objects.ts';
+import { SuppressingEmailSender, suppressionLookup } from './adapters/suppressing-email-sender.ts';
 import { LocalFileEmailSender } from './adapters/local-file-email-sender.ts';
 import { ResendEmailSender } from './adapters/resend-email-sender.ts';
 import { sendInvitationEmailConsumer } from './consumers/send-invitation-email.ts';
@@ -63,7 +64,18 @@ const pool = createPool({
   applicationName: 'eventhub-worker',
   max: 4,
 });
-const emailSender = selectEmailSender();
+// Bounced and complaining addresses (ADR-0043) are checked before every email, through a
+// separate small pool (see suppressionLookup).
+const lookupPool = createPool({
+  connectionString: config.database.workerUrl,
+  applicationName: 'eventhub-worker-suppression',
+  max: 2,
+});
+const emailSender = new SuppressingEmailSender(
+  selectEmailSender(),
+  suppressionLookup(lookupPool),
+  logger,
+);
 const objectStore = selectObjectStore();
 const consumers = [
   sendVerificationEmailConsumer(emailSender, {
@@ -151,5 +163,5 @@ while (!controller.signal.aborted) {
     () => undefined,
   );
 }
-await pool.end();
+await Promise.all([pool.end(), lookupPool.end()]);
 logger.info('outbox relay stopped');

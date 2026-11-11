@@ -397,3 +397,22 @@ describe('object storage (ADR-0042)', () => {
     }
   });
 });
+
+describe('email webhook secret (ADR-0043)', () => {
+  const api = { EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl };
+  // Low-entropy fixture: shaped like a secret, never a real one.
+  const fixture = `whsec_${'A'.repeat(32)}`; // pragma: allowlist secret
+
+  it('is optional, and passed through when set', () => {
+    expect(loadApiConfig(api).emailWebhookSecret).toBeNull();
+    expect(loadApiConfig({ ...api, RESEND_WEBHOOK_SECRET: fixture }).emailWebhookSecret).toBe(
+      fixture,
+    );
+  });
+
+  it('rejects something that is not a webhook secret, without echoing it', () => {
+    const e = captureError(() => loadApiConfig({ ...api, RESEND_WEBHOOK_SECRET: SECRET }));
+    expect(e.keys).toEqual(['RESEND_WEBHOOK_SECRET']);
+    expect(e.message).not.toContain(SECRET);
+  });
+});

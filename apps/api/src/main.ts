@@ -5,6 +5,7 @@ import { InMemoryObjectStore, type ObjectStore } from '@eventhub/kernel';
 import { LocalDirectoryObjectStore } from '@eventhub/kernel/object-stores';
 import { buildApp, loggerOptions } from './app.ts';
 import { Argon2idPasswordHasher } from './adapters/argon2id-password-hasher.ts';
+import { ResendEmailFeedbackReceiver } from './adapters/resend-email-feedback.ts';
 import { DatabaseSessionAuthenticator } from './modules/identity/authenticator.ts';
 
 const config = loadApiConfig(process.env);
@@ -22,6 +23,9 @@ function selectObjectStore(): ObjectStore | null {
 
 const app = await buildApp({
   objectStore: selectObjectStore(),
+  emailFeedback: config.emailWebhookSecret
+    ? new ResendEmailFeedbackReceiver(config.emailWebhookSecret)
+    : null,
   pool,
   authenticator: new DatabaseSessionAuthenticator(pool, {
     idleSeconds: config.auth.sessionIdleSeconds,
