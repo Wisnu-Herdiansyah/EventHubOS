@@ -77,3 +77,4 @@ and a link to the event page.
   rise.
 - Delivery status means "handed to the provider", not "opened" or "bounced". Bounce webhooks
   are a follow-up.
+- Bounced and complaining addresses are skipped since ADR-0043.

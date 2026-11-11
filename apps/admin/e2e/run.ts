@@ -103,6 +103,8 @@ const database = `eventhub_e2e_${randomBytes(6).toString('hex')}`;
 const mailDir = await mkdtemp(join(tmpdir(), 'eventhub-e2e-mail-'));
 // Uploaded images (ADR-0042): the API writes, the worker deletes; one local directory per run.
 const objectDir = await mkdtemp(join(tmpdir(), 'eventhub-e2e-objects-'));
+// The email provider's webhook secret (ADR-0043): random per run; tests sign deliveries with it.
+const emailWebhookSecret = `whsec_${randomBytes(24).toString('base64')}`;
 let exitCode = 1;
 let created = false;
 try {
@@ -170,6 +172,7 @@ try {
     PASSKEY_ORIGIN: baseUrl,
     OBJECT_STORE: 'local_directory',
     OBJECT_STORE_DIR: objectDir,
+    RESEND_WEBHOOK_SECRET: emailWebhookSecret,
   });
   start('worker', process.execPath, ['apps/worker/src/main.ts'], {
     EVENTHUB_ENV: 'ci',
@@ -227,6 +230,7 @@ try {
       E2E_BASE_URL: baseUrl,
       E2E_API_URL: apiUrl,
       E2E_MAIL_DIR: mailDir,
+      E2E_EMAIL_WEBHOOK_SECRET: emailWebhookSecret,
       E2E_SITE_URL_TEMPLATE: siteTemplate,
       // Disposable test database, for fixtures that cannot wait in real time (e.g. idle timeout).
       E2E_FIXTURE_DATABASE_URL: withCredentials(ROLE_NAMES.migrator, passwords.migrator, database),

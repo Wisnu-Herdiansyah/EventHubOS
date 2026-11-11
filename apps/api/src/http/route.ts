@@ -26,6 +26,8 @@ export interface PublicRouteContext<TParams, TQuery, TBody> {
   params: TParams;
   query: TQuery;
   body: TBody;
+  /** Request headers, lowercased (e.g. a webhook's signature headers). */
+  headers: Readonly<Record<string, string | undefined>>;
   correlationId: string;
   /** Self-reported by the client; informational only (e.g. naming sessions). */
   userAgent: string | undefined;
@@ -58,6 +60,11 @@ interface RouteBase<TParams, TQuery, TBody> {
   rateLimit?: { max: number; timeWindow: string };
   /** Larger request body limit in bytes (default 64 KiB), e.g. for an image upload. */
   bodyLimit?: number;
+  /**
+   * The JSON body arrives as the exact string sent, unparsed (`schemas.body` validates a
+   * string), so a webhook signature can be checked over the bytes that were signed.
+   */
+  rawBody?: boolean;
   schemas: {
     params?: z.ZodType<TParams>;
     query?: z.ZodType<TQuery>;

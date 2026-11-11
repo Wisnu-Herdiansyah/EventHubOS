@@ -86,6 +86,11 @@ const registrationSchema = z
      * and export (registration.manage), never at the door.
      */
     answers: z.record(z.string(), z.union([z.string(), z.boolean()])).optional(),
+    /**
+     * In the attendee list: true when email to this address bounces or was refused (ADR-0043),
+     * so announcements and reminders do not reach them. Why is not shown.
+     */
+    emailUndeliverable: z.boolean().optional(),
   })
   .meta({ id: 'Registration' });
 
@@ -532,7 +537,26 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                 LIMIT 1000`,
               [access.organizationId, params.eventId, query.status ?? null],
             );
-            return { status: 200, body: { data: rows.map(toDto) } };
+            // Only this event's own addresses are looked up (ADR-0043).
+            const undeliverable = new Set(
+              rows.length === 0
+                ? []
+                : (
+                    await client.query<{ address: string }>(
+                      'SELECT eventhub.email_undeliverable($1) AS address',
+                      [rows.map((r) => r.email)],
+                    )
+                  ).rows.map((r) => r.address),
+            );
+            return {
+              status: 200,
+              body: {
+                data: rows.map((r) => ({
+                  ...toDto(r),
+                  emailUndeliverable: undeliverable.has(r.email.toLowerCase()),
+                })),
+              },
+            };
           },
         );
       },

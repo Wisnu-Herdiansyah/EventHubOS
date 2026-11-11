@@ -162,6 +162,14 @@ const apiSchema = baseSchema.extend({
       message: 'Use an origin only, e.g. https://admin.eventhub.example',
     }),
   ...objectStoreFields,
+  /**
+   * Signing secret of the email provider's delivery webhook (ADR-0043), `whsec_` + base64.
+   * Without it the webhook route is off (404) and no bounces are recorded.
+   */
+  RESEND_WEBHOOK_SECRET: z
+    .string()
+    .regex(/^(whsec_)?[A-Za-z0-9+/]{22,}={0,2}$/, 'Use the whsec_… secret of the webhook')
+    .optional(),
 });
 
 export interface ApiConfig {
@@ -183,6 +191,8 @@ export interface ApiConfig {
   passkeys: { origin: string; rpId: string } | null;
   /** Image storage (ADR-0042); null when OBJECT_STORE is not set. */
   objectStore: ObjectStoreConfig | null;
+  /** Secret: never log. Null keeps the email feedback webhook off (ADR-0043). */
+  emailWebhookSecret: string | null;
 }
 
 export function loadApiConfig(env: Readonly<Record<string, string | undefined>>): ApiConfig {
@@ -229,6 +239,7 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
         }
       : null,
     objectStore: objectStoreConfig(c.EVENTHUB_ENV, c),
+    emailWebhookSecret: c.RESEND_WEBHOOK_SECRET ?? null,
   };
 }
 

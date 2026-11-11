@@ -6,7 +6,13 @@ import Fastify, {
   type FastifyInstance,
   type FastifyServerOptions,
 } from 'fastify';
-import { AppError, internalErrorBody, LOG_REDACT_PATHS, type ObjectStore } from '@eventhub/kernel';
+import {
+  AppError,
+  internalErrorBody,
+  LOG_REDACT_PATHS,
+  type EmailFeedbackReceiver,
+  type ObjectStore,
+} from '@eventhub/kernel';
 import { canonicalJson, type Pool } from '@eventhub/db';
 import { parseInput, type AnyRoute, type RouteResult } from './http/route.ts';
 import { parseBearerToken, type SessionAuthenticator } from './modules/identity/authenticator.ts';
@@ -25,6 +31,7 @@ import { registrationRoutes } from './modules/registration/routes.ts';
 import { reportRoutes } from './modules/report/routes.ts';
 import { announcementRoutes } from './modules/announcement/routes.ts';
 import { assetRoutes } from './modules/asset/routes.ts';
+import { emailFeedbackRoutes } from './modules/email-feedback/routes.ts';
 
 export interface AppDependencies {
   pool: Pool;
@@ -42,6 +49,8 @@ export interface AppDependencies {
   validateResponses?: boolean;
   /** Image storage (ADR-0042); without it, uploads and image bytes answer 503. */
   objectStore?: ObjectStore | null;
+  /** Email provider webhook (ADR-0043); without it, the webhook route answers 404. */
+  emailFeedback?: EmailFeedbackReceiver | null;
 }
 
 const CORRELATION_RE = /^[A-Za-z0-9._:-]{8,128}$/;
@@ -53,6 +62,7 @@ export interface RouteFactoryDeps {
   identity: IdentitySettings;
   invitationTtlSeconds?: number;
   objectStore?: ObjectStore | null;
+  emailFeedback?: EmailFeedbackReceiver | null;
 }
 
 export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
@@ -70,6 +80,7 @@ export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
     ...reportRoutes(deps.pool),
     ...announcementRoutes(deps.pool),
     ...assetRoutes(deps.pool, deps.objectStore ?? null),
+    ...emailFeedbackRoutes(deps.pool, deps.emailFeedback ?? null),
     ...auditRoutes(deps.pool),
   ];
 }
@@ -151,6 +162,23 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
 }
 
 function registerRoute(app: FastifyInstance, route: AnyRoute, deps: AppDependencies): void {
+  if (route.rawBody) {
+    // Its own encapsulated context: only this route keeps JSON bodies as raw strings.
+    void app.register((child, _opts, done) => {
+      // JSON only: no other body type reaches this route.
+      child.removeAllContentTypeParsers();
+      child.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, next) =>
+        next(null, body),
+      );
+      addRoute(child, route, deps);
+      done();
+    });
+    return;
+  }
+  addRoute(app, route, deps);
+}
+
+function addRoute(app: FastifyInstance, route: AnyRoute, deps: AppDependencies): void {
   app.route({
     method: route.method,
     url: route.path,
@@ -165,10 +193,14 @@ function registerRoute(app: FastifyInstance, route: AnyRoute, deps: AppDependenc
         const params = parseInput(route.schemas.params, request.params, 'params');
         const query = parseInput(route.schemas.query, request.query, 'query');
         const body = parseInput(route.schemas.body, request.body ?? {}, 'body');
+        const headers = Object.fromEntries(
+          Object.entries(request.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : v]),
+        );
         result = await route.handler({
           params,
           query,
           body,
+          headers,
           correlationId: request.id,
           userAgent,
         });

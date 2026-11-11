@@ -161,3 +161,43 @@ export class InMemoryObjectStore implements ObjectStore {
     return Promise.resolve();
   }
 }
+
+/**
+ * Delivery feedback from the email provider (ADR-0043): a bounce, a spam complaint, or a
+ * delivery. The provider adapter verifies the webhook signature and maps its payload to this;
+ * domain code never sees provider formats. Addresses are lowercased.
+ */
+export type EmailFeedbackKind = 'bounce' | 'complaint' | 'delivered';
+
+export interface EmailFeedback {
+  /** The provider's event ID: retried deliveries of one event share it. */
+  eventId: string;
+  kind: EmailFeedbackKind;
+  recipients: string[];
+  /** The provider's ID of the email the feedback is about. */
+  providerMessageId: string;
+  occurredAt: Date;
+}
+
+/** Thrown for an unsigned, wrongly signed, stale or malformed webhook. */
+export class WebhookRejected extends Error {
+  readonly reason: 'signature' | 'timestamp' | 'malformed';
+  constructor(reason: WebhookRejected['reason']) {
+    super(`webhook rejected: ${reason}`);
+    this.name = 'WebhookRejected';
+    this.reason = reason;
+  }
+}
+
+export interface EmailFeedbackReceiver {
+  readonly name: string;
+  /**
+   * Verifies and parses one webhook delivery. Returns null for event types that carry no
+   * delivery feedback (they are acknowledged and ignored). Throws WebhookRejected otherwise.
+   */
+  parse(
+    rawBody: string,
+    headers: Readonly<Record<string, string | undefined>>,
+    now: Date,
+  ): EmailFeedback | null;
+}

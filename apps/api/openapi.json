@@ -9339,6 +9339,129 @@
         }
       }
     },
+    "/v1/webhooks/email-feedback": {
+      "post": {
+        "operationId": "receiveEmailFeedback",
+        "summary": "The email provider's signed delivery webhook (bounces, complaints, deliveries). Answers 204 when accepted or ignored, 401 for a bad or stale signature.",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [],
+        "x-eventhub-requires": "public",
+        "x-eventhub-idempotency-exempt": "The provider's event ID is recorded once; a retried delivery of the same event is a no-op.",
+        "x-eventhub-rate-limit": {
+          "max": 600,
+          "timeWindow": "1 minute"
+        },
+        "parameters": [
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "string",
+                "maxLength": 262144
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Success (no content)"
+          },
+          "400": {
+            "description": "Validation failed or Idempotency-Key missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated, or invalid credentials on login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (missing permission or unverified email)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found (also returned for resources in other organizations)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Idempotency-Key reused with a different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (generic body with correlation ID)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/organizations/{organizationId}/audit-events": {
       "get": {
         "operationId": "listAuditEvents",
@@ -12552,6 +12675,9 @@
                 "boolean"
               ]
             }
+          },
+          "emailUndeliverable": {
+            "type": "boolean"
           }
         },
         "required": [
