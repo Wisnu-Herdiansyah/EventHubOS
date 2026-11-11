@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import {
   createEventAction,
+  duplicateEventAction,
   transitionEventAction,
   updateEventSettingsAction,
 } from '@/app/actions/events';
@@ -16,6 +17,7 @@ import {
 import { initialFormState, type FormState } from '@/lib/errors';
 import { VENUE_MODES, VISIBILITY } from '@/lib/options';
 import { Field, FormMessage, Select, SubmitButton } from './form';
+import { Dialog, DialogCancel } from './ui/dialog';
 import { Icon } from './ui/icons';
 
 export function CreateOrganizationForm({
@@ -130,6 +132,62 @@ export function CreateEventForm({
       />
       <SubmitButton pendingLabel="Creating…">Create event</SubmitButton>
     </form>
+  );
+}
+
+/** Copy this event into a new draft (ADR-0036), in a dialog on the event page. */
+export function DuplicateEventForm(props: {
+  organizationId: string;
+  eventId: string;
+  timeZone: string;
+  idempotencyKey: string;
+  defaults: { name: string; slug: string; startsAt: string };
+}) {
+  const [state, action] = useActionState(duplicateEventAction, initialFormState);
+  return (
+    <Dialog
+      trigger={{ label: 'Duplicate…', variant: 'secondary', icon: 'copy' }}
+      title="Duplicate this event"
+      description="Creates a new draft with this event’s details, settings and draft page. Attendees are not copied, and nothing is published."
+    >
+      <form action={action} className="form" noValidate>
+        <FormMessage state={state} />
+        <input type="hidden" name="organizationId" value={props.organizationId} />
+        <input type="hidden" name="eventId" value={props.eventId} />
+        <input type="hidden" name="timezone" value={props.timeZone} />
+        <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
+        <Field
+          name="name"
+          label="New event name"
+          state={state}
+          maxLength={200}
+          required
+          defaultValue={props.defaults.name}
+        />
+        <Field
+          name="slug"
+          label="URL slug"
+          state={state}
+          maxLength={64}
+          required
+          defaultValue={props.defaults.slug}
+          hint="Lowercase letters, digits and hyphens. It must differ from other events’."
+        />
+        <Field
+          name="startsAt"
+          label="Starts"
+          type="datetime-local"
+          state={state}
+          required
+          defaultValue={props.defaults.startsAt}
+          hint={`In ${props.timeZone}. It lasts as long as this one, and the registration window moves with it.`}
+        />
+        <div className="form__actions form__actions--end">
+          <DialogCancel>Cancel</DialogCancel>
+          <SubmitButton pendingLabel="Duplicating…">Create draft copy</SubmitButton>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 

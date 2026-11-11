@@ -1,7 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { EventSettingsForm, TransitionForm, type SettingsDefaults } from '@/components/org-forms';
+import {
+  DuplicateEventForm,
+  EventSettingsForm,
+  TransitionForm,
+  type SettingsDefaults,
+} from '@/components/org-forms';
 import { Badge } from '@/components/ui/badge';
 import { ButtonLink } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -9,6 +14,7 @@ import { Meter } from '@/components/ui/chart';
 import { Icon } from '@/components/ui/icons';
 import { Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
+import { Toast } from '@/components/ui/toast';
 import { Tabs } from '@/components/ui/tabs';
 import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
@@ -19,8 +25,14 @@ import { adminConfig } from '@/lib/config';
 import { publicSiteUrl } from '@/lib/public-url';
 import { registrationStateLabel, seatsLabel } from '@/lib/registrations';
 import { formatInZone, isoToZonedLocal } from '@/lib/time';
+import { nextYearLocal, suggestName, suggestSlug } from '@/lib/duplicate-event';
 
 export const metadata: Metadata = { title: 'Event' };
+
+const NOTICES: Record<string, string> = {
+  duplicated:
+    'Event duplicated. This copy is a draft: check its settings and page, then publish it when ready.',
+};
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
@@ -63,10 +75,14 @@ function transitionMeta(from: string, to: string) {
 
 export default async function EventPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orgId: string; eventId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { orgId, eventId } = await params;
+  const sp = await searchParams;
+  const notice = typeof sp.notice === 'string' ? NOTICES[sp.notice] : undefined;
   if (!UUID.test(orgId) || !UUID.test(eventId)) notFound();
   const path = { organizationId: orgId, eventId };
   let org, evt, checklist, regSummary;
@@ -344,6 +360,19 @@ export default async function EventPage({
         }
         actions={
           <>
+            {can(org.role, 'event.create') ? (
+              <DuplicateEventForm
+                organizationId={orgId}
+                eventId={eventId}
+                timeZone={evt.timezone}
+                idempotencyKey={newIdempotencyKey()}
+                defaults={{
+                  name: suggestName(evt.name),
+                  slug: suggestSlug(evt.slug),
+                  startsAt: nextYearLocal(isoToZonedLocal(evt.startsAt, evt.timezone)),
+                }}
+              />
+            ) : null}
             {can(org.role, 'audit.read') ? (
               <ButtonLink
                 variant="secondary"
@@ -377,6 +406,7 @@ export default async function EventPage({
           </>
         }
       />
+      <Toast message={notice} />
       {settings ? (
         <Tabs
           label="Event sections"
