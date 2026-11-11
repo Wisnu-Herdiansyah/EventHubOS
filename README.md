@@ -9,7 +9,8 @@ Blocking decisions: `docs/architecture/open-decisions.md`.
 
 ## Current scope
 
-Phase 0 (foundation) plus Phase 1 slices:
+Phase 0 (foundation) plus the slices below. What is built, where, and what waits for a
+decision: `docs/architecture/repository-map.md`.
 
 - **Identity** (ADR-0007, ADR-0015): email/password sign-up with Argon2id, email verification,
   login with lockout, logout, password reset by email and change while signed in (ADR-0016),
@@ -30,6 +31,9 @@ Phase 0 (foundation) plus Phase 1 slices:
 - **Microsites** (ADR-0020): a three-panel editor for each event's page with typed sections,
   drafts, and immutable published revisions; editors save, Event managers publish. The program
   has multi-day agenda sessions with rooms and linked speakers, and speaker bios (ADR-0040).
+- **Image library** (ADR-0042): uploads are re-encoded (metadata stripped) and used as speaker
+  photos; images become public only on published pages. Local storage only until the cloud
+  provider is chosen.
 - **Free registration** (ADR-0023): visitors register on the public page (name, email,
   privacy consent, plus up to 10 organizer questions, ADR-0041) and cancel with an emailed link; organizers see attendees, capacity and state,
   can download the list as CSV (ADR-0027), keep a waitlist that fills freed seats in order
@@ -37,17 +41,23 @@ Phase 0 (foundation) plus Phase 1 slices:
   attendees in at the door (ADR-0028),
   by name or by scanning the QR ticket from their email (ADR-0029). Each event has a report of
   sign-ups and attendance, and Reports sums them across the organization, for any period, with
-  a CSV download; counts only (ADR-0030, ADR-0032, ADR-0034).
+  a CSV download; counts only (ADR-0030, ADR-0032, ADR-0034), plus public page views with
+  nothing stored about visitors (ADR-0044).
 - **Public event sites** (ADR-0021): `apps/site` serves published revisions at
   `{org-handle}.{platform domain}/{event-slug}` once an event is published; drafts never.
 - **Design system** (ADR-0019): Apple-inspired tokens with light and dark modes, a shared
   component library, a collapsible sidebar shell, and builder and microsite patterns. Guide:
   [docs/design/design-system.md](docs/design/design-system.md); live gallery at `/design-system`
   in development.
-- **Delivery** (ADR-0008, ADR-0009): Resend email through the PostgreSQL outbox broker.
+- **Delivery** (ADR-0008, ADR-0009): Resend email through the PostgreSQL outbox broker. Bounces
+  and spam complaints arrive by signed webhook and stop the email that should no longer go
+  (ADR-0043).
+- **Platform support** (ADR-0045): EventHub staff, made only by an operator command, can view an
+  organization read-only while its Owner or Admin allows it (up to 3 days), with every page
+  recorded in the organization's audit log.
 - **Admin web app** (ADR-0014): Next.js backend-for-frontend with sign-up, verification (and resend), sign-in,
   invitation acceptance, organizations, team management (invite, revoke, change roles, remove), organization settings, the audit log,
-  and event creation, settings and lifecycle. Session in an
+  events and everything above, and a Platform page for staff. Session in an
   HttpOnly cookie, nonce-based CSP, API types generated from the OpenAPI contract.
 
 All of it sits behind server-resolved tenant context, deny-by-default permissions, PostgreSQL
@@ -58,11 +68,13 @@ RLS, idempotency keys, and transactional audit/outbox records.
 ```
 apps/
   api/        Fastify control-plane API (modular monolith), OpenAPI contract in openapi.json
-  worker/     Outbox relay, consumers (verification and invitation email), email adapters
+  worker/     Outbox relay and consumers (emails, image cleanup), email adapters, sweeps
   admin/      Next.js admin web app (backend-for-frontend), Playwright e2e in admin/e2e
+  site/       Next.js public event sites ({handle}.{domain}/{event-slug})
 packages/
   config/     Typed, fail-closed environment configuration
   kernel/     Errors, permission catalog, domain-event envelope, provider ports + contract tests
+  microsite/  Section renderers shared by the editor preview and the public site
   db/         Pool, tenant transactions, audit/outbox/idempotency, migrations, role bootstrap,
               integration-test harness
 tests/        Cross-process end-to-end tests (API + worker)
@@ -85,6 +97,7 @@ TEST_DATABASE_ADMIN_URL=postgres://postgres:<pw>@localhost:5432/postgres pnpm te
 pnpm openapi:generate    # regenerate apps/api/openapi.json after changing routes
 pnpm test:live           # opt-in live provider contracts (needs RESEND_* credentials)
 pnpm outbox:replay       # return dead-lettered events to the queue (see docs/operations)
+pnpm platform:staff grant|revoke <email> --by "<name>"   # operators only (docs/operations)
 TEST_DATABASE_ADMIN_URL=... pnpm --filter @eventhub/admin e2e   # browser end-to-end tests
 pnpm --filter @eventhub/admin generate:api-types              # after openapi:generate
 ```
@@ -107,6 +120,14 @@ for the worker):
 
 ```bash
 ADMIN_API_URL=http://127.0.0.1:3000 pnpm --filter @eventhub/admin dev   # http://localhost:3001
+```
+
+Public event sites (another terminal; handles resolve as subdomains of `localhost`, e.g.
+`http://your-handle.localhost:3002/your-event`):
+
+```bash
+SITE_API_URL=http://127.0.0.1:3000 SITE_DOMAIN=localhost SITE_HTTPS=0 \
+pnpm --filter @eventhub/site dev                 # http://<handle>.localhost:3002/<event>
 ```
 
 With `EMAIL_SENDER=local_file`, verification emails are written as JSON files to
