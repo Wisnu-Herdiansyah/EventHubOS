@@ -2,7 +2,7 @@ import 'server-only';
 import { ROLE_LABELS } from './options';
 import { can, settingsAbilities, teamAbilities } from './permissions';
 
-export type SectionKey = 'overview' | 'team' | 'settings' | 'audit';
+export type SectionKey = 'overview' | 'reports' | 'team' | 'settings' | 'audit';
 
 export interface NavSection {
   key: SectionKey;
@@ -28,6 +28,8 @@ export function navOrganization(org: {
 }): NavOrganization {
   const base = `/orgs/${org.organizationId}`;
   const sections: NavSection[] = [{ key: 'overview', href: base, label: 'Overview' }];
+  if (can(org.role, 'report.read'))
+    sections.push({ key: 'reports', href: `${base}/reports`, label: 'Reports' });
   if (teamAbilities(org.role).canRead)
     sections.push({ key: 'team', href: `${base}/team`, label: 'Team' });
   if (settingsAbilities(org.role).canOpen)
