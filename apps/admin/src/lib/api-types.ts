@@ -1237,6 +1237,7 @@ export interface components {
                 closesAt?: string;
                 capacity?: number;
                 waitlist?: boolean;
+                waitlistLimit?: number;
             };
             sharing?: {
                 title?: string;
@@ -1279,6 +1280,7 @@ export interface components {
                 closesAt?: string;
                 capacity?: number;
                 waitlist?: boolean;
+                waitlistLimit?: number;
             } | null;
             sharing?: {
                 title?: string;
@@ -1582,6 +1584,7 @@ export interface components {
             checkedInAt: string | null;
             promotedAt: string | null;
             promotedBy: ("waitlist" | "organizer") | null;
+            waitlistClosedAt: string | null;
         };
         RegistrationAccepted: {
             /** @constant */

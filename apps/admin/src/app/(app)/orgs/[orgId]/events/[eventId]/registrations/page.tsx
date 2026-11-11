@@ -222,9 +222,13 @@ export default async function RegistrationsPage({
                         {r.promotedBy ? 'Registered from waitlist' : 'Registered'}
                       </Badge>
                     ) : r.status === 'waitlisted' ? (
-                      <Badge tone="warning" dot>
-                        Waiting
-                      </Badge>
+                      r.waitlistClosedAt ? (
+                        <Badge>Waitlist closed</Badge>
+                      ) : (
+                        <Badge tone="warning" dot>
+                          Waiting
+                        </Badge>
+                      )
                     ) : (
                       <Badge>
                         {r.cancelledBy === 'organizer' ? 'Cancelled by you' : 'Cancelled'}

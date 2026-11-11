@@ -50,6 +50,7 @@ describe('attendee export (ADR-0027)', () => {
         checkedInAt: '2027-03-01T01:05:00Z',
         promotedAt: null,
         promotedBy: null,
+        waitlistClosedAt: null,
       },
       {
         id: '00000000-0000-4000-8000-000000000002',
@@ -62,6 +63,7 @@ describe('attendee export (ADR-0027)', () => {
         checkedInAt: null,
         promotedAt: null,
         promotedBy: null,
+        waitlistClosedAt: null,
       },
     ],
   };

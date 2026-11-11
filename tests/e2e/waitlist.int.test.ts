@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { FastifyInstance, InjectOptions } from 'fastify';
-import { InMemoryEmailSender } from '@eventhub/kernel';
+import { InMemoryEmailSender, type EmailMessage } from '@eventhub/kernel';
 import {
   addFixtureMembership,
   createFixtureEvent,
@@ -19,6 +19,7 @@ import {
 } from '../../apps/worker/src/consumers/send-registration-email.ts';
 import { OutboxDispatchPublisher } from '../../apps/worker/src/outbox-dispatch-publisher.ts';
 import { relayOnce } from '../../apps/worker/src/outbox-relay.ts';
+import { closeWaitlistsOnce } from '../../apps/worker/src/waitlist-closer.ts';
 
 const SECRET = 'test-token-secret-0123456789abcdef'; // pragma: allowlist secret
 const SITE = 'https://{handle}.eventhub.example';
@@ -562,5 +563,175 @@ describe('waitlist', () => {
       client.release();
     }
     expect(await statusOf(t.eventId, w.addr)).toBe('waitlisted');
+  });
+
+  describe('follow-ups (ADR-0038)', () => {
+    const closePass = (sender: { name: string; send(m: EmailMessage): Promise<void> } = inbox) =>
+      closeWaitlistsOnce(pools.worker, sender, { publicSiteUrl: SITE });
+    const closeRegistration = (eventId: string) =>
+      pools.migrator.query(
+        `UPDATE eventhub.event SET settings = jsonb_set(settings, '{registration,closesAt}', to_jsonb($2::text))
+          WHERE id = $1`,
+        [eventId, new Date(Date.now() - 60_000).toISOString()],
+      );
+    /** Runs passes until none is left, as the worker loop would (other tests' events included). */
+    const drainClosing = async () => {
+      for (let i = 0; i < 20 && (await closePass()) > 0; i++);
+    };
+
+    it('caps the waitlist: once it is full the event answers full again', async () => {
+      const t = await publishedEvent({ capacity: 1, waitlist: true, waitlistLimit: 2 });
+      await t.register({ name: 'Seated', email: email() });
+      const first = await signUp(t, 'registration_waitlisted');
+      await signUp(t, 'registration_waitlisted');
+      expect(await publicState(t)).toBe('full');
+      const third = await t.register({ name: 'Third', email: email() });
+      expect(third.statusCode).toBe(409);
+      expect(third.json().error.details.reason).toBe('event_full');
+      // Someone leaves: there is room again.
+      expect((await leave(first.token)).statusCode).toBe(200);
+      expect(await publicState(t)).toBe('waitlist');
+      expect((await t.register({ name: 'Third', email: email() })).statusCode).toBe(202);
+      expect(await publicState(t)).toBe('full');
+      // Someone told the waitlist closed no longer takes up a place on it.
+      await pools.migrator.query(
+        `UPDATE eventhub.registration SET waitlist_closed_at = now()
+          WHERE event_id = $1 AND status = 'waitlisted' AND name = 'Third'`,
+        [t.eventId],
+      );
+      expect(await publicState(t)).toBe('waitlist');
+    });
+
+    it('refuses a waitlist limit without the waitlist', async () => {
+      const t = await waiting(1);
+      const url = `/v1/organizations/${t.orgId}/events/${t.eventId}`;
+      const { version } = (await call({ method: 'GET', url, headers: auth(t.owner) })).json();
+      const res = await call({
+        method: 'PATCH',
+        url,
+        headers: { ...auth(t.owner), ...idem() },
+        payload: {
+          expectedVersion: version,
+          settings: { registration: { capacity: 5, waitlistLimit: 3 } },
+        },
+      });
+      expect(res.statusCode).toBe(400);
+      expect(res.json().error.details.fields[0].path).toBe(
+        'body.settings.registration.waitlistLimit',
+      );
+    });
+
+    it('tells everyone still waiting, once, when registration closes', async () => {
+      const t = await waiting(1);
+      await signUp(t, 'registration_confirmed');
+      const a = await signUp(t, 'registration_waitlisted');
+      const b = await signUp(t, 'registration_waitlisted');
+      const open = await waiting(1);
+      await signUp(open, 'registration_confirmed');
+      const stillOpen = await signUp(open, 'registration_waitlisted');
+
+      await closeRegistration(t.eventId);
+      await drainClosing();
+      for (const p of [a, b]) {
+        const m = mails(p.addr, 'registration_waitlist_closed');
+        expect(m).toHaveLength(1);
+        expect(m[0]!.subject).toMatch(/^The waitlist has closed: /);
+        expect(m[0]!.text).toContain('no seat became free for you');
+        expect(m[0]!.text).toContain(`https://${t.handle}.eventhub.example/${t.slug}`);
+      }
+      // An event still taking registrations is left alone.
+      expect(mails(stillOpen.addr, 'registration_waitlist_closed')).toHaveLength(0);
+      // Never twice.
+      await drainClosing();
+      expect(mails(a.addr, 'registration_waitlist_closed')).toHaveLength(1);
+      // They stay on record as waitlisted (never registered), marked closed, and are not counted
+      // as waiting any more.
+      expect(await statusOf(t.eventId, a.addr)).toBe('waitlisted');
+      expect((await t.summary()).json()).toMatchObject({ confirmed: 1, waitlisted: 0 });
+      const listed = await call({
+        method: 'GET',
+        url: `${t.base}?status=waitlisted`,
+        headers: auth(t.owner),
+      });
+      expect(
+        listed.json().data.every((r: { waitlistClosedAt: string | null }) => r.waitlistClosedAt),
+      ).toBe(true);
+    });
+
+    it('closes the waitlist of an event that ended or was archived early', async () => {
+      for (const lifecycle of ['ended', 'archived'] as const) {
+        const t = await waiting(1);
+        await signUp(t, 'registration_confirmed');
+        const w = await signUp(t, 'registration_waitlisted');
+        await pools.migrator.query(
+          `UPDATE eventhub.event SET lifecycle = $2,
+                  archived_from = CASE WHEN $2 = 'archived' THEN 'ended' END WHERE id = $1`,
+          [t.eventId, lifecycle],
+        );
+        await drainClosing();
+        expect(mails(w.addr, 'registration_waitlist_closed'), lifecycle).toHaveLength(1);
+      }
+    });
+
+    it('never promotes someone who was told the waitlist closed', async () => {
+      const t = await waiting(1);
+      const seated = await signUp(t, 'registration_confirmed');
+      const told = await signUp(t, 'registration_waitlisted');
+      const next = await signUp(t, 'registration_waitlisted');
+      // As if registration had closed and reopened (the organizer moved the closing date).
+      await pools.migrator.query(
+        `UPDATE eventhub.registration SET waitlist_closed_at = now() WHERE event_id = $1 AND email = $2`,
+        [t.eventId, told.addr],
+      );
+      expect((await leave(seated.token)).statusCode).toBe(200);
+      expect(await statusOf(t.eventId, told.addr)).toBe('waitlisted');
+      expect(await statusOf(t.eventId, next.addr)).toBe('confirmed');
+    });
+
+    it('retries a failed pass without a second copy for anyone', async () => {
+      const t = await waiting(1);
+      await signUp(t, 'registration_confirmed');
+      const people = [
+        await signUp(t, 'registration_waitlisted'),
+        await signUp(t, 'registration_waitlisted'),
+      ];
+      await closeRegistration(t.eventId);
+      // Provider-like: one delivery per message ID; the second send fails once.
+      const delivered = new Map<string, EmailMessage>();
+      let calls = 0;
+      const flaky = {
+        name: 'flaky',
+        send(m: EmailMessage) {
+          calls += 1;
+          if (calls === 2) return Promise.reject(new Error('provider outage'));
+          if (!delivered.has(m.messageId)) delivered.set(m.messageId, m);
+          return Promise.resolve();
+        },
+      };
+      await expect(closePass(flaky)).rejects.toThrow('provider outage');
+      // Nothing was marked: the batch rolled back.
+      expect(await statusOf(t.eventId, people[0]!.addr)).toBe('waitlisted');
+      const marked = await pools.migrator.query(
+        'SELECT count(*)::int AS n FROM eventhub.registration WHERE event_id = $1 AND waitlist_closed_at IS NOT NULL',
+        [t.eventId],
+      );
+      expect(marked.rows[0].n).toBe(0);
+      for (let i = 0; i < 20 && (await closePass(flaky)) > 0; i++);
+      const ours = [...delivered.values()].filter((m) => people.some((p) => p.addr === m.to));
+      expect(ours.map((m) => m.to).sort()).toEqual(people.map((p) => p.addr).sort());
+      expect(new Set(ours.map((m) => m.messageId)).size).toBe(2);
+    });
+
+    it('keeps the closing functions to the worker', async () => {
+      await expect(pools.app.query('SELECT * FROM eventhub.waitlist_closing(10)')).rejects.toThrow(
+        /permission denied/,
+      );
+      await expect(
+        pools.app.query('SELECT eventhub.waitlist_mark_closed($1, $2)', [
+          randomUUID(),
+          randomUUID(),
+        ]),
+      ).rejects.toThrow(/permission denied/);
+    });
   });
 });

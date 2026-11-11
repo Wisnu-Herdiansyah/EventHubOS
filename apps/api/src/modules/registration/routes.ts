@@ -76,6 +76,8 @@ const registrationSchema = z
     /** When a waitlisted person got a seat (ADR-0035), or null. */
     promotedAt: z.iso.datetime().nullable(),
     promotedBy: z.enum(['waitlist', 'organizer']).nullable(),
+    /** When a waiting person was told the waitlist closed (ADR-0038), or null. */
+    waitlistClosedAt: z.iso.datetime().nullable(),
   })
   .meta({ id: 'Registration' });
 
@@ -83,7 +85,7 @@ const summarySchema = z
   .object({
     confirmed: z.number().int(),
     cancelled: z.number().int(),
-    /** People waiting for a seat (ADR-0035). */
+    /** People waiting for a seat (ADR-0035); not those told the waitlist closed (ADR-0038). */
     waitlisted: z.number().int(),
     /** Confirmed attendees who have been checked in (ADR-0028). */
     checkedIn: z.number().int(),
@@ -109,6 +111,7 @@ interface RegistrationRow {
   checked_in_at: Date | null;
   promoted_at: Date | null;
   promoted_by: 'waitlist' | 'organizer' | null;
+  waitlist_closed_at: Date | null;
 }
 
 const toDto = (r: RegistrationRow) => ({
@@ -122,10 +125,11 @@ const toDto = (r: RegistrationRow) => ({
   checkedInAt: r.checked_in_at?.toISOString() ?? null,
   promotedAt: r.promoted_at?.toISOString() ?? null,
   promotedBy: r.promoted_by,
+  waitlistClosedAt: r.waitlist_closed_at?.toISOString() ?? null,
 });
 
 const REGISTRATION_COLUMNS =
-  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at, promoted_at, promoted_by';
+  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at, promoted_at, promoted_by, waitlist_closed_at';
 
 /** For the door: no email confirmation, just who and when (ADR-0028). */
 const checkInResultSchema = z
@@ -427,7 +431,8 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                  CROSS JOIN LATERAL (
                    SELECT count(*) FILTER (WHERE r.status = 'confirmed')::int AS confirmed,
                           count(*) FILTER (WHERE r.status = 'cancelled')::int AS cancelled,
-                          count(*) FILTER (WHERE r.status = 'waitlisted')::int AS waitlisted,
+                          count(*) FILTER (WHERE r.status = 'waitlisted'
+                                             AND r.waitlist_closed_at IS NULL)::int AS waitlisted,
                           count(*) FILTER (WHERE r.status = 'confirmed'
                                              AND r.checked_in_at IS NOT NULL)::int AS checked_in
                      FROM eventhub.registration r WHERE r.event_id = e.id

@@ -10,6 +10,7 @@ import { sendMfaChangedEmailConsumer } from './consumers/send-mfa-email.ts';
 import { sendSecurityChangedEmailConsumer } from './consumers/send-security-change-email.ts';
 import { sendTwoStepReminderConsumer } from './consumers/send-two-step-reminder.ts';
 import { sendAnnouncementConsumer } from './consumers/send-announcement.ts';
+import { closeWaitlistsOnce } from './waitlist-closer.ts';
 import {
   sendRegistrationCancelledConsumer,
   sendRegistrationConfirmationConsumer,
@@ -98,6 +99,22 @@ async function reportHealth(): Promise<void> {
   }
 }
 
+/** Waitlists of events whose registration has closed (ADR-0038), checked once a minute. */
+const WAITLIST_CLOSE_INTERVAL_MS = 60_000;
+let lastWaitlistCloseAt = 0;
+async function closeWaitlists(): Promise<void> {
+  if (Date.now() - lastWaitlistCloseAt < WAITLIST_CLOSE_INTERVAL_MS) return;
+  lastWaitlistCloseAt = Date.now();
+  try {
+    const told = await closeWaitlistsOnce(pool, emailSender, {
+      publicSiteUrl: config.publicSiteUrl,
+    });
+    if (told > 0) logger.info({ told }, 'waitlists closed');
+  } catch (error) {
+    logger.error({ err: error }, 'closing waitlists failed');
+  }
+}
+
 logger.info(
   { adapter: publisher.name, email: config.email.sender, consumers: consumers.map((c) => c.name) },
   'outbox relay started',
@@ -110,6 +127,7 @@ while (!controller.signal.aborted) {
     logger.error({ err: error }, 'relay pass failed');
   }
   await reportHealth();
+  await closeWaitlists();
   await sleep(config.outbox.pollIntervalMs, undefined, { signal: controller.signal }).catch(
     () => undefined,
   );
