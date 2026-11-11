@@ -5,6 +5,7 @@ import {
   invitationStatus,
   lifecycleCounts,
   lifecycleStatus,
+  remindedRecently,
   twoStepStatus,
 } from './status';
 
@@ -70,5 +71,15 @@ describe('two-step verification on the Team page (ADR-0025)', () => {
       { role: 'admin' },
     ];
     expect(adminsWithoutTwoStep(list)).toEqual([list[1], list[2]]);
+  });
+});
+
+describe('two-step reminders (ADR-0031)', () => {
+  it('counts a reminder as recent for 24 hours', () => {
+    const now = new Date('2027-03-02T12:00:00Z');
+    expect(remindedRecently(null, now)).toBe(false);
+    expect(remindedRecently('2027-03-02T00:00:00Z', now)).toBe(true);
+    expect(remindedRecently('2027-03-01T12:00:01Z', now)).toBe(true);
+    expect(remindedRecently('2027-03-01T11:59:59Z', now)).toBe(false);
   });
 });

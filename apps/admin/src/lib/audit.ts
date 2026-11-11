@@ -144,6 +144,8 @@ export function describeAuditEvent(
         details: [],
       };
     }
+    case 'membership.two_step_reminder_sent':
+      return { summary: `Reminded ${member} to turn on two-step verification`, details: [] };
     case 'registration.checked_in':
     case 'registration.check_in_undone': {
       const ev = typeof m.eventId === 'string' ? names.events.get(m.eventId) : undefined;

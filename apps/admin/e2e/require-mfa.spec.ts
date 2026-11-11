@@ -130,6 +130,21 @@ test('Owners see who uses two-step verification before and after requiring it', 
 
   await security.getByRole('link', { name: 'See who on the Team page' }).click();
   await expect(row(admin.email)).toContainText('Needed');
+
+  // ADR-0031: remind them. The reminder goes out once a day at most.
+  await row(admin.email)
+    .getByRole('button', { name: `Remind ${admin.email} to turn on two-step verification` })
+    .click();
+  await expect(row(admin.email)).toContainText('Reminded today');
+  const reminder = await mailMessage(admin.email, 'two_step_reminder');
+  expect(reminder.subject).toBe('Posture Org: please turn on two-step verification');
+  expect(reminder.text).toContain(`${owner.email} asks you to turn on two-step verification`);
+  expect(reminder.text).toContain("until it is on, you can't open");
+  await page.reload();
+  await expect(row(admin.email)).toContainText('Reminded today');
+  await expect(row(admin.email).getByRole('button', { name: /^Remind / })).toHaveCount(0);
+  // People who already use it, and yourself, get no button.
+  await expect(row(owner.email).getByRole('button', { name: /^Remind / })).toHaveCount(0);
   // The viewer is not covered by the requirement.
   await expect(row(viewer.email)).toContainText('Off');
   await expect(page.getByRole('main')).toContainText(

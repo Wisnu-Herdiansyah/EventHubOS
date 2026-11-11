@@ -244,7 +244,16 @@ describe('who uses two-step verification (ADR-0025)', () => {
       .json()
       .data.find((m: { userId: string }) => m.userId === t.owner.id);
     expect(Object.keys(owner).sort()).toEqual(
-      ['email', 'joinedAt', 'membershipId', 'role', 'status', 'twoStepEnabled', 'userId'].sort(),
+      [
+        'email',
+        'joinedAt',
+        'membershipId',
+        'role',
+        'status',
+        'twoStepEnabled',
+        'twoStepRemindedAt',
+        'userId',
+      ].sort(),
     );
   });
 

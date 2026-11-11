@@ -146,8 +146,16 @@ test('an Admin cannot grant or manage Owner, and other roles see no team control
     .evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value));
   expect(roleChoices).not.toContain('owner');
   expect(roleChoices).toContain('admin');
-  // The Owner's row has no controls for an Admin; the Viewer's row does.
-  await expect(memberItem(page, owner.email).getByRole('button')).toHaveCount(0);
+  // The Owner's row has no management controls for an Admin; the Viewer's row does. A reminder
+  // to turn on two-step verification is not management, so it is offered (ADR-0031).
+  await expect(
+    memberItem(page, owner.email).getByRole('button', { name: 'Change role' }),
+  ).toHaveCount(0);
+  await expect(
+    memberItem(page, owner.email).getByRole('button', {
+      name: `Remind ${owner.email} to turn on two-step verification`,
+    }),
+  ).toBeVisible();
   await expect(memberItem(page, owner.email).getByRole('button', { name: /^Remove/ })).toHaveCount(
     0,
   );

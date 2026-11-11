@@ -49,6 +49,12 @@ export function twoStepStatus(
   return { label: 'Off', tone: 'neutral' };
 }
 
+/** Reminders are limited to one per member per day (ADR-0031). */
+export function remindedRecently(at: string | null | undefined, now: Date = new Date()): boolean {
+  if (!at) return false;
+  return now.getTime() - Date.parse(at) < 24 * 60 * 60 * 1000;
+}
+
 /** Owners and Admins who do not use two-step verification yet. */
 export function adminsWithoutTwoStep<T extends { role: string; twoStepEnabled?: boolean }>(
   members: T[],
