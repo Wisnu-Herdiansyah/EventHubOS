@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import {
   InviteMemberForm,
   MemberRoleForm,
+  RemindTwoStepForm,
   RemoveMemberForm,
   RevokeInvitationForm,
 } from '@/components/team-forms';
@@ -20,7 +21,12 @@ import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
 import { ROLE_LABELS } from '@/lib/options';
 import { canManageMember, teamAbilities } from '@/lib/permissions';
-import { adminsWithoutTwoStep, invitationStatus, twoStepStatus } from '@/lib/status';
+import {
+  adminsWithoutTwoStep,
+  invitationStatus,
+  remindedRecently,
+  twoStepStatus,
+} from '@/lib/status';
 import { formatInZone } from '@/lib/time';
 
 export const metadata: Metadata = { title: 'Team' };
@@ -181,7 +187,25 @@ export default async function TeamPage({
                             m.role,
                             org.requireMfaForAdmins,
                           );
-                          return <Badge tone={st.tone}>{st.label}</Badge>;
+                          const canRemind =
+                            abilities.canManage &&
+                            m.twoStepEnabled === false &&
+                            m.status === 'active' &&
+                            m.userId !== me.userId;
+                          return (
+                            <span className="cluster">
+                              <Badge tone={st.tone}>{st.label}</Badge>
+                              {canRemind ? (
+                                <RemindTwoStepForm
+                                  organizationId={orgId}
+                                  membershipId={m.membershipId}
+                                  email={m.email}
+                                  remindedToday={remindedRecently(m.twoStepRemindedAt)}
+                                  idempotencyKey={newIdempotencyKey()}
+                                />
+                              ) : null}
+                            </span>
+                          );
                         },
                       },
                     ]

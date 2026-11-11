@@ -4,6 +4,7 @@ import { useActionState } from 'react';
 import {
   changeMemberRoleAction,
   inviteMemberAction,
+  remindTwoStepAction,
   removeMemberAction,
   revokeInvitationAction,
 } from '@/app/actions/team';
@@ -161,5 +162,38 @@ export function RevokeInvitationForm(props: {
         </div>
       </form>
     </Dialog>
+  );
+}
+
+/**
+ * "Remind" next to a member without two-step verification (ADR-0031). Once sent (or within a day
+ * of the last reminder) it shows that instead of the button.
+ */
+export function RemindTwoStepForm(props: {
+  organizationId: string;
+  membershipId: string;
+  email: string;
+  remindedToday: boolean;
+  idempotencyKey: string;
+}) {
+  const [state, action] = useActionState(remindTwoStepAction, initialFormState);
+  if (props.remindedToday || state.ok) {
+    return (
+      <span className="text-secondary field__hint" role={state.ok ? 'status' : undefined}>
+        Reminded today
+      </span>
+    );
+  }
+  return (
+    <form action={action} className="form form--inline" noValidate>
+      <FormMessage state={state} />
+      <input type="hidden" name="organizationId" value={props.organizationId} />
+      <input type="hidden" name="membershipId" value={props.membershipId} />
+      <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
+      <SubmitButton variant="plain" size="sm" pendingLabel="Sending…">
+        Remind
+        <span className="visually-hidden"> {props.email} to turn on two-step verification</span>
+      </SubmitButton>
+    </form>
   );
 }

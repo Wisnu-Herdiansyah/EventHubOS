@@ -112,3 +112,25 @@ export async function removeMemberAction(_prev: FormState, form: FormData): Prom
   }
   redirect(target);
 }
+
+/** Emails a member asking them to turn on two-step verification (ADR-0031). */
+export async function remindTwoStepAction(_prev: FormState, form: FormData): Promise<FormState> {
+  let organizationId: string;
+  try {
+    organizationId = uuidField(form, 'organizationId');
+    const membershipId = uuidField(form, 'membershipId');
+    const client = await api();
+    unwrap(
+      await client.POST(
+        '/v1/organizations/{organizationId}/members/{membershipId}/two-step-reminder',
+        {
+          params: { path: { organizationId, membershipId }, header: idempotency(form) },
+        },
+      ),
+    );
+  } catch (error) {
+    return errorToFormState(error);
+  }
+  revalidatePath(teamPath(organizationId));
+  return { ok: true, message: 'Reminder sent.' };
+}

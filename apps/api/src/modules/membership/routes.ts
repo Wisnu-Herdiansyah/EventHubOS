@@ -75,6 +75,8 @@ const memberSchema = z
      * membership.manage, who decide whether to require it.
      */
     twoStepEnabled: z.boolean().optional(),
+    /** When the member was last reminded to turn it on (ADR-0031); with twoStepEnabled only. */
+    twoStepRemindedAt: z.iso.datetime().nullable().optional(),
   })
   .meta({ id: 'Member' });
 
@@ -422,12 +424,18 @@ export function membershipRoutes(pool: Pool, invitationTtlSeconds: number): AnyR
             );
             // Security posture of colleagues: only for those who manage membership (deny by default).
             let mfa: Map<string, boolean> | null = null;
+            let remindedAt = new Map<string, Date | null>();
             if (roleHasPermission(access.role, 'membership.manage')) {
               const res = await client.query<{ out_user_id: string; out_mfa_enabled: boolean }>(
                 'SELECT out_user_id, out_mfa_enabled FROM eventhub.organization_member_mfa($1)',
                 [access.organizationId],
               );
               mfa = new Map(res.rows.map((r) => [r.out_user_id, r.out_mfa_enabled]));
+              const reminded = await client.query<{ id: string; at: Date | null }>(
+                'SELECT id, two_step_reminded_at AS at FROM eventhub.membership WHERE organization_id = $1',
+                [access.organizationId],
+              );
+              remindedAt = new Map(reminded.rows.map((r) => [r.id, r.at]));
             }
             return {
               status: 200,
@@ -439,11 +447,101 @@ export function membershipRoutes(pool: Pool, invitationTtlSeconds: number): AnyR
                   role: r.out_role,
                   status: r.out_status,
                   joinedAt: r.out_accepted_at?.toISOString() ?? null,
-                  ...(mfa ? { twoStepEnabled: mfa.get(r.out_user_id) ?? false } : {}),
+                  ...(mfa
+                    ? {
+                        twoStepEnabled: mfa.get(r.out_user_id) ?? false,
+                        twoStepRemindedAt:
+                          remindedAt.get(r.out_membership_id)?.toISOString() ?? null,
+                      }
+                    : {}),
                 })),
               },
             };
           },
+        );
+      },
+    }),
+
+    defineRoute({
+      method: 'POST',
+      path: '/v1/organizations/:organizationId/members/:membershipId/two-step-reminder',
+      operationId: 'remindTwoStep',
+      summary:
+        'Email a member asking them to turn on two-step verification (ADR-0031). At most once a day per member.',
+      tags: ['members'],
+      requires: 'membership.manage',
+      idempotent: true,
+      schemas: { params: memberParams, response: { status: 202 } },
+      async handler({ principal, params, correlationId, idempotencyKey, idempotencyScope }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'membership.manage',
+          (client, access) =>
+            runIdempotentCommand(
+              client,
+              {
+                actorId: principal.userId,
+                scope: idempotencyScope,
+                key: idempotencyKey!,
+                body: {},
+              },
+              async () => {
+                const { rows } = await client.query<{
+                  id: string;
+                  user_id: string;
+                  role: Role;
+                  status: string;
+                  recent: boolean;
+                }>(
+                  `SELECT id, user_id, role, status,
+                          coalesce(two_step_reminded_at > now() - interval '1 day', false) AS recent
+                     FROM eventhub.membership
+                    WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
+                  [access.organizationId, params.membershipId],
+                );
+                const target = rows[0];
+                if (!target || target.status !== 'active') throw notFound('Member');
+                if (target.user_id === principal.userId) {
+                  throw conflict('self', 'Turn on two-step verification from your Account page.');
+                }
+                const mfa = await client.query<{ out_user_id: string; out_mfa_enabled: boolean }>(
+                  'SELECT out_user_id, out_mfa_enabled FROM eventhub.organization_member_mfa($1)',
+                  [access.organizationId],
+                );
+                if (mfa.rows.some((r) => r.out_user_id === target.user_id && r.out_mfa_enabled)) {
+                  throw conflict(
+                    'already_enabled',
+                    'This member already uses two-step verification.',
+                  );
+                }
+                if (target.recent) {
+                  throw conflict(
+                    'recently_reminded',
+                    'This member was reminded in the last 24 hours. Try again tomorrow.',
+                  );
+                }
+                await client.query(
+                  `UPDATE eventhub.membership SET two_step_reminded_at = now()
+                    WHERE organization_id = $1 AND id = $2`,
+                  [access.organizationId, target.id],
+                );
+                // The audit record names the membership, never the address the email goes to.
+                await recordMembershipChange(
+                  client,
+                  access,
+                  { type: 'user', id: principal.userId },
+                  'membership.two_step_reminder_sent',
+                  'membership',
+                  target.id,
+                  correlationId,
+                  { role: target.role },
+                  { membershipId: target.id },
+                );
+                return { status: 202, body: null };
+              },
+            ),
         );
       },
     }),
