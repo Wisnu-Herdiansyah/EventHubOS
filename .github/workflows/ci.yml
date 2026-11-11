@@ -75,8 +75,19 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Install Chromium for Playwright
+      - name: Install Chromium for Playwright (with system packages)
+        id: chromium
+        continue-on-error: true
+        timeout-minutes: 5
         run: pnpm --filter @eventhub/admin exec playwright install --with-deps chromium
+      # The Ubuntu package mirror is sometimes unreachable from runners. The ubuntu-24.04 image
+      # already ships the libraries Chromium needs, so install the browser alone; a library that
+      # were really missing would make the tests fail, never pass.
+      - name: Install Chromium for Playwright (browser only, mirror unreachable)
+        if: steps.chromium.outcome == 'failure'
+        run: |
+          echo "::warning::System packages for Chromium could not be installed; using the runner image's libraries."
+          pnpm --filter @eventhub/admin exec playwright install chromium
       # Builds the admin and public site apps, starts a fresh database, the API, the worker and
       # both apps (sites on *.localhost), then runs
       # the journeys, security-header, session-cookie, tenant-isolation and accessibility checks.
