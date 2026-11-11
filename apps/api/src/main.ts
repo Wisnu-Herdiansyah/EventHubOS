@@ -1,4 +1,5 @@
 import { loadApiConfig } from '@eventhub/config';
+import { simpleWebAuthnRelyingParty } from './adapters/simplewebauthn-passkeys.ts';
 import { createPool } from '@eventhub/db';
 import { buildApp, loggerOptions } from './app.ts';
 import { Argon2idPasswordHasher } from './adapters/argon2id-password-hasher.ts';
@@ -15,7 +16,11 @@ const app = await buildApp({
     idleSeconds: config.auth.sessionIdleSeconds,
   }),
   passwordHasher: new Argon2idPasswordHasher(),
-  identity: { ...config.auth, mfaEncryptionKey: config.mfa.encryptionKey },
+  identity: {
+    ...config.auth,
+    mfaEncryptionKey: config.mfa.encryptionKey,
+    passkeys: config.passkeys ? simpleWebAuthnRelyingParty(config.passkeys) : null,
+  },
   invitationTtlSeconds: config.invitations.ttlSeconds,
   logger: loggerOptions(config.logLevel),
   trustProxy: config.http.trustProxy,

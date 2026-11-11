@@ -21,7 +21,7 @@ export interface TwoStepStatus {
   recoveryCodesRemaining: number;
 }
 
-function Input(props: {
+export function Input(props: {
   id: string;
   label: string;
   value: string;
@@ -66,7 +66,11 @@ function Input(props: {
   );
 }
 
-function Problem({ result }: { result: MfaActionResult | null }) {
+export function Problem({
+  result,
+}: {
+  result: Pick<MfaActionResult, 'ok' | 'message' | 'reference'> | null;
+}) {
   if (!result || result.ok || !result.message) return null;
   return (
     <Notice tone="danger" reference={result.reference}>

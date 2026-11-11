@@ -277,7 +277,16 @@ export function ResetPasswordForm() {
   );
 }
 
-export function VerifyLoginForm({ next, recovery }: { next: string; recovery: boolean }) {
+export function VerifyLoginForm({
+  next,
+  recovery,
+  secondary = false,
+}: {
+  next: string;
+  recovery: boolean;
+  /** A passkey is offered first (ADR-0033), so the code is the alternative. */
+  secondary?: boolean;
+}) {
   const [state, action] = useActionState(verifyLoginAction, initialFormState);
   if (state.reason === 'challenge_invalid' || state.reason === 'locked') {
     return (
@@ -316,7 +325,7 @@ export function VerifyLoginForm({ next, recovery }: { next: string; recovery: bo
           required
         />
       )}
-      <SubmitButton block pendingLabel="Verifying…">
+      <SubmitButton block variant={secondary ? 'secondary' : undefined} pendingLabel="Verifying…">
         Verify
       </SubmitButton>
     </form>

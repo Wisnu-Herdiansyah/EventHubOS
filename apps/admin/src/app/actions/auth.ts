@@ -28,7 +28,11 @@ export async function loginAction(_prev: FormState, form: FormData): Promise<For
     if ('mfaRequired' in result) {
       // Password accepted; the second step happens on its own page (ADR-0022).
       await writeMfaChallenge(result.challengeToken, result.expiresAt);
-      target = `/login/verify${next !== '/' ? `?next=${encodeURIComponent(next)}` : ''}`;
+      const query = new URLSearchParams();
+      if (next !== '/') query.set('next', next);
+      // ADR-0033: offer the passkey first when the account has one.
+      if (result.passkey) query.set('pk', '1');
+      target = `/login/verify${query.size ? `?${query.toString()}` : ''}`;
     } else {
       await clearMfaChallenge();
       await writeSession(result.token, result.expiresAt);

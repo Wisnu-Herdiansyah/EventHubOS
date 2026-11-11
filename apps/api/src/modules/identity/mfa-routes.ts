@@ -11,6 +11,7 @@ import {
   type SecretBox,
 } from './mfa-crypto.ts';
 import { loginPasswordSchema, type PasswordHasher } from './password.ts';
+import { checkLoginPasskey, webauthnResponseSchema } from './passkey-routes.ts';
 import { reauthenticate } from './reauth.ts';
 import { audit, newSessionToken, type IdentitySettings } from './routes.ts';
 import { base32Encode, matchTotp, newTotpSecret, otpauthUri } from './totp.ts';
@@ -80,10 +81,18 @@ function badCode(path = 'body.code'): AppError {
   });
 }
 
-async function notify(
+export type MfaChange =
+  | 'enabled'
+  | 'disabled'
+  | 'recovery_codes_regenerated'
+  | 'recovery_code_used'
+  | 'passkey_added'
+  | 'passkey_removed';
+
+export async function notify(
   client: PoolClient,
   userId: string,
-  change: 'enabled' | 'disabled' | 'recovery_codes_regenerated' | 'recovery_code_used',
+  change: MfaChange,
   correlationId: string,
 ): Promise<void> {
   await enqueueEvent(
@@ -350,8 +359,14 @@ export function mfaRoutes(
               return false;
             }
             await client.query('SELECT eventhub.auth_mfa_disable($1)', [principal.userId]);
+            // Passkeys are a way to give the second step (ADR-0033); without it they go too.
+            const passkeys = await client.query<{ auth_passkey_remove_all: number }>(
+              'SELECT eventhub.auth_passkey_remove_all($1)',
+              [principal.userId],
+            );
             await audit(client, 'identity.mfa_disabled', actor, principal.userId, correlationId, {
               method: body.code !== undefined ? 'totp' : 'recovery_code',
+              passkeysRemoved: passkeys.rows[0]!.auth_passkey_remove_all,
             });
             await notify(client, principal.userId, 'disabled', correlationId);
             return true;
@@ -424,7 +439,7 @@ export function mfaRoutes(
       path: '/v1/auth/login/mfa',
       operationId: 'completeMfaLogin',
       summary:
-        'Second step of sign-in: the challenge from POST /v1/auth/login plus an app code or a recovery code. Wrong codes count toward the account lockout.',
+        'Second step of sign-in: the challenge from POST /v1/auth/login plus an app code, a recovery code or a passkey. Failures count toward the account lockout.',
       tags: ['identity'],
       idempotent: false,
       idempotencyExempt: 'The challenge is single-use; a repeat is refused.',
@@ -434,9 +449,14 @@ export function mfaRoutes(
           .object({
             challengeToken: z.string().regex(TOKEN_RE, 'Malformed challenge.'),
             ...secondFactor,
+            /** A passkey assertion (ADR-0033), after POST /v1/auth/login/mfa/passkey-options. */
+            passkey: webauthnResponseSchema.optional(),
           })
           .strict()
-          .refine(oneFactor, oneFactorMessage)
+          .refine(
+            (b) => [b.code, b.recoveryCode, b.passkey].filter((f) => f !== undefined).length === 1,
+            { message: 'Provide one of code, recoveryCode or passkey.' },
+          )
           .meta({ id: 'CompleteMfaLoginRequest' }),
         response: {
           status: 200,
@@ -469,15 +489,38 @@ export function mfaRoutes(
         }
         const userId = ch.out_user_id;
         const actor: Actor = { type: 'user', id: userId };
-        const method = body.code !== undefined ? 'totp' : 'recovery_code';
+        const method =
+          body.code !== undefined
+            ? 'totp'
+            : body.passkey !== undefined
+              ? 'passkey'
+              : 'recovery_code';
         const step =
           body.code !== undefined && !ch.out_locked
             ? verifyCode(ch.out_secret_sealed, userId, body.code)
             : null;
+        const passkey =
+          body.passkey !== undefined && !ch.out_locked
+            ? await checkLoginPasskey(pool, settings.passkeys, {
+                userId,
+                mfaChallengeId: ch.out_challenge_id,
+                response: body.passkey,
+              })
+            : null;
 
         const outcome = await withTransaction(pool, {}, async (client) => {
           let ok = false;
-          if (!ch.out_locked) {
+          if (!ch.out_locked && body.passkey !== undefined) {
+            // The counter must move forward, or the authenticator may have been cloned.
+            ok =
+              passkey !== null &&
+              (
+                await client.query<{ auth_passkey_use: boolean }>(
+                  'SELECT eventhub.auth_passkey_use($1, $2, $3)',
+                  [userId, passkey.credentialId, passkey.newCounter],
+                )
+              ).rows[0]!.auth_passkey_use;
+          } else if (!ch.out_locked) {
             ok =
               body.code !== undefined
                 ? step !== null &&
@@ -552,7 +595,9 @@ export function mfaRoutes(
             'invalid_credentials',
             outcome.locked
               ? 'Too many incorrect attempts. Try again later.'
-              : 'That code is incorrect or was already used.',
+              : method === 'passkey'
+                ? 'That passkey could not be verified. Try again, or use your app code.'
+                : 'That code is incorrect or was already used.',
             { details: { reason: outcome.locked ? 'locked' : 'bad_code' } },
           );
         }
