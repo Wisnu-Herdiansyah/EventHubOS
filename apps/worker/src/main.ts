@@ -9,6 +9,7 @@ import { sendInvitationEmailConsumer } from './consumers/send-invitation-email.t
 import { sendMfaChangedEmailConsumer } from './consumers/send-mfa-email.ts';
 import { sendSecurityChangedEmailConsumer } from './consumers/send-security-change-email.ts';
 import { sendTwoStepReminderConsumer } from './consumers/send-two-step-reminder.ts';
+import { sendAnnouncementConsumer } from './consumers/send-announcement.ts';
 import {
   sendRegistrationCancelledConsumer,
   sendRegistrationConfirmationConsumer,
@@ -64,6 +65,7 @@ const consumers = [
   sendMfaChangedEmailConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
   sendSecurityChangedEmailConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
   sendTwoStepReminderConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
+  sendAnnouncementConsumer(emailSender, { publicSiteUrl: config.publicSiteUrl }),
   sendRegistrationConfirmationConsumer(emailSender, {
     publicSiteUrl: config.publicSiteUrl,
     tokenSecret: config.emailTokenSecret,

@@ -167,6 +167,36 @@ export function Field(props: FieldProps) {
   );
 }
 
+/** Labelled multi-line text, with hint and error wired up like Field. */
+export function TextArea(
+  props: FieldBase & { defaultValue?: string; maxLength?: number; rows?: number },
+) {
+  const { name, label, state, hint, defaultValue, required } = props;
+  const { id, error, describedBy } = useFieldIds(props);
+  return (
+    <FieldFrame
+      id={id}
+      label={label}
+      hideLabel={props.hideLabel}
+      required={required}
+      hint={hint}
+      error={error}
+    >
+      <textarea
+        id={id}
+        name={name}
+        className="input textarea"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy}
+        defaultValue={state.values?.[name] ?? defaultValue}
+        required={required}
+        maxLength={props.maxLength}
+        rows={props.rows ?? 8}
+      />
+    </FieldFrame>
+  );
+}
+
 interface SelectProps extends FieldBase {
   options: Array<{ value: string; label: string }>;
   defaultValue?: string;

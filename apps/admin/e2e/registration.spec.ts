@@ -637,3 +637,71 @@ test('a full event takes a waitlist; freed seats go to people in the order they 
   await expect(main.getByText('Nobody is waiting')).toBeVisible();
   await mailMessage(people.second, 'registration_promoted');
 });
+
+test('an organizer emails an announcement to everyone registered (ADR-0037)', async ({
+  page,
+  browser,
+}) => {
+  const t = await publishedEvent('announce');
+  const attendee = uniqueEmail('announce-attendee');
+  const v = await visitor(browser);
+  await v.page.goto(t.url);
+  const form = v.page.getByRole('region', { name: 'Save your seat' });
+  await form.getByLabel('Name', { exact: true }).fill('Annie Attendee');
+  await form.getByLabel('Email', { exact: true }).fill(attendee);
+  await form.getByRole('checkbox').check();
+  await form.getByRole('button', { name: 'Save my seat' }).click();
+  await expect(form.getByRole('status')).toContainText('Check your email');
+  await v.context.close();
+
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}`);
+  await page.getByRole('link', { name: 'Announcements' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Announcements' })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Everyone registered (1 person)' })).toBeChecked();
+  await expect(page.getByText('Nothing sent yet.')).toBeVisible();
+  await expectAccessible(page);
+
+  // Nothing is sent without a subject.
+  await page.getByLabel('Message').fill('Doors open at 08:00.\nBring your ticket.');
+  await page.getByRole('button', { name: 'Send…' }).click();
+  await page
+    .getByRole('dialog', { name: 'Send this announcement now?' })
+    .getByRole('button', { name: 'Send now' })
+    .click();
+  await expect(page.getByText('Enter a subject.')).toBeVisible();
+  await expect(page.getByLabel('Message')).toHaveValue('Doors open at 08:00.\nBring your ticket.');
+
+  await page.getByLabel('Subject').fill('Doors open early');
+  await page.getByRole('button', { name: 'Send…' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Send this announcement now?' });
+  await expect(dialog).toContainText('can’t be taken back');
+  await expectAccessible(page);
+  await dialog.getByRole('button', { name: 'Send now' }).click();
+  await expect(page.locator('.toast')).toContainText('Announcement sent.');
+
+  const mail = await mailMessage(attendee, 'event_announcement');
+  expect(mail.subject).toBe('Private Summit: Doors open early');
+  expect(mail.text).toContain('Hello Annie Attendee,');
+  expect(mail.text).toContain('Doors open at 08:00.\nBring your ticket.');
+  expect(mail.text).toContain('to people who signed up for Private Summit');
+
+  const sent = page.getByRole('list', { name: 'Sent announcements' });
+  await expect(sent).toContainText('Doors open early');
+  await expect(async () => {
+    await page.reload();
+    await expect(sent.getByText('Delivered to 1')).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
+  await expect(sent).toContainText(`by ${t.owner.email}`);
+  await expectAccessible(page);
+  await page.screenshot({ path: test.info().outputPath('announcements.png'), fullPage: true });
+
+  // Registration managers see attendees but cannot email them all.
+  const manager = await joinAs(t.owner.token, t.orgId, 'announce-regman', 'registration_manager');
+  await signOut(page);
+  await signIn(page, manager.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}`);
+  await expect(page.getByRole('link', { name: 'Announcements' })).toHaveCount(0);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/announcements`);
+  await expect(page.getByRole('main')).toContainText('can send announcements');
+});

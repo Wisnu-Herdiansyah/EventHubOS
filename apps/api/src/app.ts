@@ -23,6 +23,7 @@ import { pageRoutes } from './modules/page/routes.ts';
 import { publicSiteRoutes } from './modules/public-site/routes.ts';
 import { registrationRoutes } from './modules/registration/routes.ts';
 import { reportRoutes } from './modules/report/routes.ts';
+import { announcementRoutes } from './modules/announcement/routes.ts';
 
 export interface AppDependencies {
   pool: Pool;
@@ -63,6 +64,7 @@ export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
     ...publicSiteRoutes(deps.pool),
     ...registrationRoutes(deps.pool),
     ...reportRoutes(deps.pool),
+    ...announcementRoutes(deps.pool),
     ...auditRoutes(deps.pool),
   ];
 }
