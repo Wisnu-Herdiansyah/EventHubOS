@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { ButtonLink } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { EmptyState } from '@/components/ui/empty-state';
-import { Icon } from '@/components/ui/icons';
+import { DateInput } from '@/components/ui/date-input';
 import { Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
 import { api, signInOn401, unwrap } from '@/lib/api';
@@ -255,29 +255,6 @@ export default async function AuditLogPage({
           </Card>
         </>
       )}
-    </div>
-  );
-}
-
-/** A native date picker, styled to match (GET form, so not the FormState-bound Field). */
-function DateInput(props: { id: string; name: string; label: string; value?: string }) {
-  return (
-    <div className="field">
-      <label className="field__label" htmlFor={props.id}>
-        {props.label}
-      </label>
-      <div className="date-field">
-        <input
-          id={props.id}
-          name={props.name}
-          type="date"
-          className="input"
-          defaultValue={props.value}
-        />
-        <span className="date-field__icon">
-          <Icon name="calendar" size={18} />
-        </span>
-      </div>
     </div>
   );
 }

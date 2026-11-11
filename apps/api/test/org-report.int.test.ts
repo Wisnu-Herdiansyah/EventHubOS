@@ -77,14 +77,28 @@ async function setup() {
     );
     return id;
   };
-  const report = (as: FixtureUser = owner) =>
-    app.inject({ method: 'GET', url: `/v1/organizations/${orgId}/report`, headers: auth(as) });
+  const report = (as: FixtureUser = owner, query = '') =>
+    app.inject({
+      method: 'GET',
+      url: `/v1/organizations/${orgId}/report${query}`,
+      headers: auth(as),
+    });
+  /** An event at a fixed time (UTC ISO). */
+  const eventAt = async (startsAt: string, name: string) => {
+    const id = await createFixtureEvent(pools.migrator, orgId, owner.id);
+    await pools.migrator.query(
+      `UPDATE eventhub.event SET name = $2, starts_at = $3,
+              ends_at = $3::timestamptz + interval '2 hours' WHERE id = $1`,
+      [id, name, startsAt],
+    );
+    return id;
+  };
   const member = async (role: string) => {
     const u = await createFixtureUser(pools.migrator);
     await addFixtureMembership(pools.migrator, orgId, u.id, role);
     return u;
   };
-  return { owner, orgId, event, report, member };
+  return { owner, orgId, event, eventAt, report, member };
 }
 
 // The first instant of this month in Jakarta, as SQL.
@@ -159,6 +173,95 @@ describe('organization report', () => {
     expect(r.truncated).toBe(true);
   });
 
+  it('without a period reports all time', async () => {
+    const t = await setup();
+    const r = (await t.report()).json();
+    expect(r.period).toBeNull();
+    expect(r.monthsTruncated).toBe(false);
+  });
+
+  it('a period selects events that start on its days in the organization time zone', async () => {
+    const t = await setup();
+    // 23:30 on 1 March in Jakarta (UTC+7), and 00:30 on 2 March.
+    const inside = await t.eventAt('2030-03-01T16:30:00Z', 'Late Night');
+    const after = await t.eventAt('2030-03-01T17:30:00Z', 'Early Morning');
+    // 00:00 on 28 February in Jakarta, still 27 February in UTC.
+    const first = await t.eventAt('2030-02-27T17:00:00Z', 'Midnight Start');
+    await register(t.orgId, inside, { checkedInBy: t.owner.id });
+    await register(t.orgId, inside, { cancelled: true });
+    await register(t.orgId, after);
+    await register(t.orgId, first);
+
+    const res = await t.report(t.owner, '?from=2030-02-28&to=2030-03-01');
+    expect(res.statusCode, res.body).toBe(200);
+    const r = res.json();
+    expect(r.period).toEqual({ from: '2030-02-28', to: '2030-03-01' });
+    expect(r.events.map((e: { name: string }) => e.name)).toEqual(['Late Night', 'Midnight Start']);
+    expect(r.totals).toMatchObject({ events: 2, registered: 2, cancelled: 1, checkedIn: 1 });
+    // A single day works too.
+    const day = (await t.report(t.owner, '?from=2030-03-02&to=2030-03-02')).json();
+    expect(day.events.map((e: { name: string }) => e.name)).toEqual(['Early Morning']);
+    expect(day.totals).toMatchObject({ events: 1, registered: 1 });
+    // A period with nothing in it is empty, not an error.
+    const none = (await t.report(t.owner, '?from=2031-01-01&to=2031-01-31')).json();
+    expect(none.totals.events).toBe(0);
+    expect(none.events).toEqual([]);
+  });
+
+  it('charts sign-ups made during the period, month by month', async () => {
+    const t = await setup();
+    const ev = await t.eventAt('2030-06-01T02:00:00Z', 'Summer');
+    // Jakarta days: 14 Jan (before), 15 Jan, 10 Mar 23:30, 11 Mar 00:30 (after).
+    for (const made of [
+      '2030-01-14T10:00:00Z',
+      '2030-01-14T17:30:00Z',
+      '2030-03-10T16:30:00Z',
+      '2030-03-10T17:30:00Z',
+    ]) {
+      await register(t.orgId, ev, { made: `'${made}'::timestamptz` });
+    }
+    const r = (await t.report(t.owner, '?from=2030-01-15&to=2030-03-10')).json();
+    expect(r.signUpsByMonth).toEqual([
+      { month: '2030-01', signUps: 1 },
+      { month: '2030-02', signUps: 0 },
+      { month: '2030-03', signUps: 1 },
+    ]);
+    expect(r.monthsTruncated).toBe(false);
+    // The event starts outside the period, so it is not listed.
+    expect(r.events).toEqual([]);
+  });
+
+  it('keeps the latest 24 months of a long period', async () => {
+    const t = await setup();
+    const r = (await t.report(t.owner, '?from=2000-01-01&to=2030-12-31')).json();
+    expect(r.signUpsByMonth).toHaveLength(24);
+    expect(r.signUpsByMonth[0].month).toBe('2029-01');
+    expect(r.signUpsByMonth.at(-1).month).toBe('2030-12');
+    expect(r.monthsTruncated).toBe(true);
+    const exact = (await t.report(t.owner, '?from=2029-01-01&to=2030-12-31')).json();
+    expect(exact.signUpsByMonth).toHaveLength(24);
+    expect(exact.monthsTruncated).toBe(false);
+  });
+
+  it('rejects an incomplete or invalid period', async () => {
+    const t = await setup();
+    for (const q of [
+      '?from=2030-01-01',
+      '?to=2030-01-01',
+      '?from=2030-02-01&to=2030-01-31',
+      '?from=2030-02-30&to=2030-03-01',
+      '?from=2030-1-1&to=2030-01-31',
+      '?from=1999-12-31&to=2000-01-31',
+      '?from=2030-01-01&to=2100-01-01',
+      "?from=2030-01-01'&to=2030-01-31",
+      '?from=2030-01-01&to=2030-01-31&organizationId=x',
+    ]) {
+      const res = await t.report(t.owner, q);
+      expect(res.statusCode, q).toBe(400);
+      expect(res.json().error.code, q).toBe('validation_failed');
+    }
+  });
+
   it('needs report.read and keeps organizations apart', async () => {
     const t = await setup();
     expect((await t.report(await t.member('analyst'))).statusCode).toBe(200);
@@ -170,5 +273,12 @@ describe('organization report', () => {
     await register(other.orgId, await other.event('past', 'Elsewhere'));
     expect((await t.report(other.owner)).statusCode).toBe(404);
     expect((await t.report()).json().totals.registered).toBe(0);
+    // A period does not widen what is visible.
+    const period = `?from=2000-01-01&to=2099-12-31`;
+    expect((await t.report(other.owner, period)).statusCode).toBe(404);
+    const mine = (await t.report(t.owner, period)).json();
+    expect(mine.totals).toMatchObject({ events: 0, registered: 0 });
+    expect(mine.signUpsByMonth.every((m: { signUps: number }) => m.signUps === 0)).toBe(true);
+    expect((await t.report(await t.member('viewer'), period)).statusCode).toBe(403);
   });
 });
