@@ -1617,3 +1617,21 @@
   justify-content: flex-end;
   gap: var(--space-2);
 }
+
+/* Sent announcements (ADR-0037): the message as written, line breaks kept. */
+.announcement-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.announcement + .announcement {
+  padding-top: var(--space-4);
+  border-top: var(--border-width) solid var(--color-divider);
+}
+
+.announcement__body {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

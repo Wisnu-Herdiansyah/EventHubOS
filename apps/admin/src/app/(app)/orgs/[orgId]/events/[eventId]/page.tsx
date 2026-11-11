@@ -389,6 +389,15 @@ export default async function EventPage({
             >
               Registrations
             </ButtonLink>
+            {can(org.role, 'communication.send') ? (
+              <ButtonLink
+                variant="secondary"
+                icon="mail"
+                href={`/orgs/${orgId}/events/${eventId}/announcements`}
+              >
+                Announcements
+              </ButtonLink>
+            ) : null}
             {can(org.role, 'report.read') ? (
               <ButtonLink
                 variant="secondary"

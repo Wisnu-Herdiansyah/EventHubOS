@@ -927,6 +927,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/organizations/{organizationId}/events/{eventId}/announcements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Announcements sent for an event, newest first (up to 50), with delivery counts. */
+        get: operations["listAnnouncements"];
+        put?: never;
+        /** Email everyone registered for an event (optionally the waitlist too). Plain text; at most 3 per event per 24 hours. communication.send. */
+        post: operations["sendAnnouncement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/organizations/{organizationId}/audit-events": {
         parameters: {
             query?: never;
@@ -991,6 +1009,23 @@ export interface components {
                 time: string;
                 title: string;
             }[];
+        };
+        Announcement: {
+            /** Format: uuid */
+            id: string;
+            subject: string;
+            body: string;
+            /** @enum {string} */
+            audience: "registered" | "registered_and_waitlist";
+            /** Format: date-time */
+            createdAt: string;
+            sentBy: string | null;
+            recipients: number;
+            delivered: number;
+            skipped: number;
+        };
+        AnnouncementList: {
+            data: components["schemas"]["Announcement"][];
         };
         AuditEvent: {
             /** Format: uuid */
@@ -1620,6 +1655,12 @@ export interface components {
         SavePageDraftRequest: {
             expectedVersion: number;
             sections: components["schemas"]["PageSection"][];
+        };
+        SendAnnouncementRequest: {
+            subject: string;
+            body: string;
+            /** @enum {string} */
+            audience: "registered" | "registered_and_waitlist";
         };
         Session: {
             token: string;
@@ -7420,6 +7461,205 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["OrganizationReport"];
+                };
+            };
+            /** @description Validation failed or Idempotency-Key missing */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unauthenticated, or invalid credentials on login */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden (missing permission or unverified email) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found (also returned for resources in other organizations) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Idempotency-Key reused with a different payload */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error (generic body with correlation ID) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    listAnnouncements: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Correlation-Id"?: string;
+            };
+            path: {
+                organizationId: string;
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnouncementList"];
+                };
+            };
+            /** @description Validation failed or Idempotency-Key missing */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unauthenticated, or invalid credentials on login */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden (missing permission or unverified email) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found (also returned for resources in other organizations) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Idempotency-Key reused with a different payload */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error (generic body with correlation ID) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    sendAnnouncement: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Correlation-Id"?: string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                organizationId: string;
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendAnnouncementRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Announcement"];
                 };
             };
             /** @description Validation failed or Idempotency-Key missing */
