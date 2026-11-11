@@ -3,12 +3,13 @@
  * editor applies to drafts. Times are wall-clock times in the event's time zone, so nothing here
  * converts time zones.
  */
-import type { AgendaItemV2, Section, SpeakerV2 } from './types.ts';
+import type { AgendaItemV2, Section, SpeakerV2, SpeakerV3 } from './types.ts';
 
 type AgendaV1 = Extract<Section, { type: 'agenda'; version: 1 }>;
 type AgendaV2 = Extract<Section, { type: 'agenda'; version: 2 }>;
 type SpeakersV1 = Extract<Section, { type: 'speakers'; version: 1 }>;
 type SpeakersV2 = Extract<Section, { type: 'speakers'; version: 2 }>;
+type SpeakersV3 = Extract<Section, { type: 'speakers'; version: 3 }>;
 
 /** Sessions by day (days in order, an undated day first), each day sorted by start time. */
 export function agendaDays(items: AgendaItemV2[]): Array<{ day: string; items: AgendaItemV2[] }> {
@@ -88,25 +89,37 @@ export function upgradeSpeakers(s: SpeakersV1): SpeakersV2 {
   };
 }
 
+/** v2 → v3 (ADR-0042): the same speakers, no photos yet. */
+export function addSpeakerPhotos(s: SpeakersV2): SpeakersV3 {
+  return {
+    ...s,
+    version: 3,
+    items: s.items.map((p): SpeakerV3 => ({ ...p, photoAssetId: null })),
+  };
+}
+
 /** Brings a draft's sections to the newest versions; other sections are returned as they are. */
 export function upgradeSections(sections: Section[]): Section[] {
   return sections.map((s) => {
     if (s.type === 'agenda' && s.version === 1) return upgradeAgenda(s);
-    if (s.type === 'speakers' && s.version === 1) return upgradeSpeakers(s);
+    if (s.type === 'speakers' && s.version === 1) return addSpeakerPhotos(upgradeSpeakers(s));
+    if (s.type === 'speakers' && s.version === 2) return addSpeakerPhotos(s);
     return s;
   });
 }
 
 /**
- * Speakers by ID across the page's v2 speakers sections, for agenda sessions. `linked` is true
+ * Speakers by ID across the page's v2 and v3 speakers sections, for agenda sessions. `linked` is true
  * when their section is shown, so the session can link to the bio; a hidden section still
  * supplies the name.
  */
 export function speakerIndex(sections: Section[]): Map<string, SpeakerV2 & { linked: boolean }> {
   const index = new Map<string, SpeakerV2 & { linked: boolean }>();
   for (const s of sections) {
-    if (s.type === 'speakers' && s.version === 2) {
-      for (const p of s.items) index.set(p.id, { ...p, linked: s.visible });
+    if (s.type === 'speakers' && s.version !== 1) {
+      for (const p of s.items) {
+        index.set(p.id, { id: p.id, name: p.name, role: p.role, bio: p.bio, linked: s.visible });
+      }
     }
   }
   return index;

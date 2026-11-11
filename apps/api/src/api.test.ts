@@ -40,10 +40,12 @@ describe('OpenAPI contract', () => {
     // The public site reads published revisions only (ADR-0021). The second sign-in step needs
     // the single-use challenge from a correct password (ADR-0022). Visitors register and cancel
     // with the emailed link (ADR-0023). Passkey sign-in options need that same challenge (ADR-0033).
+    // Images are served only while a public page's published revision uses them (ADR-0042).
     expect(publicOps).toEqual([
       'cancelRegistrationByLink',
       'completeMfaLogin',
       'completePasswordReset',
+      'getPublicAsset',
       'getPublicEventPage',
       'logIn',
       'registerForEvent',

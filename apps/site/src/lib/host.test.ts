@@ -38,6 +38,22 @@ describe('internalPath', () => {
     expect(internalPath('acme', '/Bad_Slug')).toBeNull();
     expect(internalPath('acme', '/a/b')).toBeNull();
   });
+
+  it('maps library images, and only well-formed ones (ADR-0042)', () => {
+    const id = '0b6f6a3e-6f39-4c7e-9b0b-2f4a1c9d8e7f';
+    expect(internalPath('acme', `/images/${id}/small.webp`)).toBe(`/i/acme/${id}/small`);
+    expect(internalPath('acme', `/images/${id}/large.webp`)).toBe(`/i/acme/${id}/large`);
+    for (const bad of [
+      `/images/${id}/original.webp`,
+      `/images/${id}/small.png`,
+      `/images/${id.toUpperCase()}/small.webp`,
+      `/images/../small.webp`,
+      `/images/${id}`,
+      `/images/${id}/small.webp/x`,
+    ]) {
+      expect(internalPath('acme', bad), bad).toBeNull();
+    }
+  });
 });
 
 describe('site CSP', async () => {

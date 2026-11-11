@@ -6,11 +6,12 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {
+    "@eventhub/api": "workspace:*",
     "@eventhub/db": "workspace:*",
     "@eventhub/kernel": "workspace:*",
-    "@eventhub/api": "workspace:*",
     "@eventhub/worker": "workspace:*",
     "fastify": "5.12.8",
+    "sharp": "0.35.5",
     "vitest": "5.1.0"
   }
 }

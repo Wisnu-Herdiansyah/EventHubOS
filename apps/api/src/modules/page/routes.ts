@@ -5,7 +5,9 @@ import { runIdempotentCommand } from '../../http/idempotent-command.ts';
 import { defineRoute, type AnyRoute } from '../../http/route.ts';
 import { uuid } from '../../http/schemas.ts';
 import { withOrganization, type OrganizationAccess } from '../tenancy/access.ts';
+import { lockPageImages } from '../asset/routes.ts';
 import {
+  imageReferences,
   SECTIONS_SCHEMA_VERSION,
   sectionSchema,
   sectionsSchema,
@@ -257,6 +259,19 @@ export function pageRoutes(pool: Pool): AnyRoute[] {
                     `The page changed since you loaded it (now version ${currentVersion}). Reload and retry.`,
                   );
                 }
+                // Photos must come from this organization's library (ADR-0042). Under RLS
+                // another organization's image is simply not found.
+                const missing = await lockPageImages(
+                  client,
+                  access.organizationId,
+                  imageReferences(body.sections),
+                  'body.sections',
+                );
+                if (missing.length > 0) {
+                  throw new AppError('validation_failed', 'Some images are not in the library.', {
+                    details: { fields: missing },
+                  });
+                }
                 const sections = JSON.stringify(body.sections);
                 const { rows } = current
                   ? await client.query<PageRow>(
@@ -355,6 +370,20 @@ export function pageRoutes(pool: Pool): AnyRoute[] {
                 }
                 if (!current.draft_sections.some((s) => s.visible)) {
                   throw conflict('page_empty', 'Show at least one section before publishing.');
+                }
+                // Deleting an image a draft uses is refused, so this only guards the invariant:
+                // a published page never refers to an image that is gone.
+                const missing = await lockPageImages(
+                  client,
+                  access.organizationId,
+                  imageReferences(current.draft_sections),
+                  'sections',
+                );
+                if (missing.length > 0) {
+                  throw conflict(
+                    'asset_missing',
+                    'An image on this page was deleted. Edit the page and save it again.',
+                  );
                 }
                 const revision = (current.published_revision ?? 0) + 1;
                 await client.query(

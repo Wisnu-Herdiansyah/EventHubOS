@@ -101,16 +101,54 @@ describe('program helpers', () => {
         },
       ],
     });
+    // Speakers go straight to v3 (photos, ADR-0042), with no photo.
     expect(v2[2]).toEqual({
       id: 'people',
       type: 'speakers',
-      version: 2,
+      version: 3,
       visible: true,
       heading: 'Speakers',
-      items: [{ id: 'speaker-1', name: 'Ade', role: 'Host', bio: '' }],
+      items: [{ id: 'speaker-1', name: 'Ade', role: 'Host', bio: '', photoAssetId: null }],
     });
     // Already current: unchanged.
     expect(upgradeSections(v2)).toEqual(v2);
+  });
+
+  it('upgrades v2 speakers to v3 without photos, keeping IDs and bios', () => {
+    const v2: Section[] = [
+      {
+        id: 'people',
+        type: 'speakers',
+        version: 2,
+        visible: false,
+        heading: 'Speakers',
+        items: [{ id: 'ade', name: 'Ade', role: 'Host', bio: 'Runs events.' }],
+      },
+    ];
+    expect(upgradeSections(v2)).toEqual([
+      {
+        id: 'people',
+        type: 'speakers',
+        version: 3,
+        visible: false,
+        heading: 'Speakers',
+        items: [{ id: 'ade', name: 'Ade', role: 'Host', bio: 'Runs events.', photoAssetId: null }],
+      },
+    ]);
+  });
+
+  it('indexes v3 speakers like v2 ones', () => {
+    const index = speakerIndex([
+      {
+        id: 's',
+        type: 'speakers',
+        version: 3,
+        visible: true,
+        heading: 'S',
+        items: [{ id: 'p', name: 'P', role: 'R', bio: '', photoAssetId: 'x' }],
+      },
+    ]);
+    expect(index.get('p')).toEqual({ id: 'p', name: 'P', role: 'R', bio: '', linked: true });
   });
 
   it('indexes v2 speakers, linking only those whose section is shown', () => {

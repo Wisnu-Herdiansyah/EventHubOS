@@ -161,7 +161,8 @@ test('an older agenda opens upgraded, and is kept only once saved', async ({ pag
     undefined,
     owner.token,
   );
-  expect(saved.draft.sections.map((x) => x.version)).toEqual([2, 2]);
+  // Agenda v2 (ADR-0040); speakers go straight to v3, which adds photos (ADR-0042).
+  expect(saved.draft.sections.map((x) => x.version)).toEqual([2, 3]);
 });
 
 test('invalid content is explained per section and nothing is saved', async ({ page }) => {

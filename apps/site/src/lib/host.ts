@@ -5,6 +5,9 @@
  */
 export const HANDLE = /^[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])$/;
 export const SLUG = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/;
+/** A library image (ADR-0042): /images/{uuid}/{small|large}.webp */
+const IMAGE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const IMAGE_FILE = /^(small|large)\.webp$/;
 
 export function handleFromHost(host: string | null, siteDomain: string): string | null {
   if (!host) return null;
@@ -25,6 +28,15 @@ export function internalPath(handle: string, pathname: string): string | null {
   // An attendee's ticket (ADR-0029); the registration ID stays in the fragment.
   if (parts.length === 2 && SLUG.test(parts[0]!) && parts[1] === 'ticket') {
     return `/s/${handle}/${parts[0]}/ticket`;
+  }
+  // An image used on this organization's published pages (ADR-0042).
+  if (
+    parts.length === 3 &&
+    parts[0] === 'images' &&
+    IMAGE_ID.test(parts[1]!) &&
+    IMAGE_FILE.test(parts[2]!)
+  ) {
+    return `/i/${handle}/${parts[1]}/${parts[2]!.replace('.webp', '')}`;
   }
   return null;
 }

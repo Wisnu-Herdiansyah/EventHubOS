@@ -70,6 +70,7 @@ export default async function PublicEventPage({ params }: { params: Params }) {
           dateLine={eventDateLine(page.startsAt, page.timezone)}
           sections={page.sections}
           timezone={page.timezone}
+          imageUrl={(id) => `/images/${id}/small.webp`}
         />
       </main>
     </>

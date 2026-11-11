@@ -67,6 +67,42 @@ function assertDatabaseTls(
   }
 }
 
+/**
+ * Object storage for uploaded images (ADR-0042). Only local adapters exist: the production
+ * provider waits for D1/D7. Optional: without it, image uploads report themselves as unavailable.
+ * `local_directory` (local development, e2e) and `in_memory` (tests) are refused in
+ * staging/production, so no remote environment silently keeps files on one machine's disk.
+ */
+export const OBJECT_STORE_ADAPTERS = ['local_directory', 'in_memory'] as const;
+export type ObjectStoreAdapter = (typeof OBJECT_STORE_ADAPTERS)[number];
+export interface ObjectStoreConfig {
+  adapter: ObjectStoreAdapter;
+  /** Present for `local_directory`. */
+  directory: string | undefined;
+}
+
+const objectStoreFields = {
+  OBJECT_STORE: z.enum(OBJECT_STORE_ADAPTERS).optional(),
+  OBJECT_STORE_DIR: z.string().min(1).optional(),
+};
+
+function objectStoreConfig(
+  environment: DeployEnvironment,
+  c: { OBJECT_STORE?: ObjectStoreAdapter | undefined; OBJECT_STORE_DIR?: string | undefined },
+): ObjectStoreConfig | null {
+  if (!c.OBJECT_STORE) return null;
+  if (isRemoteEnvironment(environment)) {
+    throw new ConfigError(
+      ['OBJECT_STORE'],
+      `local-only object stores are refused in ${environment}; the provider awaits D1/D7`,
+    );
+  }
+  if (c.OBJECT_STORE === 'local_directory' && !c.OBJECT_STORE_DIR) {
+    throw new ConfigError(['OBJECT_STORE_DIR'], 'required when OBJECT_STORE=local_directory');
+  }
+  return { adapter: c.OBJECT_STORE, directory: c.OBJECT_STORE_DIR };
+}
+
 const baseSchema = z.object({
   EVENTHUB_ENV: z.enum(DEPLOY_ENVIRONMENTS),
   LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
@@ -125,6 +161,7 @@ const apiSchema = baseSchema.extend({
     .refine((v) => v === undefined || new URL(v).origin === v.replace(/\/$/, ''), {
       message: 'Use an origin only, e.g. https://admin.eventhub.example',
     }),
+  ...objectStoreFields,
 });
 
 export interface ApiConfig {
@@ -144,6 +181,8 @@ export interface ApiConfig {
   mfa: { encryptionKey: Buffer | null };
   /** Passkeys (ADR-0033); null when PASSKEY_ORIGIN is not set. */
   passkeys: { origin: string; rpId: string } | null;
+  /** Image storage (ADR-0042); null when OBJECT_STORE is not set. */
+  objectStore: ObjectStoreConfig | null;
 }
 
 export function loadApiConfig(env: Readonly<Record<string, string | undefined>>): ApiConfig {
@@ -189,6 +228,7 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
           rpId: new URL(c.PASSKEY_ORIGIN).hostname,
         }
       : null,
+    objectStore: objectStoreConfig(c.EVENTHUB_ENV, c),
   };
 }
 
@@ -237,6 +277,7 @@ const workerSchema = baseSchema.extend({
     .string()
     .regex(/^https?:\/\/\{handle\}\.[a-z0-9.-]+(:\d+)?$/i, 'e.g. https://{handle}.eventhub.example')
     .optional(),
+  ...objectStoreFields,
 });
 
 export interface WorkerConfig {
@@ -264,6 +305,8 @@ export interface WorkerConfig {
   passwordResetTtlSeconds: number;
   /** Secret: never log. */
   emailTokenSecret: string;
+  /** Where deleted images are removed from (ADR-0042); null when OBJECT_STORE is not set. */
+  objectStore: ObjectStoreConfig | null;
 }
 
 export function loadWorkerConfig(env: Readonly<Record<string, string | undefined>>): WorkerConfig {
@@ -329,6 +372,7 @@ export function loadWorkerConfig(env: Readonly<Record<string, string | undefined
     emailVerificationTtlSeconds: c.EMAIL_VERIFICATION_TTL_HOURS * 3600,
     passwordResetTtlSeconds: c.PASSWORD_RESET_TTL_MINUTES * 60,
     emailTokenSecret: c.EMAIL_TOKEN_SECRET,
+    objectStore: objectStoreConfig(c.EVENTHUB_ENV, c),
   };
 }
 

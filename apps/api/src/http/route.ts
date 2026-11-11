@@ -35,6 +35,11 @@ export interface RouteResult {
   status: number;
   body: unknown;
   replayed?: boolean;
+  /**
+   * Set when `body` is raw bytes (a Buffer) instead of JSON, e.g. an image (ADR-0042). The
+   * route's response must declare the same `contentType`.
+   */
+  binary?: { contentType: string; cacheControl: string };
 }
 
 interface RouteBase<TParams, TQuery, TBody> {
@@ -51,12 +56,17 @@ interface RouteBase<TParams, TQuery, TBody> {
   idempotencyExempt?: string;
   /** Stricter per-route limit (per client IP) in addition to the global limit. */
   rateLimit?: { max: number; timeWindow: string };
+  /** Larger request body limit in bytes (default 64 KiB), e.g. for an image upload. */
+  bodyLimit?: number;
   schemas: {
     params?: z.ZodType<TParams>;
     query?: z.ZodType<TQuery>;
     body?: z.ZodType<TBody>;
-    /** `schema` omitted means an empty response (e.g. 204). */
-    response: { status: number; schema?: z.ZodType };
+    /**
+     * `schema` omitted means an empty response (e.g. 204), unless `contentType` names a binary
+     * response (bytes of that type, e.g. image/webp).
+     */
+    response: { status: number; schema?: z.ZodType; contentType?: string };
   };
 }
 

@@ -59,7 +59,8 @@ wait for the asset library, which will serve images from our own storage.
   stop validating or rendering.
 - **Speakers as free text on each session.** Simpler, but names drift between the agenda and
   the speakers list, and nothing can link them.
-- **Photos by URL.** See above: they wait for the asset library.
+- **Photos by URL.** See above: they wait for the asset library. (Photos from the library were
+  added as speakers v3 in ADR-0042.)
 
 ## Consequences
 

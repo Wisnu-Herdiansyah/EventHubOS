@@ -119,6 +119,8 @@ interface FieldProps extends FieldBase {
   min?: number;
   list?: string;
   inputMode?: 'numeric' | 'text' | 'email';
+  /** File inputs: the types the picker offers. */
+  accept?: string;
 }
 
 /** Labelled input with hint and error wired up via aria-describedby / aria-invalid. */
@@ -134,7 +136,7 @@ export function Field(props: FieldProps) {
       className="input"
       aria-invalid={error ? true : undefined}
       aria-describedby={describedBy}
-      defaultValue={state.values?.[name] ?? defaultValue}
+      defaultValue={type === 'file' ? undefined : (state.values?.[name] ?? defaultValue)}
       required={required}
       autoComplete={props.autoComplete}
       placeholder={props.placeholder}
@@ -142,6 +144,7 @@ export function Field(props: FieldProps) {
       min={props.min}
       list={props.list}
       inputMode={props.inputMode}
+      accept={props.accept}
     />
   );
   return (

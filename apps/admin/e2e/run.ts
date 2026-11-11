@@ -101,6 +101,8 @@ async function waitFor(url: string, timeoutMs = 60_000): Promise<void> {
 
 const database = `eventhub_e2e_${randomBytes(6).toString('hex')}`;
 const mailDir = await mkdtemp(join(tmpdir(), 'eventhub-e2e-mail-'));
+// Uploaded images (ADR-0042): the API writes, the worker deletes; one local directory per run.
+const objectDir = await mkdtemp(join(tmpdir(), 'eventhub-e2e-objects-'));
 let exitCode = 1;
 let created = false;
 try {
@@ -166,6 +168,8 @@ try {
     MFA_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
     // Passkeys are bound to the admin app's host (ADR-0033); localhost counts as a secure origin.
     PASSKEY_ORIGIN: baseUrl,
+    OBJECT_STORE: 'local_directory',
+    OBJECT_STORE_DIR: objectDir,
   });
   start('worker', process.execPath, ['apps/worker/src/main.ts'], {
     EVENTHUB_ENV: 'ci',
@@ -179,6 +183,8 @@ try {
     EMAIL_TOKEN_SECRET: randomBytes(32).toString('hex'),
     // Registration cancel links point at the public sites (ADR-0023).
     PUBLIC_SITE_URL: siteTemplate,
+    OBJECT_STORE: 'local_directory',
+    OBJECT_STORE_DIR: objectDir,
   });
   start(
     'admin',
@@ -233,6 +239,7 @@ try {
   for (const child of children) child.kill('SIGTERM');
   await new Promise((r) => setTimeout(r, 500));
   await rm(mailDir, { recursive: true, force: true });
+  await rm(objectDir, { recursive: true, force: true });
   if (created) {
     const teardown = new pg.Client({ connectionString: adminUrl });
     await teardown.connect();

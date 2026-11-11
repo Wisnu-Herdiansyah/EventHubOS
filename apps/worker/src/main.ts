@@ -2,7 +2,15 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import pino from 'pino';
 import { loadWorkerConfig } from '@eventhub/config';
 import { createPool, outboxHealth } from '@eventhub/db';
-import { InMemoryEmailSender, LOG_REDACT_PATHS, type EmailSender } from '@eventhub/kernel';
+import {
+  InMemoryEmailSender,
+  InMemoryObjectStore,
+  LOG_REDACT_PATHS,
+  type EmailSender,
+  type ObjectStore,
+} from '@eventhub/kernel';
+import { LocalDirectoryObjectStore } from '@eventhub/kernel/object-stores';
+import { deleteAssetObjectsConsumer } from './consumers/delete-asset-objects.ts';
 import { LocalFileEmailSender } from './adapters/local-file-email-sender.ts';
 import { ResendEmailSender } from './adapters/resend-email-sender.ts';
 import { sendInvitationEmailConsumer } from './consumers/send-invitation-email.ts';
@@ -40,6 +48,15 @@ function selectEmailSender(): EmailSender {
   }
 }
 
+/** Where deleted images are removed from (ADR-0042); null when not configured. */
+function selectObjectStore(): ObjectStore | null {
+  const c = config.objectStore;
+  if (!c) return null;
+  return c.adapter === 'local_directory'
+    ? new LocalDirectoryObjectStore(c.directory!)
+    : new InMemoryObjectStore();
+}
+
 // Relay + consumer transactions run concurrently, so the pool needs headroom.
 const pool = createPool({
   connectionString: config.database.workerUrl,
@@ -47,6 +64,7 @@ const pool = createPool({
   max: 4,
 });
 const emailSender = selectEmailSender();
+const objectStore = selectObjectStore();
 const consumers = [
   sendVerificationEmailConsumer(emailSender, {
     appBaseUrl: config.appBaseUrl,
@@ -72,6 +90,7 @@ const consumers = [
     tokenSecret: config.emailTokenSecret,
   }),
   sendRegistrationCancelledConsumer(emailSender),
+  ...(objectStore ? [deleteAssetObjectsConsumer(objectStore)] : []),
 ];
 // PostgreSQL outbox broker (ADR-0009): the outbox table is the durable queue.
 const publisher = new OutboxDispatchPublisher(pool, consumers);

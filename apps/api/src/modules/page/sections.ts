@@ -139,7 +139,7 @@ export const speakersSectionV1 = z
   .strict()
   .meta({ id: 'SpeakersSection' });
 
-/** Speakers v2 (ADR-0040): an ID agenda sessions can link to, and a short bio. No photos yet. */
+/** Speakers v2 (ADR-0040): an ID agenda sessions can link to, and a short bio. */
 export const speakersSectionV2 = z
   .object({
     ...base,
@@ -162,9 +162,38 @@ export const speakersSectionV2 = z
   .superRefine((sec, ctx) => uniqueItemIds(sec.items, ctx))
   .meta({ id: 'SpeakersSectionV2' });
 
+/**
+ * Speakers v3 (ADR-0042): v2 plus an optional photo from the organization's image library. The
+ * page stores the image ID only; the image must be in the library when the draft is saved.
+ */
+export const speakersSectionV3 = z
+  .object({
+    ...base,
+    version: z.literal(3),
+    type: z.literal('speakers'),
+    items: z
+      .array(
+        z
+          .object({
+            id: itemId,
+            name: line(100).min(1, 'Add a name.'),
+            role: line(120),
+            bio: paragraph(800),
+            /** An image ID from the organization's library, or null for initials. */
+            photoAssetId: z.uuid().nullable(),
+          })
+          .strict(),
+      )
+      .max(60),
+  })
+  .strict()
+  .superRefine((sec, ctx) => uniqueItemIds(sec.items, ctx))
+  .meta({ id: 'SpeakersSectionV3' });
+
 export const speakersSection = z.discriminatedUnion('version', [
   speakersSectionV1,
   speakersSectionV2,
+  speakersSectionV3,
 ]);
 
 export const registerSection = z
@@ -197,7 +226,7 @@ export const sectionsSchema = z
     // target (ADR-0040).
     const speakerIds = new Set<string>();
     sections.forEach((s, i) => {
-      if (s.type !== 'speakers' || s.version !== 2) return;
+      if (s.type !== 'speakers' || s.version === 1) return;
       s.items.forEach((p, j) => {
         if (speakerIds.has(p.id)) {
           ctx.addIssue({
@@ -228,6 +257,24 @@ export const sectionsSchema = z
 
 export type Section = z.infer<typeof sectionSchema>;
 
+/**
+ * Library images a page uses, with where (for error messages): `[sectionIndex, 'items',
+ * itemIndex, field]`. Every image field of every section version is listed here.
+ */
+export function imageReferences(
+  sections: Section[],
+): Array<{ assetId: string; path: Array<string | number> }> {
+  const refs: Array<{ assetId: string; path: Array<string | number> }> = [];
+  sections.forEach((s, i) => {
+    if (s.type !== 'speakers' || s.version !== 3) return;
+    s.items.forEach((p, j) => {
+      if (p.photoAssetId)
+        refs.push({ assetId: p.photoAssetId, path: [i, 'items', j, 'photoAssetId'] });
+    });
+  });
+  return refs;
+}
+
 /** What a new page starts with: a sensible outline the organizer edits. Not stored until saved. */
 export function starterSections(eventName: string): Section[] {
   return [
@@ -249,7 +296,7 @@ export function starterSections(eventName: string): Section[] {
       body: 'What attendees will learn, who it is for, and what makes it worth their time.',
     },
     { id: 'agenda', type: 'agenda', version: 2, visible: true, heading: 'Agenda', items: [] },
-    { id: 'speakers', type: 'speakers', version: 2, visible: true, heading: 'Speakers', items: [] },
+    { id: 'speakers', type: 'speakers', version: 3, visible: true, heading: 'Speakers', items: [] },
     {
       id: 'register',
       type: 'register',

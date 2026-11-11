@@ -17,7 +17,11 @@ export function activeNav(pathname: string): {
     ? null
     : !sub || sub === 'events'
       ? 'overview'
-      : sub === 'reports' || sub === 'team' || sub === 'settings' || sub === 'audit'
+      : sub === 'reports' ||
+          sub === 'images' ||
+          sub === 'team' ||
+          sub === 'settings' ||
+          sub === 'audit'
         ? sub
         : null;
   return {

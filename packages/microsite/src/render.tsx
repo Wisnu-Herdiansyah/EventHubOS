@@ -52,15 +52,54 @@ function SessionSpeakers({ ids, speakers }: { ids: string[]; speakers: SpeakerIn
   );
 }
 
+/**
+ * Where a library image is served from (ADR-0042): the admin's authenticated proxy in previews,
+ * the public site's own path on the event site. Without it, speakers show their initials.
+ */
+export type ImageUrl = (assetId: string) => string;
+
+function SpeakerPhoto({
+  name,
+  photoAssetId,
+  imageUrl,
+}: {
+  name: string;
+  photoAssetId: string | null;
+  imageUrl?: ImageUrl;
+}) {
+  if (photoAssetId && imageUrl) {
+    // Decorative: the speaker's name is right below it.
+    return (
+      <img
+        className="site-speaker__photo site-speaker__photo--image"
+        src={imageUrl(photoAssetId)}
+        alt=""
+        width={240}
+        height={240}
+        loading="lazy"
+        decoding="async"
+      />
+    );
+  }
+  return (
+    <span className="site-speaker__photo" aria-hidden="true">
+      {initials(name)}
+    </span>
+  );
+}
+
 export function SiteSection({
   section,
   selected,
   registerSlot,
   speakers = new Map(),
   timezone,
+  imageUrl,
 }: {
   section: Section;
   selected?: boolean;
+  /** Library images (speaker photos). */
+  imageUrl?: ImageUrl;
   /** Public site only: the registration form or status, in place of the button. */
   registerSlot?: ReactNode;
   /** The page's speakers, for agenda sessions (ADR-0040). */
@@ -154,7 +193,7 @@ export function SiteSection({
         </section>
       );
     case 'speakers':
-      if (section.version === 2) {
+      if (section.version !== 1) {
         return (
           <section className="site-section" {...mark} aria-label={section.heading}>
             <h2 className="site-section__title">{section.heading}</h2>
@@ -164,9 +203,11 @@ export function SiteSection({
               <ul className="site-speakers">
                 {section.items.map((p) => (
                   <li key={p.id} id={`speaker-${p.id}`} className="site-speaker">
-                    <span className="site-speaker__photo" aria-hidden="true">
-                      {initials(p.name)}
-                    </span>
+                    <SpeakerPhoto
+                      name={p.name}
+                      photoAssetId={'photoAssetId' in p ? p.photoAssetId : null}
+                      imageUrl={imageUrl}
+                    />
                     <strong>{p.name}</strong>
                     {p.role ? <span className="site-speaker__role">{p.role}</span> : null}
                     {p.bio ? <Paragraphs text={p.bio} className="site-speaker__bio" /> : null}
@@ -227,6 +268,7 @@ export function SitePreview({
   asPage,
   registerSlot,
   timezone,
+  imageUrl,
 }: {
   brand?: string;
   name: string;
@@ -242,6 +284,8 @@ export function SitePreview({
   registerSlot?: ReactNode;
   /** The event's time zone; agenda times are wall-clock times in it. */
   timezone?: string;
+  /** Where library images are served from (ADR-0042). */
+  imageUrl?: ImageUrl;
 }) {
   const Name = asPage ? 'h1' : 'span';
   const speakers = speakerIndex(sections);
@@ -269,6 +313,7 @@ export function SitePreview({
             registerSlot={s.type === 'register' ? registerSlot : undefined}
             speakers={speakers}
             timezone={timezone}
+            imageUrl={imageUrl}
           />
         ))}
       {registerSlot && !register ? (

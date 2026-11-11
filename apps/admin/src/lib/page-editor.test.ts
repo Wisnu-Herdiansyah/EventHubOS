@@ -43,10 +43,10 @@ describe('program editing (ADR-0040)', () => {
   const speakers = (id: string, people: string[]): Section => ({
     id,
     type: 'speakers',
-    version: 2,
+    version: 3,
     visible: true,
     heading: 'Speakers',
-    items: people.map((p) => ({ id: p, name: p, role: '', bio: '' })),
+    items: people.map((p) => ({ id: p, name: p, role: '', bio: '', photoAssetId: null })),
   });
   const agenda: Section = {
     id: 'agenda',
@@ -80,7 +80,7 @@ describe('program editing (ADR-0040)', () => {
 
   it('creates v2 agenda and speakers sections', () => {
     expect(newSection('agenda', [])).toMatchObject({ type: 'agenda', version: 2, items: [] });
-    expect(newSection('speakers', [])).toMatchObject({ type: 'speakers', version: 2, items: [] });
+    expect(newSection('speakers', [])).toMatchObject({ type: 'speakers', version: 3, items: [] });
     expect(newSection('hero', [])).toMatchObject({ version: 1 });
   });
 
