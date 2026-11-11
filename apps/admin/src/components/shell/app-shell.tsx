@@ -76,12 +76,15 @@ function NavLink({
 export function AppShell({
   email,
   organizations,
+  platform = false,
   sidebar,
   logout,
   children,
 }: {
   email: string;
   organizations: NavOrganization[];
+  /** EventHub staff (ADR-0045): show the Platform link. */
+  platform?: boolean;
   sidebar: SidebarState;
   logout: () => Promise<void>;
   children: ReactNode;
@@ -155,6 +158,16 @@ export function AppShell({
               <li>
                 <NavLink href="/" label="Organizations" icon="home" current={active.home} />
               </li>
+              {platform ? (
+                <li>
+                  <NavLink
+                    href="/platform"
+                    label="Platform"
+                    icon="lock"
+                    current={pathname.startsWith('/platform')}
+                  />
+                </li>
+              ) : null}
             </ul>
           </div>
           {organizations.length > 0 ? (

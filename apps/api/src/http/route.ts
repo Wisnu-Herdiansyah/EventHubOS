@@ -82,8 +82,11 @@ export interface RouteDefinition<
   TQuery = unknown,
   TBody = unknown,
 > extends RouteBase<TParams, TQuery, TBody> {
-  /** 'authenticated' = any signed-in user (e.g. listing their own memberships). */
-  requires: Permission | 'authenticated';
+  /**
+   * 'authenticated' = any signed-in user (e.g. listing their own memberships); 'platform_staff' =
+   * staff with two-step verification, checked in the database (ADR-0045).
+   */
+  requires: Permission | 'authenticated' | 'platform_staff';
   handler(ctx: RouteContext<TParams, TQuery, TBody>): Promise<RouteResult>;
 }
 

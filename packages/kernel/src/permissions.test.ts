@@ -3,7 +3,9 @@ import {
   PERMISSIONS,
   PERMISSION_CATALOG_VERSION,
   ROLES,
+  SUPPORT_ROLE,
   canAssignRole,
+  isRole,
   roleRequiresMfa,
   permissionsForRole,
   roleHasPermission,
@@ -54,7 +56,7 @@ const EXPECTED: Record<Role, Permission[]> = {
 
 describe('permission catalog', () => {
   it('is versioned', () => {
-    expect(PERMISSION_CATALOG_VERSION).toBe(1);
+    expect(PERMISSION_CATALOG_VERSION).toBe(2);
   });
 
   describe.each(ROLES)('role %s', (role) => {
@@ -84,6 +86,36 @@ describe('permission catalog', () => {
 
   it('lists permissions per role', () => {
     expect(permissionsForRole('viewer')).toEqual(['organization.read', 'event.read']);
+  });
+});
+
+describe('support access role (ADR-0045)', () => {
+  it('is read-only and never reaches attendee data', () => {
+    expect(PERMISSIONS.filter((p) => roleHasPermission(SUPPORT_ROLE, p))).toEqual([
+      'organization.read',
+      'membership.read',
+      'event.read',
+      'report.read',
+      'audit.read',
+    ]);
+    for (const p of PERMISSIONS) {
+      if (
+        /\.(manage|create|update|publish|archive|edit|send|checkin|export_pii|delete_request|transfer_ownership)$/.test(
+          p,
+        )
+      ) {
+        expect(roleHasPermission(SUPPORT_ROLE, p), p).toBe(false);
+      }
+    }
+  });
+
+  it('is not a membership role: it can never be granted or assigned', () => {
+    expect(isRole(SUPPORT_ROLE)).toBe(false);
+    for (const actor of [...ROLES, SUPPORT_ROLE]) {
+      expect(canAssignRole(actor, SUPPORT_ROLE)).toBe(false);
+    }
+    for (const target of ROLES) expect(canAssignRole(SUPPORT_ROLE, target)).toBe(false);
+    expect(roleRequiresMfa(SUPPORT_ROLE, true)).toBe(false);
   });
 });
 

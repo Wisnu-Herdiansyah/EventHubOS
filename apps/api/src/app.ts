@@ -32,6 +32,8 @@ import { reportRoutes } from './modules/report/routes.ts';
 import { announcementRoutes } from './modules/announcement/routes.ts';
 import { assetRoutes } from './modules/asset/routes.ts';
 import { emailFeedbackRoutes } from './modules/email-feedback/routes.ts';
+import { platformRoutes } from './modules/platform/routes.ts';
+import { supportRoutes } from './modules/support/routes.ts';
 
 export interface AppDependencies {
   pool: Pool;
@@ -81,6 +83,8 @@ export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
     ...announcementRoutes(deps.pool),
     ...assetRoutes(deps.pool, deps.objectStore ?? null),
     ...emailFeedbackRoutes(deps.pool, deps.emailFeedback ?? null),
+    ...supportRoutes(deps.pool),
+    ...platformRoutes(deps.pool),
     ...auditRoutes(deps.pool),
   ];
 }
@@ -206,7 +210,8 @@ function addRoute(app: FastifyInstance, route: AnyRoute, deps: AppDependencies):
         });
       } else {
         const token = parseBearerToken(request.headers.authorization);
-        const principal = token ? await deps.authenticator.authenticate(token) : null;
+        const authenticated = token ? await deps.authenticator.authenticate(token) : null;
+        const principal = authenticated ? { ...authenticated, correlationId: request.id } : null;
         if (!principal) {
           throw new AppError('unauthenticated', 'A valid session is required.');
         }

@@ -113,7 +113,6 @@ either one verifies here.
 
 ## Consequences
 
-- Undo is limited for now. There is no screen yet to lift a suppression by hand: a delivery
-  lifts a bounce, and complaints stay. Platform support tooling will add that.
+- Staff can lift a bounce by hand since ADR-0045; complaints still stay.
 - Retention of the suppression list waits for D9. It holds email addresses (personal data).
 - One more public route, rate-limited (600 per minute) and off until configured.

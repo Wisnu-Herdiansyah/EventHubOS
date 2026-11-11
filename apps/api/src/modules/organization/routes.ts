@@ -84,7 +84,8 @@ const organizationSchema = z
     locale: z.string(),
     timezone: z.string(),
     status: z.enum(['active', 'suspended', 'pending_deletion']),
-    role: z.enum(ROLES),
+    /** The caller's role; 'support' for platform staff with granted support access (ADR-0045). */
+    role: z.enum([...ROLES, 'support']),
     createdAt: z.iso.datetime(),
     version: z.number().int(),
     /** Public site handle (ADR-0021); null until chosen. */
@@ -96,6 +97,8 @@ const organizationSchema = z
      * anything else in this organization is available to them.
      */
     mfaSetupRequired: z.boolean(),
+    /** For platform support (ADR-0045): when the granted access ends. */
+    supportAccessUntil: z.iso.datetime().optional(),
     /** Present only for roles with billing.read (personal data). */
     billingContact: z
       .object({ name: z.string().nullable(), email: z.string().nullable() })
@@ -129,7 +132,7 @@ const ORGANIZATION_COLUMNS =
 
 function toOrganizationDto(
   row: OrganizationRow,
-  role: (typeof ROLES)[number],
+  role: (typeof ROLES)[number] | 'support',
   mfaSetupRequired = false,
 ) {
   return {
@@ -334,7 +337,12 @@ export function organizationRoutes(pool: Pool): AnyRoute[] {
             );
             return {
               status: 200,
-              body: toOrganizationDto(rows[0]!, access.role, access.mfaBlocked),
+              body: {
+                ...toOrganizationDto(rows[0]!, access.role, access.mfaBlocked),
+                ...(access.supportUntil
+                  ? { supportAccessUntil: access.supportUntil.toISOString() }
+                  : {}),
+              },
             };
           },
           // A blocked Owner/Admin may read the profile: it tells them why and what to do.

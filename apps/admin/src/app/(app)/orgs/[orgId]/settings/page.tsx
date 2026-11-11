@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { GrantSupportAccessForm, RevokeSupportAccessDialog } from '@/components/support-access';
+import { formatInZone } from '@/lib/time';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import {
@@ -29,7 +31,7 @@ export default async function OrganizationSettingsPage({
 }) {
   const { orgId } = await params;
   if (!UUID.test(orgId)) notFound();
-  let org, mfa, members;
+  let org, mfa, members, support;
   try {
     const client = await api();
     org = unwrap(
@@ -45,6 +47,12 @@ export default async function OrganizationSettingsPage({
           params: { path: { organizationId: orgId } },
         }),
       ).data;
+      // ADR-0045: whether EventHub support may view the organization.
+      support = unwrap(
+        await client.GET('/v1/organizations/{organizationId}/support-access', {
+          params: { path: { organizationId: orgId } },
+        }),
+      );
     }
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
@@ -166,6 +174,39 @@ export default async function OrganizationSettingsPage({
                   <Link href="/account#two-step-heading">Set it up</Link> before requiring it.
                 </p>
               )}
+            </Card>
+          ) : null}
+
+          {abilities.canEditProfile && support ? (
+            <Card
+              title="Support access"
+              titleId="support-heading"
+              description="Let EventHub support look at your organization when you ask them for help."
+            >
+              {support.active ? (
+                <div className="stack-sm">
+                  <p>
+                    <strong>On</strong>
+                    {` until ${formatInZone(support.active.expiresAt, org.timezone)}.`}
+                  </p>
+                  <div>
+                    <RevokeSupportAccessDialog
+                      organizationId={orgId}
+                      idempotencyKey={newIdempotencyKey()}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <GrantSupportAccessForm
+                  organizationId={orgId}
+                  idempotencyKey={newIdempotencyKey()}
+                />
+              )}
+              <p className="field__hint">
+                Support can read settings, the team, events, reports and the audit log. They cannot
+                change anything or see attendee details, and every page they open is in your audit
+                log. Owners are emailed when access is turned on or off.
+              </p>
             </Card>
           ) : null}
 
