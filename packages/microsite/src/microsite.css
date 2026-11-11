@@ -385,3 +385,53 @@ button.site-cta:disabled {
   opacity: 0.6;
   cursor: progress;
 }
+
+/* Program v2 (ADR-0040): sessions grouped by day, with room, speakers and description. */
+.site-section__note {
+  margin: -0.5rem 0 1rem;
+  color: var(--site-text-secondary);
+  font-size: 0.9375rem;
+}
+
+.site-agenda-day + .site-agenda-day {
+  margin-top: 2rem;
+}
+
+.site-agenda-day__title {
+  font-size: 1.125rem;
+  margin: 0 0 0.25rem;
+}
+
+.site-agenda li.site-session {
+  grid-template-columns: 7.5rem 1fr;
+}
+
+.site-session__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.site-session__room,
+.site-session__speakers {
+  color: var(--site-text-secondary);
+  font-size: 0.9375rem;
+}
+
+.site-session__speakers a {
+  color: var(--site-brand);
+}
+
+.site-session__text,
+.site-speaker__bio {
+  margin: 0.25rem 0 0;
+  color: var(--site-text-secondary);
+  font-size: 0.9375rem;
+  overflow-wrap: anywhere;
+}
+
+/* Speakers linked from a session are scrolled to just below the top of the page. */
+.site-speaker {
+  scroll-margin-top: 5rem;
+}

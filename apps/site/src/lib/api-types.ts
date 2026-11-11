@@ -1010,6 +1010,25 @@ export interface components {
                 title: string;
             }[];
         };
+        AgendaSectionV2: {
+            id: string;
+            /** @constant */
+            version: 2;
+            visible: boolean;
+            heading: string;
+            /** @constant */
+            type: "agenda";
+            items: {
+                id: string;
+                day: string;
+                start: string;
+                end: string;
+                title: string;
+                room: string;
+                description: string;
+                speakerIds: string[];
+            }[];
+        };
         Announcement: {
             /** Format: uuid */
             id: string;
@@ -1480,7 +1499,7 @@ export interface components {
                 visibleSectionCount: number;
             }[];
         };
-        PageSection: components["schemas"]["HeroSection"] | components["schemas"]["TextSection"] | components["schemas"]["AgendaSection"] | components["schemas"]["SpeakersSection"] | components["schemas"]["RegisterSection"];
+        PageSection: components["schemas"]["HeroSection"] | components["schemas"]["TextSection"] | (components["schemas"]["AgendaSection"] | components["schemas"]["AgendaSectionV2"]) | (components["schemas"]["SpeakersSection"] | components["schemas"]["SpeakersSectionV2"]) | components["schemas"]["RegisterSection"];
         Passkey: {
             /** Format: uuid */
             id: string;
@@ -1688,6 +1707,21 @@ export interface components {
             items: {
                 name: string;
                 role: string;
+            }[];
+        };
+        SpeakersSectionV2: {
+            id: string;
+            /** @constant */
+            version: 2;
+            visible: boolean;
+            heading: string;
+            /** @constant */
+            type: "speakers";
+            items: {
+                id: string;
+                name: string;
+                role: string;
+                bio: string;
             }[];
         };
         StartMfaSetupRequest: {

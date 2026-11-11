@@ -321,3 +321,190 @@ describe('page permissions and tenancy', () => {
     expect((await t.get()).statusCode).toBe(200);
   });
 });
+
+describe('program sections v2 (ADR-0040)', () => {
+  const speakers = (items: object[], id = 'speakers') => ({
+    id,
+    type: 'speakers',
+    version: 2,
+    visible: true,
+    heading: 'Speakers',
+    items,
+  });
+  const agenda = (items: object[]) => ({
+    id: 'agenda',
+    type: 'agenda',
+    version: 2,
+    visible: true,
+    heading: 'Agenda',
+    items,
+  });
+  const ADE = { id: 'ade', name: 'Ade Wisnu', role: 'Host', bio: 'Runs events.\n\nLoves systems.' };
+  const RINA = { id: 'rina', name: 'Rina', role: 'Speaker', bio: '' };
+  const SESSION = {
+    id: 'keynote',
+    day: '2027-03-01',
+    start: '09:30',
+    end: '10:15',
+    title: 'Opening keynote',
+    room: 'Hall A',
+    description: 'Why operations is a craft.',
+    speakerIds: ['ade', 'rina'],
+  };
+  const fieldPaths = (res: {
+    json(): { error: { details: { fields: Array<{ path: string }> } } };
+  }) => res.json().error.details.fields.map((f) => f.path);
+
+  it('starts new pages with v2 agenda and speakers', async () => {
+    const t = await setup();
+    const draft = (await t.get()).json().draft.sections as Array<{ type: string; version: number }>;
+    expect(draft.filter((s) => s.type === 'agenda' || s.type === 'speakers')).toMatchObject([
+      { type: 'agenda', version: 2 },
+      { type: 'speakers', version: 2 },
+    ]);
+  });
+
+  it('saves sessions with days, rooms and linked speakers, and keeps v1 sections valid', async () => {
+    const t = await setup();
+    const sections = [
+      HERO,
+      speakers([ADE, RINA]),
+      agenda([
+        SESSION,
+        {
+          ...SESSION,
+          id: 'lunch',
+          start: '12:00',
+          end: '',
+          speakerIds: [],
+          room: '',
+          description: '',
+        },
+      ]),
+      // Published revisions keep v1 sections; drafts may still hold them.
+      {
+        id: 'old-agenda',
+        type: 'agenda',
+        version: 1,
+        visible: false,
+        heading: 'Old',
+        items: [{ time: '09:00', title: 'Doors' }],
+      },
+      {
+        id: 'old-speakers',
+        type: 'speakers',
+        version: 1,
+        visible: false,
+        heading: 'Old',
+        items: [{ name: 'X', role: '' }],
+      },
+    ];
+    const res = await t.save({ expectedVersion: 0, sections });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().draft.sections).toEqual(sections);
+    const pub = await t.publish({ expectedVersion: 1 });
+    expect(pub.statusCode, pub.body).toBe(200);
+  });
+
+  it('refuses sessions that name speakers who are not on the page', async () => {
+    const t = await setup();
+    const res = await t.save({
+      expectedVersion: 0,
+      sections: [HERO, speakers([ADE]), agenda([SESSION])],
+    });
+    expect(res.statusCode).toBe(400);
+    expect(fieldPaths(res)).toContain('body.sections.2.items.0.speakerIds.1');
+    // v1 speakers have no IDs, so they cannot be linked either.
+    const v1 = await t.save({
+      expectedVersion: 0,
+      sections: [
+        HERO,
+        {
+          id: 'people',
+          type: 'speakers',
+          version: 1,
+          visible: true,
+          heading: 'S',
+          items: [{ name: 'Ade', role: '' }],
+        },
+        agenda([{ ...SESSION, speakerIds: ['ade'] }]),
+      ],
+    });
+    expect(v1.statusCode).toBe(400);
+  });
+
+  it('validates times, days, IDs and lengths', async () => {
+    const t = await setup();
+    const cases: Array<[object[], string]> = [
+      [
+        [HERO, speakers([ADE, RINA]), agenda([{ ...SESSION, end: '09:00' }])],
+        'body.sections.2.items.0.end',
+      ],
+      [
+        [HERO, speakers([ADE, RINA]), agenda([{ ...SESSION, end: '09:30' }])],
+        'body.sections.2.items.0.end',
+      ],
+      [
+        [HERO, speakers([ADE, RINA]), agenda([{ ...SESSION, start: '9:30' }])],
+        'body.sections.2.items.0.start',
+      ],
+      [
+        [HERO, speakers([ADE, RINA]), agenda([{ ...SESSION, day: '2027-13-01' }])],
+        'body.sections.2.items.0.day',
+      ],
+      [[HERO, speakers([ADE, RINA]), agenda([SESSION, SESSION])], 'body.sections.2.items.1.id'],
+      [[HERO, speakers([ADE, ADE])], 'body.sections.1.items.1.id'],
+      [[HERO, speakers([ADE]), speakers([ADE], 'more')], 'body.sections.2.items.0.id'],
+      [[HERO, speakers([{ ...ADE, bio: 'x'.repeat(801) }])], 'body.sections.1.items.0.bio'],
+      [[HERO, speakers([{ ...ADE, name: 'Line\nbreak' }])], 'body.sections.1.items.0.name'],
+      [
+        [HERO, speakers([ADE, RINA]), agenda([{ ...SESSION, room: 'r'.repeat(61) }])],
+        'body.sections.2.items.0.room',
+      ],
+      [
+        [HERO, speakers([ADE, RINA]), agenda([{ ...SESSION, speakerIds: Array(11).fill('ade') }])],
+        'body.sections.2.items.0.speakerIds',
+      ],
+      [
+        [HERO, speakers([ADE]), agenda([{ ...SESSION, photoUrl: 'https://example.com/x.png' }])],
+        'body.sections.2.items.0',
+      ],
+      [[HERO, { ...speakers([ADE]), version: 3 }], 'body.sections.1'],
+    ];
+    for (const [sections, path] of cases) {
+      const res = await t.save({ expectedVersion: 0, sections });
+      expect(res.statusCode, path).toBe(400);
+      expect(
+        fieldPaths(res).some((p: string) => p.startsWith(path)),
+        `${path} in ${fieldPaths(res).join(', ')}`,
+      ).toBe(true);
+    }
+  });
+
+  it('serves v2 sections on the public page as text', async () => {
+    const t = await setup();
+    const evil = { ...ADE, name: '<img src=x onerror=alert(1)>', bio: '<script>alert(1)</script>' };
+    const sections = [HERO, speakers([evil, RINA]), agenda([SESSION])];
+    expect((await t.save({ expectedVersion: 0, sections })).statusCode).toBe(200);
+    expect((await t.publish({ expectedVersion: 1 })).statusCode).toBe(200);
+    const handle = `p-${randomUUID().slice(0, 8)}`;
+    await pools.migrator.query(
+      'UPDATE eventhub.organization SET public_handle = $2 WHERE id = $1',
+      [t.orgId, handle],
+    );
+    const { rows } = await pools.migrator.query<{ slug: string }>(
+      `UPDATE eventhub.event SET lifecycle = 'published',
+              settings = '{"visibility":"public","legal":{"privacyPolicyUrl":"https://example.com/privacy"}}'
+        WHERE id = $1 RETURNING slug`,
+      [t.eventId],
+    );
+    const res = await app.inject({
+      method: 'GET',
+      url: `/v1/public/sites/${handle}/events/${rows[0]!.slug}`,
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    // The API stores and returns text; renderers emit it as text nodes (ADR-0020).
+    expect(res.json().sections[1].items[0]).toEqual(evil);
+    expect(res.json().sections[2].items[0]).toEqual(SESSION);
+  });
+});

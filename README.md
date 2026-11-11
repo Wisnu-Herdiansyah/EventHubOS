@@ -28,7 +28,8 @@ Phase 0 (foundation) plus Phase 1 slices:
   Team page showing who uses it and sending reminders (ADR-0025, ADR-0031) and Owners emailed when it changes (ADR-0026).
 - **Audit log** (ADR-0013): filterable, paginated history of who changed what, for Owners and Admins.
 - **Microsites** (ADR-0020): a three-panel editor for each event's page with typed sections,
-  drafts, and immutable published revisions; editors save, Event managers publish.
+  drafts, and immutable published revisions; editors save, Event managers publish. The program
+  has multi-day agenda sessions with rooms and linked speakers, and speaker bios (ADR-0040).
 - **Free registration** (ADR-0023): visitors register on the public page (name, email,
   privacy consent) and cancel with an emailed link; organizers see attendees, capacity and state,
   can download the list as CSV (ADR-0027), keep a waitlist that fills freed seats in order

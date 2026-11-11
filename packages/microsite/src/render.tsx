@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import type { Section } from './types.ts';
+import { agendaDays, dayLabel, speakerIndex, timeRange } from './program.ts';
+import type { Section, SpeakerV2 } from './types.ts';
 
 /**
  * Microsite section renderers, shared by the admin editor preview and the public site, so a
@@ -32,15 +33,40 @@ function Paragraphs({ text, className }: { text: string; className: string }) {
   );
 }
 
+type SpeakerIndex = Map<string, SpeakerV2 & { linked: boolean }>;
+
+/** "With Ade Wisnu and Rina", each name linking to the bio when it is shown on the page. */
+function SessionSpeakers({ ids, speakers }: { ids: string[]; speakers: SpeakerIndex }) {
+  const people = ids.map((id) => speakers.get(id)).filter((p) => p !== undefined);
+  if (people.length === 0) return null;
+  return (
+    <span className="site-session__speakers">
+      With{' '}
+      {people.map((p, i) => (
+        <span key={p.id}>
+          {i > 0 ? (i === people.length - 1 ? ' and ' : ', ') : null}
+          {p.linked ? <a href={`#speaker-${p.id}`}>{p.name}</a> : p.name}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function SiteSection({
   section,
   selected,
   registerSlot,
+  speakers = new Map(),
+  timezone,
 }: {
   section: Section;
   selected?: boolean;
   /** Public site only: the registration form or status, in place of the button. */
   registerSlot?: ReactNode;
+  /** The page's speakers, for agenda sessions (ADR-0040). */
+  speakers?: SpeakerIndex;
+  /** The event's time zone, named under the agenda. */
+  timezone?: string;
 }) {
   const mark = selected ? { 'data-selected-section': '' } : {};
   switch (section.type) {
@@ -67,6 +93,45 @@ export function SiteSection({
         </section>
       );
     case 'agenda':
+      if (section.version === 2) {
+        const days = agendaDays(section.items);
+        return (
+          <section
+            className="site-section site-section--surface"
+            {...mark}
+            aria-label={section.heading}
+          >
+            <h2 className="site-section__title">{section.heading}</h2>
+            {days.length === 0 ? (
+              <p className="site-section__lede">The agenda will be announced soon.</p>
+            ) : (
+              <>
+                {timezone ? <p className="site-section__note">Times are in {timezone}.</p> : null}
+                {days.map((d) => (
+                  <div key={d.day || 'one-day'} className="site-agenda-day">
+                    {d.day ? <h3 className="site-agenda-day__title">{dayLabel(d.day)}</h3> : null}
+                    <ol className="site-agenda">
+                      {d.items.map((a) => (
+                        <li key={a.id} className="site-session">
+                          <time>{timeRange(a)}</time>
+                          <div className="site-session__body">
+                            <strong className="site-session__title">{a.title}</strong>
+                            {a.room ? <span className="site-session__room">{a.room}</span> : null}
+                            <SessionSpeakers ids={a.speakerIds} speakers={speakers} />
+                            {a.description ? (
+                              <Paragraphs text={a.description} className="site-session__text" />
+                            ) : null}
+                          </div>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                ))}
+              </>
+            )}
+          </section>
+        );
+      }
       return (
         <section
           className="site-section site-section--surface"
@@ -89,6 +154,29 @@ export function SiteSection({
         </section>
       );
     case 'speakers':
+      if (section.version === 2) {
+        return (
+          <section className="site-section" {...mark} aria-label={section.heading}>
+            <h2 className="site-section__title">{section.heading}</h2>
+            {section.items.length === 0 ? (
+              <p className="site-section__lede">Speakers will be announced soon.</p>
+            ) : (
+              <ul className="site-speakers">
+                {section.items.map((p) => (
+                  <li key={p.id} id={`speaker-${p.id}`} className="site-speaker">
+                    <span className="site-speaker__photo" aria-hidden="true">
+                      {initials(p.name)}
+                    </span>
+                    <strong>{p.name}</strong>
+                    {p.role ? <span className="site-speaker__role">{p.role}</span> : null}
+                    {p.bio ? <Paragraphs text={p.bio} className="site-speaker__bio" /> : null}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        );
+      }
       return (
         <section className="site-section" {...mark} aria-label={section.heading}>
           <h2 className="site-section__title">{section.heading}</h2>
@@ -138,6 +226,7 @@ export function SitePreview({
   dateLine,
   asPage,
   registerSlot,
+  timezone,
 }: {
   brand?: string;
   name: string;
@@ -151,8 +240,11 @@ export function SitePreview({
   asPage?: boolean;
   /** Public site only: shown in the registration section (added at the end if the page has none). */
   registerSlot?: ReactNode;
+  /** The event's time zone; agenda times are wall-clock times in it. */
+  timezone?: string;
 }) {
   const Name = asPage ? 'h1' : 'span';
+  const speakers = speakerIndex(sections);
   const register = sections.find((s) => s.visible && s.type === 'register');
   return (
     <div className="site" data-brand={brand} lang={lang}>
@@ -175,6 +267,8 @@ export function SitePreview({
             section={s}
             selected={s.id === selectedId}
             registerSlot={s.type === 'register' ? registerSlot : undefined}
+            speakers={speakers}
+            timezone={timezone}
           />
         ))}
       {registerSlot && !register ? (

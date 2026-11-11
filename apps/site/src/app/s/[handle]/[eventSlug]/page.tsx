@@ -68,6 +68,7 @@ export default async function PublicEventPage({ params }: { params: Params }) {
           lang={page.language}
           dateLine={eventDateLine(page.startsAt, page.timezone)}
           sections={page.sections}
+          timezone={page.timezone}
         />
       </main>
     </>

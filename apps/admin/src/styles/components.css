@@ -1659,3 +1659,27 @@
   padding: var(--space-4) var(--space-6);
   border-top: var(--border-width) solid var(--color-divider);
 }
+
+/* Program editor (ADR-0040): one card per session or speaker. */
+.session-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--color-divider);
+  border-radius: var(--radius-md);
+}
+
+.session-editor__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: var(--space-3);
+}
+
+.session-editor__row--two {
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+}
+
+.session-editor__speakers {
+  gap: var(--space-2);
+}
