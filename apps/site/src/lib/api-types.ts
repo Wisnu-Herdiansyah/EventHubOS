@@ -723,6 +723,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/public/sites/{handle}/events/{eventSlug}/views": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Counts one view of a public event page (ADR-0044). Called by the site server after serving the page; stores a daily count only, nothing about the visitor. */
+        post: operations["countPublicPageView"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/public/sites/{handle}/events/{eventSlug}/registrations": {
         parameters: {
             query?: never;
@@ -1361,9 +1378,11 @@ export interface components {
                 cancelled: number;
                 checkedIn: number;
                 noShows: number;
+                pageViews: number;
             };
             byDay: components["schemas"]["ReportDay"][];
             checkInsByHour: components["schemas"]["ReportHour"][];
+            pageViewsByDay: components["schemas"]["ReportViewDay"][];
             truncated: boolean;
         };
         EventSettings: {
@@ -1603,6 +1622,7 @@ export interface components {
                 endedEvents: number;
                 endedRegistered: number;
                 endedCheckedIn: number;
+                pageViews: number;
             };
             signUpsByMonth: components["schemas"]["ReportMonth"][];
             monthsTruncated: boolean;
@@ -1806,6 +1826,7 @@ export interface components {
             registered: number;
             cancelled: number;
             checkedIn: number;
+            pageViews: number;
         };
         ReportHour: {
             hour: string;
@@ -1814,6 +1835,10 @@ export interface components {
         ReportMonth: {
             month: string;
             signUps: number;
+        };
+        ReportViewDay: {
+            date: string;
+            views: number;
         };
         SavePageDraftRequest: {
             expectedVersion: number;
@@ -6480,6 +6505,101 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PublicEventPage"];
                 };
+            };
+            /** @description Validation failed or Idempotency-Key missing */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unauthenticated, or invalid credentials on login */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden (missing permission or unverified email) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found (also returned for resources in other organizations) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Idempotency-Key reused with a different payload */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error (generic body with correlation ID) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    countPublicPageView: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Correlation-Id"?: string;
+            };
+            path: {
+                handle: string;
+                eventSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success (no content) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation failed or Idempotency-Key missing */
             400: {

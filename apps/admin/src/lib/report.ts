@@ -10,19 +10,32 @@ const dayLabel = (iso: string) => {
 };
 
 /** Daily rows up to a month; weekly sums beyond, so the list stays short enough to read. */
-export function signUpRows(
-  days: Array<{ date: string; registered: number }>,
+function dailyRows(
+  days: Array<{ date: string; value: number }>,
 ): Array<{ label: string; value: number }> {
-  if (days.length <= 31) return days.map((d) => ({ label: dayLabel(d.date), value: d.registered }));
+  if (days.length <= 31) return days.map((d) => ({ label: dayLabel(d.date), value: d.value }));
   const rows: Array<{ label: string; value: number }> = [];
   for (let i = 0; i < days.length; i += 7) {
     const week = days.slice(i, i + 7);
     rows.push({
       label: `${dayLabel(week[0]!.date)} – ${dayLabel(week.at(-1)!.date)}`,
-      value: week.reduce((n, d) => n + d.registered, 0),
+      value: week.reduce((n, d) => n + d.value, 0),
     });
   }
   return rows;
+}
+
+export function signUpRows(
+  days: Array<{ date: string; registered: number }>,
+): Array<{ label: string; value: number }> {
+  return dailyRows(days.map((d) => ({ date: d.date, value: d.registered })));
+}
+
+/** Page views per day, or per week beyond a month (ADR-0044). */
+export function viewRows(
+  days: Array<{ date: string; views: number }>,
+): Array<{ label: string; value: number }> {
+  return dailyRows(days.map((d) => ({ date: d.date, value: d.views })));
 }
 
 /** "09:00", or "1 Mar 09:00" when check-ins span more than one day. */

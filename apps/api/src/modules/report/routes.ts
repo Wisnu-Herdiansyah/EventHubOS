@@ -71,11 +71,20 @@ const reportSchema = z
       checkedIn: z.number().int(),
       /** Registered but not checked in; only meaningful once the event has ended. */
       noShows: z.number().int(),
+      /** Views of the public page (ADR-0044); approximate. */
+      pageViews: z.number().int(),
     }),
     /** Every day from the first sign-up to the last sign-up or cancellation (gaps are zeros). */
     byDay: z.array(dayCount),
     /** Hours with at least one check-in. */
     checkInsByHour: z.array(hourCount),
+    /**
+     * Views of the public page per day in the event's time zone (ADR-0044), from the first day
+     * with views to the last (gaps are zeros; the newest REPORT_MAX_DAYS). Approximate.
+     */
+    pageViewsByDay: z.array(
+      z.object({ date: z.string(), views: z.number().int() }).meta({ id: 'ReportViewDay' }),
+    ),
     /** More days of activity exist than one report holds; the earliest are left out. */
     truncated: z.boolean(),
   })
@@ -96,6 +105,8 @@ const orgReportSchema = z
       endedEvents: z.number().int(),
       endedRegistered: z.number().int(),
       endedCheckedIn: z.number().int(),
+      /** Views of these events' public pages, all time (ADR-0044); approximate. */
+      pageViews: z.number().int(),
     }),
     /**
      * Sign-ups per calendar month in the organization's time zone: the last 12 months, or the
@@ -120,6 +131,8 @@ const orgReportSchema = z
           registered: z.number().int(),
           cancelled: z.number().int(),
           checkedIn: z.number().int(),
+          /** Views of the event's public page, all time (ADR-0044). */
+          pageViews: z.number().int(),
         })
         .meta({ id: 'ReportEventRow' }),
     ),
@@ -217,6 +230,29 @@ export function reportRoutes(pool: Pool): AnyRoute[] {
                 LIMIT 500`,
               [access.organizationId, params.eventId, e.timezone],
             );
+            // Page views (ADR-0044): stored per day in the event's calendar already.
+            const views = await client.query<{ day: string; views: number; total_days: number }>(
+              `WITH v AS (
+                 SELECT day, views FROM eventhub.event_page_view_day
+                  WHERE organization_id = $1 AND event_id = $2
+               ), series AS (
+                 SELECT d::date AS day, count(*) OVER () AS total_days
+                   FROM (SELECT min(day) AS first, max(day) AS last FROM v) span,
+                        generate_series(span.first, span.last, interval '1 day') AS d
+                  WHERE span.first IS NOT NULL
+               )
+               SELECT to_char(s.day, 'YYYY-MM-DD') AS day, s.total_days::int AS total_days,
+                      coalesce((SELECT v.views FROM v WHERE v.day = s.day), 0)::int AS views
+                 FROM series s
+                ORDER BY s.day DESC
+                LIMIT ${REPORT_MAX_DAYS}`,
+              [access.organizationId, params.eventId],
+            );
+            const totalViews = await client.query<{ views: number }>(
+              `SELECT coalesce(sum(views), 0)::int AS views FROM eventhub.event_page_view_day
+                WHERE organization_id = $1 AND event_id = $2`,
+              [access.organizationId, params.eventId],
+            );
             const ended = e.ends_at.getTime() <= Date.now();
             return {
               status: 200,
@@ -232,12 +268,16 @@ export function reportRoutes(pool: Pool): AnyRoute[] {
                   cancelled: e.cancelled,
                   checkedIn: e.checked_in,
                   noShows: e.registered - e.checked_in,
+                  pageViews: totalViews.rows[0]!.views,
                 },
                 byDay: days.rows
                   .map((d) => ({ date: d.day, registered: d.registered, cancelled: d.cancelled }))
                   .reverse(),
                 checkInsByHour: hours.rows.map((h) => ({ hour: h.hour, checkedIn: h.checked_in })),
-                truncated: (days.rows[0]?.total_days ?? 0) > REPORT_MAX_DAYS,
+                pageViewsByDay: views.rows.map((v) => ({ date: v.day, views: v.views })).reverse(),
+                truncated:
+                  (days.rows[0]?.total_days ?? 0) > REPORT_MAX_DAYS ||
+                  (views.rows[0]?.total_days ?? 0) > REPORT_MAX_DAYS,
               },
             };
           },
@@ -284,13 +324,17 @@ export function reportRoutes(pool: Pool): AnyRoute[] {
               registered: number;
               cancelled: number;
               checked_in: number;
+              page_views: number;
             }>(
               `SELECT e.id, e.name, e.lifecycle, e.starts_at, e.ends_at,
                       (e.settings->'registration'->>'capacity')::int AS capacity,
                       count(r.id) FILTER (WHERE r.status = 'confirmed')::int AS registered,
                       count(r.id) FILTER (WHERE r.status = 'cancelled')::int AS cancelled,
                       count(r.id) FILTER (WHERE r.status = 'confirmed'
-                                            AND r.checked_in_at IS NOT NULL)::int AS checked_in
+                                            AND r.checked_in_at IS NOT NULL)::int AS checked_in,
+                      (SELECT coalesce(sum(v.views), 0) FROM eventhub.event_page_view_day v
+                        WHERE v.organization_id = e.organization_id AND v.event_id = e.id
+                      )::int AS page_views
                  FROM eventhub.event e
                  LEFT JOIN eventhub.registration r
                    ON r.organization_id = e.organization_id AND r.event_id = e.id
@@ -342,6 +386,7 @@ export function reportRoutes(pool: Pool): AnyRoute[] {
               registered: e.registered,
               cancelled: e.cancelled,
               checkedIn: e.checked_in,
+              pageViews: e.page_views,
             }));
             // Totals over every event, not only the listed ones.
             const totals = await client.query<{
@@ -352,6 +397,7 @@ export function reportRoutes(pool: Pool): AnyRoute[] {
               ended_events: number;
               ended_registered: number;
               ended_checked_in: number;
+              page_views: number;
             }>(
               `SELECT count(DISTINCT e.id)::int AS events,
                       count(r.id) FILTER (WHERE r.status = 'confirmed')::int AS registered,
@@ -362,7 +408,14 @@ export function reportRoutes(pool: Pool): AnyRoute[] {
                       count(r.id) FILTER (WHERE e.ends_at <= now()
                                             AND r.status = 'confirmed')::int AS ended_registered,
                       count(r.id) FILTER (WHERE e.ends_at <= now() AND r.status = 'confirmed'
-                                            AND r.checked_in_at IS NOT NULL)::int AS ended_checked_in
+                                            AND r.checked_in_at IS NOT NULL)::int AS ended_checked_in,
+                      (SELECT coalesce(sum(v.views), 0) FROM eventhub.event_page_view_day v
+                         JOIN eventhub.event e2
+                           ON e2.organization_id = v.organization_id AND e2.id = v.event_id
+                        WHERE v.organization_id = $1
+                          AND ($3::date IS NULL OR (e2.starts_at AT TIME ZONE $2)::date >= $3::date)
+                          AND ($4::date IS NULL OR (e2.starts_at AT TIME ZONE $2)::date <= $4::date)
+                      )::int AS page_views
                  FROM eventhub.event e
                  LEFT JOIN eventhub.registration r
                    ON r.organization_id = e.organization_id AND r.event_id = e.id
@@ -385,6 +438,7 @@ export function reportRoutes(pool: Pool): AnyRoute[] {
                   endedEvents: t.ended_events,
                   endedRegistered: t.ended_registered,
                   endedCheckedIn: t.ended_checked_in,
+                  pageViews: t.page_views,
                 },
                 signUpsByMonth: months.rows.map((m) => ({ month: m.month, signUps: m.sign_ups })),
                 monthsTruncated: (months.rows[0]?.total_months ?? 0) > REPORT_MAX_MONTHS,

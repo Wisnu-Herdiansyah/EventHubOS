@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { attendanceRate, checkInRows, monthLabel, signUpRows } from './report';
+import { attendanceRate, checkInRows, monthLabel, signUpRows, viewRows } from './report';
 
 const day = (i: number, registered = 1) => {
   const d = new Date(Date.UTC(2027, 1, 1 + i));
@@ -17,6 +17,15 @@ describe('event report shaping (ADR-0030)', () => {
     expect(weekly[0]).toEqual({ label: '1 Feb – 7 Feb', value: 7 });
     expect(weekly.at(-1)).toEqual({ label: '8 Mar – 12 Mar', value: 5 });
     expect(weekly.reduce((n, r) => n + r.value, 0)).toBe(40);
+  });
+
+  it('shapes page views the same way (ADR-0044)', () => {
+    expect(viewRows([{ date: '2027-02-01', views: 12 }])).toEqual([{ label: '1 Feb', value: 12 }]);
+    const weekly = viewRows(
+      Array.from({ length: 35 }, (_, i) => ({ date: day(i).date, views: 2 })),
+    );
+    expect(weekly).toHaveLength(5);
+    expect(weekly[0]).toEqual({ label: '1 Feb – 7 Feb', value: 14 });
   });
 
   it('labels check-in hours, with the day only when they span days', () => {

@@ -161,6 +161,7 @@ export default async function OrganizationReportsPage({
               : `${t.endedCheckedIn} of ${t.endedRegistered} at ended events`
           }
         />
+        <Stat label="Page views" value={t.pageViews} hint="Public event pages; approximate" />
       </div>
 
       <Card title="Sign-ups by month" titleId="months-heading">
@@ -242,6 +243,8 @@ export default async function OrganizationReportsPage({
                   return r === null ? '–' : `${r}%`;
                 },
               },
+              // ADR-0044: visits to the event's public page, all time.
+              { key: 'views', header: 'Page views', align: 'num', cell: (e) => e.pageViews },
             ]}
           />
         )}

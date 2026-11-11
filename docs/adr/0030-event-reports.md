@@ -52,3 +52,4 @@ colour, so no legend is needed. The time zone is stated under each chart.
   suppression can be added if reports are ever shared more widely.
 - This is the base for organization-wide reporting (across events), which would reuse the same
   queries per event.
+- Page views of the public page were added in ADR-0044.

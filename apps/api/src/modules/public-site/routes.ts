@@ -134,5 +134,32 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
         };
       },
     }),
+
+    definePublicRoute({
+      method: 'POST',
+      path: '/v1/public/sites/:handle/events/:eventSlug/views',
+      operationId: 'countPublicPageView',
+      summary:
+        'Counts one view of a public event page (ADR-0044). Called by the site server after serving the page; stores a daily count only, nothing about the visitor.',
+      tags: ['public'],
+      idempotent: false,
+      idempotencyExempt:
+        'Counts are approximate by design: a retried request counts again, like a reload.',
+      // Per visitor (the site forwards the visitor's address): a reload loop cannot inflate the
+      // counts much.
+      rateLimit: { max: 30, timeWindow: '1 minute' },
+      schemas: { params, response: { status: 204 } },
+      async handler({ params: p }) {
+        const counted = await withTransaction(pool, {}, async (client) => {
+          const { rows } = await client.query<{ counted: boolean }>(
+            'SELECT eventhub.record_public_page_view($1, $2) AS counted',
+            [p.handle, p.eventSlug],
+          );
+          return rows[0]?.counted === true;
+        });
+        if (!counted) throw notFound('Page');
+        return { status: 204, body: null };
+      },
+    }),
   ];
 }

@@ -1,8 +1,12 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
+import { after } from 'next/server';
 import { SitePreview } from '@eventhub/microsite';
 import { eventDateLine } from '@/lib/format';
 import { RegisterForm } from '@/components/register-form';
+import { countView } from '@/lib/count-view';
+import { countsAsView } from '@/lib/page-views';
 import { publicEventPage, type PublicEventPage as PublicEventPageData } from '@/lib/public-api';
 
 type Params = Promise<{ handle: string; eventSlug: string }>;
@@ -56,6 +60,12 @@ export default async function PublicEventPage({ params }: { params: Params }) {
   const { handle, eventSlug } = await params;
   const page = await publicEventPage(handle, eventSlug);
   if (!page) notFound();
+  // Page views (ADR-0044): counted after the response, for real page loads only.
+  const h = await headers();
+  if (countsAsView(h)) {
+    const forwarded = h.get('x-forwarded-for');
+    after(() => countView(handle, eventSlug, forwarded));
+  }
   return (
     <>
       <a className="skip-link" href="#main">

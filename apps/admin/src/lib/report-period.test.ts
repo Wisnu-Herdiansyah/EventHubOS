@@ -131,6 +131,7 @@ describe('report CSV', () => {
     lifecycle: 'live',
     capacity: null as number | null,
     cancelled: 1,
+    pageViews: 42,
   };
   it('writes one row per event with local times and safe cells', () => {
     const csv = reportCsv({
@@ -158,9 +159,9 @@ describe('report CSV', () => {
     });
     expect(csv.startsWith('﻿')).toBe(true);
     expect(csv.slice(1).split('\r\n')).toEqual([
-      'Event,Starts,Status,Registered,Capacity,Cancelled,Checked in,Attendance %',
-      `"'=HYPERLINK(""http://evil.example"")",2026-03-01 23:30,Live,8,100,1,6,75`,
-      '"Future, ""Forum""",2027-01-01 09:00,Scheduled,3,,1,0,',
+      'Event,Starts,Status,Registered,Capacity,Cancelled,Checked in,Attendance %,Page views',
+      `"'=HYPERLINK(""http://evil.example"")",2026-03-01 23:30,Live,8,100,1,6,75,42`,
+      '"Future, ""Forum""",2027-01-01 09:00,Scheduled,3,,1,0,,42',
       '',
     ]);
   });
