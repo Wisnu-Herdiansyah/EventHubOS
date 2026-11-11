@@ -10,6 +10,8 @@ export interface Principal {
   userId: string;
   sessionId: string;
   emailVerified: boolean;
+  /** The request's correlation ID, attached per request (for audit entries made on the way). */
+  correlationId?: string;
 }
 
 export interface SessionAuthenticator {

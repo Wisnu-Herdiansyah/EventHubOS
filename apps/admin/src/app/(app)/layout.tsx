@@ -7,18 +7,25 @@ import { navOrganization, type NavOrganization } from '@/lib/navigation';
 import { SIDEBAR_COOKIE, parseSidebar } from '@/lib/preferences';
 import { readSessionToken } from '@/lib/session';
 
-async function signedInContext(): Promise<{ email: string; orgs: NavOrganization[] } | null> {
+async function signedInContext(): Promise<{
+  email: string;
+  orgs: NavOrganization[];
+  platform: boolean;
+} | null> {
   if (!(await readSessionToken())) return null;
   try {
     const client = await api();
-    const [me, orgs] = await Promise.all([
+    const [me, orgs, platform] = await Promise.all([
       client.GET('/v1/me'),
       client.GET('/v1/me/organizations'),
+      client.GET('/v1/platform/me'),
     ]);
     if (!me.response.ok || !me.data) return null;
     return {
       email: me.data.email,
       orgs: orgs.response.ok && orgs.data ? orgs.data.data.map(navOrganization) : [],
+      // EventHub staff see the Platform link (ADR-0045).
+      platform: platform.data?.staff === true,
     };
   } catch {
     return null;
@@ -41,7 +48,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
   const sidebar = parseSidebar((await cookies()).get(SIDEBAR_COOKIE)?.value);
   return (
-    <AppShell email={ctx.email} organizations={ctx.orgs} sidebar={sidebar} logout={logoutAction}>
+    <AppShell
+      email={ctx.email}
+      organizations={ctx.orgs}
+      platform={ctx.platform}
+      sidebar={sidebar}
+      logout={logoutAction}
+    >
       {children}
     </AppShell>
   );

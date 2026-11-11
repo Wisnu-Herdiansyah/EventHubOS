@@ -1759,3 +1759,8 @@
   flex: 1;
   min-width: 0;
 }
+
+/* Support access banner (ADR-0045): above every organization page while staff view it. */
+.support-banner {
+  margin-bottom: var(--space-4);
+}

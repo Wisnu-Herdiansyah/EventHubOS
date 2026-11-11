@@ -54,4 +54,6 @@ export const ROLE_LABELS: Record<string, string> = {
   registration_manager: 'Registration manager',
   analyst: 'Analyst',
   viewer: 'Viewer',
+  // Platform staff with granted support access (ADR-0045); never a membership role.
+  support: 'EventHub support (read-only)',
 };

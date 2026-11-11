@@ -4,16 +4,26 @@ import {
   notFound,
   roleHasPermission,
   roleRequiresMfa,
+  SUPPORT_ROLE,
+  type AccessRole,
   type Permission,
-  type Role,
 } from '@eventhub/kernel';
-import { setTenantContext, withTransaction, type Pool, type PoolClient } from '@eventhub/db';
+import {
+  setTenantContext,
+  withTransaction,
+  writeAudit,
+  type Pool,
+  type PoolClient,
+} from '@eventhub/db';
 import type { Principal } from '../identity/authenticator.ts';
 
 export interface OrganizationAccess {
   organizationId: string;
   userId: string;
-  role: Role;
+  /** A membership role, or 'support' for platform staff with granted support access (ADR-0045). */
+  role: AccessRole;
+  /** When the caller's support access ends; null for members. */
+  supportUntil: Date | null;
   /** The organization requires two-step verification for Owners and Admins (ADR-0024). */
   requireMfaForAdmins: boolean;
   /** The caller's role is covered by that requirement and the caller has not set it up. */
@@ -37,6 +47,10 @@ export interface OrganizationAccessOptions {
  *  4. if the organization requires two-step verification for Owners and Admins, deny those
  *     roles until they have set it up (403 mfa_required), unless the route opts out to explain;
  *  5. set app.organization_id so every subsequent statement is RLS-scoped to this tenant.
+ *
+ * A caller who is not a member but is platform staff, with two-step verification, while the
+ * organization has granted support access, gets the read-only 'support' role (ADR-0045). Each
+ * such request is written to the organization's audit log.
  */
 export async function withOrganization<T>(
   pool: Pool,
@@ -54,14 +68,28 @@ export async function withOrganization<T>(
         WHERE m.organization_id = $1 AND m.user_id = $2 AND m.status = 'active'`,
       [organizationLocator, principal.userId],
     );
-    const role = rows[0]?.role;
-    if (!isRole(role)) throw notFound('Organization');
+    let role: AccessRole;
+    let supportUntil: Date | null = null;
+    const memberRole = rows[0]?.role;
+    if (isRole(memberRole)) {
+      role = memberRole;
+    } else {
+      // Not a member: only platform support with an active grant gets in; anyone else sees the
+      // same 404 as for an organization that does not exist.
+      const support = await client.query<{ until: Date | null }>(
+        'SELECT eventhub.support_access_until($1, $2) AS until',
+        [organizationLocator, principal.userId],
+      );
+      supportUntil = support.rows[0]?.until ?? null;
+      if (!supportUntil) throw notFound('Organization');
+      role = SUPPORT_ROLE;
+    }
     if (!roleHasPermission(role, permission)) {
       throw new AppError('forbidden', 'You do not have permission to perform this action.', {
         details: { reason: `missing_permission:${permission}` },
       });
     }
-    const requireMfaForAdmins = rows[0]!.require_mfa_for_admins;
+    const requireMfaForAdmins = rows[0]?.require_mfa_for_admins ?? false;
     let mfaBlocked = false;
     if (roleRequiresMfa(role, requireMfaForAdmins)) {
       const mfa = await client.query<{ enrolled: boolean }>(
@@ -78,10 +106,22 @@ export async function withOrganization<T>(
       );
     }
     await setTenantContext(client, organizationLocator);
+    if (role === SUPPORT_ROLE) {
+      await writeAudit(client, {
+        organizationId: organizationLocator,
+        actor: { type: 'platform_support', id: principal.userId },
+        action: 'support.accessed',
+        targetType: 'organization',
+        targetId: organizationLocator,
+        correlationId: principal.correlationId ?? 'unknown',
+        metadata: { permission },
+      });
+    }
     return fn(client, {
       organizationId: organizationLocator,
       userId: principal.userId,
       role,
+      supportUntil,
       requireMfaForAdmins,
       mfaBlocked,
     });

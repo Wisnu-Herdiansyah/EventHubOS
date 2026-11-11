@@ -7,7 +7,7 @@
  * Changing this file requires bumping PERMISSION_CATALOG_VERSION and updating the matrix test.
  */
 
-export const PERMISSION_CATALOG_VERSION = 1;
+export const PERMISSION_CATALOG_VERSION = 2;
 
 export const PERMISSIONS = [
   'organization.read',
@@ -96,12 +96,29 @@ const ROLE_PERMISSIONS: Readonly<Record<Role, ReadonlySet<Permission>>> = {
   viewer: new Set<Permission>(['organization.read', 'event.read']),
 };
 
+/**
+ * Platform support access (ADR-0045, catalog v2): what EventHub staff can do in an organization
+ * while its Owner or Admin has granted support access. Read-only, and no attendee data. It is not
+ * a membership role: isRole() is false for it, so it can never be invited, assigned or granted.
+ */
+export const SUPPORT_ROLE = 'support';
+export type AccessRole = Role | typeof SUPPORT_ROLE;
+const SUPPORT_PERMISSIONS: ReadonlySet<Permission> = new Set<Permission>([
+  'organization.read',
+  'membership.read',
+  'event.read',
+  'report.read',
+  'audit.read',
+]);
+
 export function isRole(value: unknown): value is Role {
   return typeof value === 'string' && (ROLES as readonly string[]).includes(value);
 }
 
 export function roleHasPermission(role: unknown, permission: unknown): boolean {
-  if (!isRole(role) || typeof permission !== 'string') return false;
+  if (typeof permission !== 'string') return false;
+  if (role === SUPPORT_ROLE) return SUPPORT_PERMISSIONS.has(permission as Permission);
+  if (!isRole(role)) return false;
   return ROLE_PERMISSIONS[role].has(permission as Permission);
 }
 
