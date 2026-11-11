@@ -883,7 +883,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Sign-ups and attendance across all events of an organization. Counts only. report.read. */
+        /** Sign-ups and attendance across the events of an organization, optionally for events starting in a period. Counts only. report.read. */
         get: operations["getOrganizationReport"];
         put?: never;
         post?: never;
@@ -1371,6 +1371,10 @@ export interface components {
         };
         OrganizationReport: {
             timezone: string;
+            period: {
+                from: string;
+                to: string;
+            } | null;
             totals: {
                 events: number;
                 registered: number;
@@ -1381,6 +1385,7 @@ export interface components {
                 endedCheckedIn: number;
             };
             signUpsByMonth: components["schemas"]["ReportMonth"][];
+            monthsTruncated: boolean;
             events: components["schemas"]["ReportEventRow"][];
             truncated: boolean;
         };
@@ -7146,7 +7151,10 @@ export interface operations {
     };
     getOrganizationReport: {
         parameters: {
-            query?: never;
+            query?: {
+                from?: string;
+                to?: string;
+            };
             header?: {
                 "X-Correlation-Id"?: string;
             };

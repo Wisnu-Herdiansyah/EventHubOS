@@ -8,6 +8,34 @@ import { withOrganization } from '../tenancy/access.ts';
 /** Events in one organization report (ADR-0032); the newest by start date are kept. */
 export const ORG_REPORT_MAX_EVENTS = 500;
 
+/** Months in one period's sign-up chart; a longer period shows its latest months (ADR-0034). */
+export const REPORT_MAX_MONTHS = 24;
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A real calendar day, YYYY-MM-DD, from 2000 to 2099. */
+const calendarDay = z
+  .string()
+  .regex(DATE_RE, 'Use a date in the form YYYY-MM-DD.')
+  .refine((v) => {
+    const d = new Date(`${v}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
+  }, 'Use a real calendar date.')
+  .refine((v) => v >= '2000-01-01' && v <= '2099-12-31', 'Use a date from 2000 to 2099.');
+
+/** Optional period for the organization report: both ends or neither, inclusive, org time zone. */
+export const orgReportQuery = z
+  .object({ from: calendarDay.optional(), to: calendarDay.optional() })
+  .strict()
+  .refine((q) => (q.from === undefined) === (q.to === undefined), {
+    path: ['to'],
+    message: 'Give both from and to, or neither.',
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, {
+    path: ['to'],
+    message: 'to must be on or after from.',
+  });
+
 /** Days in one report; registrations rarely span more than a year (ADR-0030). */
 export const REPORT_MAX_DAYS = 366;
 
@@ -56,8 +84,10 @@ const reportSchema = z
 const orgReportSchema = z
   .object({
     timezone: z.string(),
+    /** The period asked for: events that start on these days (inclusive), or null for all time. */
+    period: z.object({ from: z.string(), to: z.string() }).nullable(),
     totals: z.object({
-      /** All events, including any beyond the listed ones. */
+      /** All events in the period, including any beyond the listed ones. */
       events: z.number().int(),
       registered: z.number().int(),
       cancelled: z.number().int(),
@@ -67,10 +97,16 @@ const orgReportSchema = z
       endedRegistered: z.number().int(),
       endedCheckedIn: z.number().int(),
     }),
-    /** Sign-ups per calendar month in the organization's time zone, the last 12 months. */
+    /**
+     * Sign-ups per calendar month in the organization's time zone: the last 12 months, or the
+     * months of the period (its latest REPORT_MAX_MONTHS if longer). Sign-ups are counted by when
+     * they were made, for any event.
+     */
     signUpsByMonth: z.array(
       z.object({ month: z.string(), signUps: z.number().int() }).meta({ id: 'ReportMonth' }),
     ),
+    /** The period has more months than the chart holds; the earliest are left out. */
+    monthsTruncated: z.boolean(),
     /** Newest first by start date. */
     events: z.array(
       z
@@ -214,15 +250,19 @@ export function reportRoutes(pool: Pool): AnyRoute[] {
       path: '/v1/organizations/:organizationId/report',
       operationId: 'getOrganizationReport',
       summary:
-        'Sign-ups and attendance across all events of an organization. Counts only. report.read.',
+        'Sign-ups and attendance across the events of an organization, optionally for events ' +
+        'starting in a period. Counts only. report.read.',
       tags: ['reports'],
       requires: 'report.read',
       idempotent: false,
       schemas: {
         params: z.object({ organizationId: uuid }).strict(),
+        query: orgReportQuery,
         response: { status: 200, schema: orgReportSchema },
       },
-      async handler({ principal, params }) {
+      async handler({ principal, params, query }) {
+        const from = query.from ?? null;
+        const to = query.to ?? null;
         return withOrganization(
           pool,
           principal,
@@ -255,27 +295,41 @@ export function reportRoutes(pool: Pool): AnyRoute[] {
                  LEFT JOIN eventhub.registration r
                    ON r.organization_id = e.organization_id AND r.event_id = e.id
                 WHERE e.organization_id = $1
+                  AND ($3::date IS NULL OR (e.starts_at AT TIME ZONE $2)::date >= $3::date)
+                  AND ($4::date IS NULL OR (e.starts_at AT TIME ZONE $2)::date <= $4::date)
                 GROUP BY e.id
                 ORDER BY e.starts_at DESC, e.id
                 LIMIT ${ORG_REPORT_MAX_EVENTS}`,
-              [access.organizationId],
+              [access.organizationId, timezone, from, to],
             );
-            // The last 12 calendar months in the organization's time zone, this month included.
-            const months = await client.query<{ month: string; sign_ups: number }>(
+            // Calendar months in the organization's time zone: the last 12, this month included,
+            // or the period's months (latest REPORT_MAX_MONTHS). Sign-ups count by when made.
+            const months = await client.query<{
+              month: string;
+              sign_ups: number;
+              total_months: number;
+            }>(
               `WITH bounds AS (
-                 SELECT date_trunc('month', now() AT TIME ZONE $2)::date AS this_month
+                 SELECT coalesce(date_trunc('month', $3::date),
+                                 date_trunc('month', now() AT TIME ZONE $2) - interval '11 months'
+                        )::date AS first_month,
+                        coalesce(date_trunc('month', $4::date),
+                                 date_trunc('month', now() AT TIME ZONE $2))::date AS last_month
                ), series AS (
-                 SELECT generate_series(this_month - interval '11 months', this_month,
-                                        interval '1 month')::date AS m
-                   FROM bounds
+                 SELECT m::date AS m, count(*) OVER () AS total_months
+                   FROM bounds, generate_series(first_month, last_month, interval '1 month') AS m
+               ), kept AS (
+                 SELECT * FROM series ORDER BY m DESC LIMIT ${REPORT_MAX_MONTHS}
                )
-               SELECT to_char(s.m, 'YYYY-MM') AS month,
+               SELECT to_char(k.m, 'YYYY-MM') AS month, k.total_months::int AS total_months,
                       (SELECT count(*) FROM eventhub.registration r
                         WHERE r.organization_id = $1
-                          AND date_trunc('month', r.created_at AT TIME ZONE $2)::date = s.m)::int
-                        AS sign_ups
-                 FROM series s ORDER BY s.m`,
-              [access.organizationId, timezone],
+                          AND date_trunc('month', r.created_at AT TIME ZONE $2)::date = k.m
+                          AND ($3::date IS NULL OR (r.created_at AT TIME ZONE $2)::date >= $3::date)
+                          AND ($4::date IS NULL OR (r.created_at AT TIME ZONE $2)::date <= $4::date)
+                      )::int AS sign_ups
+                 FROM kept k ORDER BY k.m`,
+              [access.organizationId, timezone, from, to],
             );
             const now = Date.now();
             const rows = events.rows.map((e) => ({
@@ -312,14 +366,17 @@ export function reportRoutes(pool: Pool): AnyRoute[] {
                  FROM eventhub.event e
                  LEFT JOIN eventhub.registration r
                    ON r.organization_id = e.organization_id AND r.event_id = e.id
-                WHERE e.organization_id = $1`,
-              [access.organizationId],
+                WHERE e.organization_id = $1
+                  AND ($3::date IS NULL OR (e.starts_at AT TIME ZONE $2)::date >= $3::date)
+                  AND ($4::date IS NULL OR (e.starts_at AT TIME ZONE $2)::date <= $4::date)`,
+              [access.organizationId, timezone, from, to],
             );
             const t = totals.rows[0]!;
             return {
               status: 200,
               body: {
                 timezone,
+                period: from && to ? { from, to } : null,
                 totals: {
                   events: t.events,
                   registered: t.registered,
@@ -330,6 +387,7 @@ export function reportRoutes(pool: Pool): AnyRoute[] {
                   endedCheckedIn: t.ended_checked_in,
                 },
                 signUpsByMonth: months.rows.map((m) => ({ month: m.month, signUps: m.sign_ups })),
+                monthsTruncated: (months.rows[0]?.total_months ?? 0) > REPORT_MAX_MONTHS,
                 events: rows,
                 truncated: t.events > ORG_REPORT_MAX_EVENTS,
               },

@@ -195,6 +195,11 @@ export async function axeScan(page: Page): Promise<void> {
       .getAnimations()
       .every((a) => a.playState !== 'running' || a.effect?.getTiming().iterations === Infinity),
   );
+  // Scan from the top of the page. Content scrolled under the sticky top bar is "obscured" to
+  // axe, so the result would otherwise depend on where the page happens to be scrolled, e.g.
+  // where the browser restores scroll after a reload (CI saw a table button at y≈22, under the
+  // bar). Scrolling never changes the document, so every element is still scanned.
+  await page.evaluate(() => window.scrollTo(0, 0));
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();

@@ -32,8 +32,8 @@ Phase 0 (foundation) plus Phase 1 slices:
   privacy consent) and cancel with an emailed link; organizers see attendees, capacity and state,
   can download the list as CSV (ADR-0027), and check attendees in at the door (ADR-0028),
   by name or by scanning the QR ticket from their email (ADR-0029). Each event has a report of
-  sign-ups and attendance, and Reports sums them across the organization; counts only
-  (ADR-0030, ADR-0032).
+  sign-ups and attendance, and Reports sums them across the organization, for any period, with
+  a CSV download; counts only (ADR-0030, ADR-0032, ADR-0034).
 - **Public event sites** (ADR-0021): `apps/site` serves published revisions at
   `{org-handle}.{platform domain}/{event-slug}` once an event is published; drafts never.
 - **Design system** (ADR-0019): Apple-inspired tokens with light and dark modes, a shared

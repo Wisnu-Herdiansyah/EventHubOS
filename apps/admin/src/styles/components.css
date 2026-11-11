@@ -1477,6 +1477,12 @@
   font-size: var(--text-sm);
 }
 
+/* Inside a padded card: no inset, and the first pill's text lines up with the content edge. */
+.filter-links--inline {
+  padding: 0;
+  margin-inline-start: calc(-1 * var(--space-3));
+}
+
 .filter-link {
   display: inline-flex;
   align-items: center;

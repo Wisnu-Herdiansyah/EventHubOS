@@ -457,6 +457,69 @@ test('the event report shows sign-ups and attendance, and no attendee details', 
   await expect(main).not.toContainText('Report Person');
   await expectAccessible(page);
   await page.screenshot({ path: test.info().outputPath('org-report.png'), fullPage: true });
+
+  // ADR-0034: periods. Last year has no events, and nothing to download.
+  const periods = page.getByRole('navigation', { name: 'Report period' });
+  await periods.getByRole('link', { name: 'Last year' }).click();
+  await expect(periods.getByRole('link', { name: 'Last year' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(main.getByText('No events in this period')).toBeVisible();
+  await expect(main.getByText('Across events in this period')).toBeVisible();
+  await expect(main.getByRole('link', { name: 'Download CSV' })).toHaveCount(0);
+
+  // A custom period around the event's start day selects it.
+  const ev = await apiCall<{ startsAt: string }>(
+    'GET',
+    `/v1/organizations/${t.orgId}/events/${t.eventId}`,
+    undefined,
+    t.owner.token,
+  );
+  const day = (offset: number) =>
+    new Date(Date.parse(ev.startsAt) + offset * 86_400_000).toISOString().slice(0, 10);
+  await page.getByLabel('From', { exact: true }).fill(day(-1));
+  await page.getByLabel('To', { exact: true }).fill(day(1));
+  await page.getByRole('button', { name: 'Show custom period' }).click();
+  await expect(page).toHaveURL(new RegExp(`period=custom&from=${day(-1)}&to=${day(1)}`));
+  await expect(row.getByRole('cell').nth(1)).toHaveText('2');
+  await expect(page.getByLabel('From', { exact: true })).toHaveValue(day(-1));
+  await expectAccessible(page);
+  await page.screenshot({ path: test.info().outputPath('org-report-period.png'), fullPage: true });
+
+  // The CSV has the same rows, counts only.
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    main.getByRole('link', { name: 'Download CSV' }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe(`events-report-${day(-1)}-to-${day(1)}.csv`);
+  const csv = await readFile(await download.path(), 'utf8');
+  const lines = csv
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .split('\r\n');
+  expect(lines[0]).toBe(
+    'Event,Starts,Status,Registered,Capacity,Cancelled,Checked in,Attendance %',
+  );
+  expect(lines).toHaveLength(2);
+  expect(lines[1]).toMatch(/^Private Summit,\d{4}-\d{2}-\d{2} \d{2}:\d{2},[A-Z][a-z]+,2,\d*,0,1,$/);
+  expect(csv).not.toContain('Report Person');
+  expect(csv).not.toContain('@');
+
+  // A reversed period is refused: the page says so and shows all time.
+  await page.goto(`/orgs/${t.orgId}/reports?period=custom&from=${day(1)}&to=${day(-1)}`);
+  await expect(main.getByText('That period was not valid')).toBeVisible();
+  await expect(periods.getByRole('link', { name: 'All time' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  const refused = await page.request.get(
+    `/orgs/${t.orgId}/reports/export?period=custom&from=${day(1)}&to=${day(-1)}`,
+    { maxRedirects: 0 },
+  );
+  expect(refused.status()).toBe(303);
+
+  await page.goto(`/orgs/${t.orgId}/reports`);
   await events.getByRole('link', { name: 'Private Summit' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Report' })).toBeVisible();
 
@@ -466,4 +529,9 @@ test('the event report shows sign-ups and attendance, and no attendee details', 
   await signIn(page, viewer.email);
   await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/report`);
   await expect(page.getByRole('main')).toContainText('can see reports');
+  // ...and no download: the API refuses, so the handler sends them back to the page.
+  const denied = await page.request.get(`/orgs/${t.orgId}/reports/export`, { maxRedirects: 0 });
+  expect(denied.status()).toBe(303);
+  expect(denied.headers()['location']).toContain(`/orgs/${t.orgId}/reports`);
+  expect(denied.headers()['content-type'] ?? '').not.toContain('text/csv');
 });

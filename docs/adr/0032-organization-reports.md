@@ -35,7 +35,7 @@ attendees.
 ## Alternatives
 
 - **Date-range filters**: useful once organizations have years of events. The fixed 12-month
-  window answers "how are we doing lately" without filter UI.
+  window answers "how are we doing lately" without filter UI. (Added later: ADR-0034.)
 - **Revenue and other figures**: none exist yet. Ticketing and payments are out of scope until
   the payments decision is made.
 
