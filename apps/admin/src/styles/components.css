@@ -1635,3 +1635,27 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Event list filters: search, status, when, one row that wraps on narrow screens. */
+.event-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6) var(--space-3);
+}
+
+.event-filters .search-field {
+  flex: 1 1 16rem;
+}
+
+.event-filters .field {
+  flex: 0 1 11rem;
+}
+
+/* Previous/next links under a flush card's table. */
+.pager {
+  justify-content: flex-end;
+  padding: var(--space-4) var(--space-6);
+  border-top: var(--border-width) solid var(--color-divider);
+}

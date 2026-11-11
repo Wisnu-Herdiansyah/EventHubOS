@@ -4728,7 +4728,7 @@
       },
       "get": {
         "operationId": "listEvents",
-        "summary": "List events in the organization, newest first (cursor pagination).",
+        "summary": "List events in the organization, newest first (cursor pagination). Filter by lifecycle, by name or slug, and by upcoming or past.",
         "tags": [
           "events"
         ],
@@ -4782,6 +4782,29 @@
                 "live",
                 "ended",
                 "archived"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+            }
+          },
+          {
+            "name": "when",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "upcoming",
+                "past"
               ]
             }
           },
