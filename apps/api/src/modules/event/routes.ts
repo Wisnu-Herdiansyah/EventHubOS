@@ -105,6 +105,29 @@ export const eventSchema = z
   })
   .meta({ id: 'Event' });
 
+const duplicateEventBody = z
+  .object({
+    name: z.string().trim().min(1).max(200),
+    slug: slugSchema,
+    /** The copy's start; it keeps the original's length, and its registration window moves along. */
+    startsAt: z.iso.datetime({ offset: true }),
+  })
+  .strict()
+  .meta({ id: 'DuplicateEventRequest' });
+
+/** Moves the registration window by the same amount as the event (ADR-0036). */
+export function shiftSettings(settings: EventSettings, deltaMs: number): EventSettings {
+  const reg = settings.registration;
+  if (!reg || (!reg.opensAt && !reg.closesAt)) return settings;
+  const shift = (iso?: string) =>
+    iso === undefined ? undefined : new Date(Date.parse(iso) + deltaMs).toISOString();
+  const registration = { ...reg, opensAt: shift(reg.opensAt), closesAt: shift(reg.closesAt) };
+  for (const k of ['opensAt', 'closesAt'] as const) {
+    if (registration[k] === undefined) delete registration[k];
+  }
+  return { ...settings, registration };
+}
+
 const orgParams = z.object({ organizationId: uuid }).strict();
 const eventParams = z.object({ organizationId: uuid, eventId: uuid }).strict();
 
@@ -249,6 +272,129 @@ export function eventRoutes(pool: Pool): AnyRoute[] {
                   targetId: row.id,
                   correlationId,
                   metadata: { slug: row.slug, lifecycle: row.lifecycle },
+                });
+                await enqueueEvent(
+                  client,
+                  createDomainEvent({
+                    eventType: 'event.created',
+                    schemaVersion: 1,
+                    actor,
+                    organizationId: access.organizationId,
+                    aggregateType: 'event',
+                    aggregateId: row.id,
+                    correlationId,
+                    payload: { eventId: row.id, slug: row.slug, lifecycle: row.lifecycle },
+                  }),
+                );
+                return { status: 201, body: toEventDto(row) };
+              },
+            ),
+        );
+      },
+    }),
+
+    defineRoute({
+      method: 'POST',
+      path: '/v1/organizations/:organizationId/events/:eventId/duplicate',
+      operationId: 'duplicateEvent',
+      summary:
+        'Copy an event into a new draft (ADR-0036): its details, settings and draft page, with new dates. Attendees and published pages are never copied.',
+      tags: ['events'],
+      requires: 'event.create',
+      idempotent: true,
+      schemas: {
+        params: eventParams,
+        body: duplicateEventBody,
+        response: { status: 201, schema: eventSchema },
+      },
+      async handler({ principal, params, body, correlationId, idempotencyKey, idempotencyScope }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'event.create',
+          (client, access) =>
+            runIdempotentCommand(
+              client,
+              { actorId: principal.userId, scope: idempotencyScope, key: idempotencyKey!, body },
+              async () => {
+                const src = await client.query<EventRow & { settings_version: number }>(
+                  `SELECT ${EVENT_COLUMNS}, settings_version FROM eventhub.event
+                    WHERE organization_id = $1 AND id = $2`,
+                  [access.organizationId, params.eventId],
+                );
+                const source = src.rows[0];
+                if (!source) throw notFound('Event');
+                const startsAt = new Date(body.startsAt);
+                const delta = startsAt.getTime() - source.starts_at.getTime();
+                const endsAt = new Date(source.ends_at.getTime() + delta);
+                const settings = shiftSettings(source.settings, delta);
+                let row: EventRow;
+                try {
+                  const result = await client.query<EventRow>(
+                    `INSERT INTO eventhub.event (organization_id, name, slug, timezone, starts_at, ends_at,
+                                               venue_mode, primary_language, created_by, settings,
+                                               settings_version)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                   RETURNING ${EVENT_COLUMNS}`,
+                    [
+                      access.organizationId,
+                      body.name,
+                      body.slug,
+                      source.timezone,
+                      startsAt,
+                      endsAt,
+                      source.venue_mode,
+                      source.primary_language,
+                      principal.userId,
+                      JSON.stringify(settings),
+                      source.settings_version,
+                    ],
+                  );
+                  row = result.rows[0]!;
+                } catch (error) {
+                  if (
+                    pgErrorCode(error) === PG_UNIQUE_VIOLATION &&
+                    pgConstraint(error) === 'event_organization_id_slug_key'
+                  ) {
+                    throw new AppError(
+                      'conflict',
+                      'An event with this slug already exists in the organization.',
+                      {
+                        details: {
+                          reason: 'event_slug_taken',
+                          fields: [{ path: 'body.slug', message: 'Already in use.' }],
+                        },
+                      },
+                    );
+                  }
+                  throw error;
+                }
+                // The working draft of each page, never a published revision: the copy starts
+                // unpublished, and its page goes live only when someone publishes it.
+                const pages = await client.query(
+                  `INSERT INTO eventhub.event_page
+                     (organization_id, event_id, page_key, draft_sections, draft_schema_version,
+                      draft_updated_by)
+                   SELECT organization_id, $3, page_key, draft_sections, draft_schema_version, $4
+                     FROM eventhub.event_page
+                    WHERE organization_id = $1 AND event_id = $2`,
+                  [access.organizationId, source.id, row.id, principal.userId],
+                );
+                const actor = { type: 'user' as const, id: principal.userId };
+                await writeAudit(client, {
+                  organizationId: access.organizationId,
+                  actor,
+                  action: 'event.created',
+                  targetType: 'event',
+                  targetId: row.id,
+                  correlationId,
+                  metadata: {
+                    slug: row.slug,
+                    lifecycle: row.lifecycle,
+                    duplicatedFrom: source.id,
+                    pagesCopied: pages.rowCount ?? 0,
+                  },
                 });
                 await enqueueEvent(
                   client,

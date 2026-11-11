@@ -78,6 +78,41 @@ export async function createEventAction(_prev: FormState, form: FormData): Promi
   redirect(target);
 }
 
+/**
+ * Copies an event into a new draft (ADR-0036) and opens it. The copy keeps the original's length;
+ * only the start is asked for, in the event's time zone.
+ */
+export async function duplicateEventAction(_prev: FormState, form: FormData): Promise<FormState> {
+  let target: string;
+  try {
+    const { organizationId, eventId } = ids(form);
+    const fields: Record<string, string> = {};
+    const startsAt = instant(form, 'startsAt', str(form, 'timezone'), fields);
+    if (!startsAt) fields.startsAt ??= 'Enter a date and time.';
+    if (Object.keys(fields).length > 0 || !eventId)
+      return {
+        ok: false,
+        message: 'Check the highlighted fields.',
+        fields,
+        values: submittedValues(form),
+      };
+    const client = await api();
+    const copy = unwrap(
+      await client.POST('/v1/organizations/{organizationId}/events/{eventId}/duplicate', {
+        params: {
+          path: { organizationId, eventId },
+          header: { 'Idempotency-Key': str(form, 'idempotencyKey') },
+        },
+        body: { name: str(form, 'name'), slug: str(form, 'slug'), startsAt: startsAt! },
+      }),
+    );
+    target = `/orgs/${organizationId}/events/${copy.id}?notice=duplicated`;
+  } catch (error) {
+    return { ...errorToFormState(error), values: submittedValues(form) };
+  }
+  redirect(target);
+}
+
 type SettingsPatch = NonNullable<components['schemas']['UpdateEventRequest']['settings']>;
 
 /** Builds a settings patch: each section is replaced as a whole, or cleared when left empty. */

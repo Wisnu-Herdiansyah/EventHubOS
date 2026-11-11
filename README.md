@@ -19,7 +19,8 @@ Phase 0 (foundation) plus Phase 1 slices:
   `GET /v1/me`.
 - **Tenancy and events**: organization creation with Owner membership, listing a user's
   organizations; events with validated settings, a setup checklist, and lifecycle transitions
-  (schedule, unschedule, archive, restore; ADR-0011).
+  (schedule, unschedule, archive, restore; ADR-0011), and duplication into a new draft with new
+  dates (ADR-0036).
 - **Team** (ADR-0010, ADR-0012): email invitations with role ceiling, acceptance bound to the
   invited address, revocation, member listing, role changes, and removal with a last-Owner guard.
 - **Organization settings** (ADR-0012): profile and billing contact with per-field permissions,
