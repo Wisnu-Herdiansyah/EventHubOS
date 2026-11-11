@@ -14,6 +14,10 @@ import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
 import { can } from '@/lib/permissions';
 import { registrationStateLabel, seatsLabel } from '@/lib/registrations';
+import { answerText } from '@/lib/registration-export';
+import type { components } from '@/lib/api-types';
+
+type Registration = components['schemas']['Registration'];
 import { formatInZone } from '@/lib/time';
 
 export const metadata: Metadata = { title: 'Registrations' };
@@ -79,6 +83,7 @@ export default async function RegistrationsPage({
     signInOn401(error, `/orgs/${orgId}/events/${eventId}/registrations`);
   }
   const state = registrationStateLabel(summary.state, summary.waitlist);
+  const questions = evt.settings.registration?.questions ?? [];
   const base = `/orgs/${orgId}/events/${eventId}/registrations`;
 
   return (
@@ -208,6 +213,38 @@ export default async function RegistrationsPage({
                   header: 'Email',
                   cell: (r) => <span className="wrap-anywhere">{r.email}</span>,
                 },
+                ...(questions.length > 0
+                  ? [
+                      {
+                        key: 'answers',
+                        header: 'Answers',
+                        cell: (r: Registration) => {
+                          const answered = questions.filter((q) => r.answers?.[q.id] !== undefined);
+                          if (answered.length === 0) {
+                            return <span className="text-secondary">None</span>;
+                          }
+                          return (
+                            <details className="answers">
+                              <summary>
+                                {answered.length} of {questions.length}
+                                <span className="visually-hidden"> answers from {r.name}</span>
+                              </summary>
+                              <dl>
+                                {answered.map((q) => (
+                                  <div key={q.id}>
+                                    <dt>{q.label}</dt>
+                                    <dd className="wrap-anywhere">
+                                      {answerText(q, r.answers?.[q.id])}
+                                    </dd>
+                                  </div>
+                                ))}
+                              </dl>
+                            </details>
+                          );
+                        },
+                      },
+                    ]
+                  : []),
                 {
                   key: 'when',
                   header: 'Registered',

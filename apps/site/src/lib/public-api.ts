@@ -5,6 +5,7 @@ import { siteConfig } from './config';
 import { HANDLE, SLUG } from './host';
 
 export type PublicEventPage = components['schemas']['PublicEventPage'];
+export type Question = components['schemas']['RegistrationQuestion'];
 
 /**
  * Fetches a public page (published revision only). null means "not public" in every form the

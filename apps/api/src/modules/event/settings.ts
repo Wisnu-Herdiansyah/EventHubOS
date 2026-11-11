@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { questionsSchema } from '../registration/questions.ts';
 
 /**
  * Event settings (EVT-02), stored as versioned JSON on `event.settings`. JSON is used only for
@@ -28,6 +29,8 @@ const sections = {
       waitlist: z.boolean().optional(),
       /** At most this many people waiting; then the event is full again (ADR-0038). */
       waitlistLimit: z.number().int().min(1).max(10_000).optional(),
+      /** Extra questions on the sign-up form (ADR-0041). */
+      questions: questionsSchema.optional(),
     })
     .strict(),
   sharing: z

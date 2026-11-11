@@ -1257,6 +1257,7 @@ export interface components {
                 capacity?: number;
                 waitlist?: boolean;
                 waitlistLimit?: number;
+                questions?: components["schemas"]["RegistrationQuestion"][];
             };
             sharing?: {
                 title?: string;
@@ -1300,6 +1301,7 @@ export interface components {
                 capacity?: number;
                 waitlist?: boolean;
                 waitlistLimit?: number;
+                questions?: components["schemas"]["RegistrationQuestion"][];
             } | null;
             sharing?: {
                 title?: string;
@@ -1563,6 +1565,7 @@ export interface components {
                 state: "open" | "not_open_yet" | "closed" | "full" | "waitlist";
                 opensAt: string | null;
                 closesAt: string;
+                questions: components["schemas"]["RegistrationQuestion"][];
             };
         };
         PublicRegistrationRequest: {
@@ -1571,6 +1574,7 @@ export interface components {
             /** @constant */
             privacyConsent: true;
             website?: string;
+            answers?: components["schemas"]["RegistrationAnswers"];
         };
         PublishPageRequest: {
             expectedVersion: number;
@@ -1604,11 +1608,17 @@ export interface components {
             promotedAt: string | null;
             promotedBy: ("waitlist" | "organizer") | null;
             waitlistClosedAt: string | null;
+            answers?: {
+                [key: string]: string | boolean;
+            };
         };
         RegistrationAccepted: {
             /** @constant */
             status: "accepted";
             message: string;
+        };
+        RegistrationAnswers: {
+            [key: string]: string | boolean;
         };
         RegistrationCancelled: {
             /** @constant */
@@ -1623,6 +1633,7 @@ export interface components {
             /** Format: date-time */
             generatedAt: string;
             truncated: boolean;
+            questions: components["schemas"]["RegistrationQuestion"][];
             data: components["schemas"]["Registration"][];
         };
         RegistrationExportRequest: {
@@ -1631,6 +1642,15 @@ export interface components {
         };
         RegistrationList: {
             data: components["schemas"]["Registration"][];
+        };
+        RegistrationQuestion: {
+            id: string;
+            /** @enum {string} */
+            type: "short_text" | "long_text" | "choice" | "yes_no";
+            label: string;
+            help?: string;
+            required: boolean;
+            options?: string[];
         };
         RegistrationSummary: {
             confirmed: number;
