@@ -198,9 +198,22 @@ export async function axeScan(page: Page): Promise<void> {
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();
-  expect(
-    results.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`),
-  ).toEqual([]);
+  // On failure, say why (axe's own summary, e.g. which element covers a button) and how big the
+  // element was, so a CI-only failure can be diagnosed from the log alone.
+  const details: string[] = [];
+  for (const v of results.violations) {
+    for (const n of v.nodes) {
+      const box = await page
+        .locator(n.target.join(' '))
+        .first()
+        .boundingBox()
+        .catch(() => null);
+      details.push(
+        `${v.id}: ${n.target.join(' ')}\n  ${(n.failureSummary ?? '').replace(/\n/g, '\n  ')}\n  box: ${JSON.stringify(box)}\n  viewport: ${JSON.stringify(page.viewportSize())}`,
+      );
+    }
+  }
+  expect(details).toEqual([]);
 }
 
 /** The invitee accepts through the API, using the token from their invitation email. */

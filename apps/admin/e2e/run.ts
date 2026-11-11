@@ -164,6 +164,8 @@ try {
     RATE_LIMIT_PER_MINUTE: '2000',
     // Seals authenticator secrets (ADR-0022); random per run.
     MFA_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+    // Passkeys are bound to the admin app's host (ADR-0033); localhost counts as a secure origin.
+    PASSKEY_ORIGIN: baseUrl,
   });
   start('worker', process.execPath, ['apps/worker/src/main.ts'], {
     EVENTHUB_ENV: 'ci',

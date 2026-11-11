@@ -322,4 +322,23 @@ describe('loadMigratorConfig', () => {
   it('requires the migrator URL', () => {
     expect(() => loadMigratorConfig({ EVENTHUB_ENV: 'local' })).toThrow(ConfigError);
   });
+
+  describe('passkey origin (ADR-0033)', () => {
+    const base = {
+      EVENTHUB_ENV: 'local',
+      DATABASE_APP_URL: 'postgres://app@localhost:5432/eventhub', // pragma: allowlist secret
+    };
+    it('is optional, and gives the origin and the host name as relying party ID', () => {
+      expect(loadApiConfig(base).passkeys).toBeNull();
+      expect(loadApiConfig({ ...base, PASSKEY_ORIGIN: 'http://localhost:3001' }).passkeys).toEqual({
+        origin: 'http://localhost:3001',
+        rpId: 'localhost',
+      });
+    });
+    it('accepts an origin only', () => {
+      expect(() =>
+        loadApiConfig({ ...base, PASSKEY_ORIGIN: 'https://admin.example/path' }),
+      ).toThrow(ConfigError);
+    });
+  });
 });

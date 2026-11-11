@@ -115,6 +115,16 @@ const apiSchema = baseSchema.extend({
       (v) => v === undefined || Buffer.from(v, 'base64').length === 32,
       'Must be 32 bytes, base64-encoded (e.g. openssl rand -base64 32)',
     ),
+  /**
+   * The admin app's origin, e.g. https://admin.eventhub.example (ADR-0033). Passkeys are bound to
+   * its host name; without it, passkeys report themselves as unavailable.
+   */
+  PASSKEY_ORIGIN: z
+    .url({ protocol: /^https?$/ })
+    .optional()
+    .refine((v) => v === undefined || new URL(v).origin === v.replace(/\/$/, ''), {
+      message: 'Use an origin only, e.g. https://admin.eventhub.example',
+    }),
 });
 
 export interface ApiConfig {
@@ -132,6 +142,8 @@ export interface ApiConfig {
   invitations: { ttlSeconds: number };
   /** null: not configured (local/ci only), so MFA enrolment and sign-in report unavailable. */
   mfa: { encryptionKey: Buffer | null };
+  /** Passkeys (ADR-0033); null when PASSKEY_ORIGIN is not set. */
+  passkeys: { origin: string; rpId: string } | null;
 }
 
 export function loadApiConfig(env: Readonly<Record<string, string | undefined>>): ApiConfig {
@@ -143,6 +155,14 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
       ['TRUST_PROXY'],
       `list the trusted proxy addresses explicitly in ${c.EVENTHUB_ENV}`,
     );
+  }
+  if (
+    c.PASSKEY_ORIGIN &&
+    isRemoteEnvironment(c.EVENTHUB_ENV) &&
+    !c.PASSKEY_ORIGIN.startsWith('https://')
+  ) {
+    // Browsers only allow WebAuthn on secure origins; http is for local development.
+    throw new ConfigError(['PASSKEY_ORIGIN'], `must use https in ${c.EVENTHUB_ENV}`);
   }
   if (!c.MFA_ENCRYPTION_KEY && isRemoteEnvironment(c.EVENTHUB_ENV)) {
     throw new ConfigError(['MFA_ENCRYPTION_KEY'], `is required in ${c.EVENTHUB_ENV}`);
@@ -163,6 +183,12 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
     mfa: {
       encryptionKey: c.MFA_ENCRYPTION_KEY ? Buffer.from(c.MFA_ENCRYPTION_KEY, 'base64') : null,
     },
+    passkeys: c.PASSKEY_ORIGIN
+      ? {
+          origin: new URL(c.PASSKEY_ORIGIN).origin,
+          rpId: new URL(c.PASSKEY_ORIGIN).hostname,
+        }
+      : null,
   };
 }
 

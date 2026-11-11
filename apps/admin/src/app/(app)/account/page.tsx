@@ -7,6 +7,7 @@ import {
   RevokeOtherSessionsForm,
   RevokeSessionForm,
 } from '@/components/account-forms';
+import { PasskeysPanel } from '@/components/passkeys';
 import { TwoStepPanel } from '@/components/two-step';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -43,12 +44,13 @@ export default async function AccountPage({
   if (!(await readSessionToken())) redirect('/login?next=%2Faccount');
   const code = (await searchParams).notice;
   const notice = typeof code === 'string' ? NOTICES[code] : undefined;
-  let me, sessions, policy, mfa;
+  let me, sessions, policy, mfa, passkeys;
   try {
     const client = await api();
     me = unwrap(await client.GET('/v1/me'));
     ({ data: sessions, policy } = unwrap(await client.GET('/v1/auth/sessions')));
     mfa = unwrap(await client.GET('/v1/auth/mfa'));
+    passkeys = unwrap(await client.GET('/v1/auth/passkeys'));
   } catch (error) {
     signInOn401(error, '/account');
   }
@@ -118,6 +120,11 @@ export default async function AccountPage({
               <span className="text-secondary">Since {formatInZone(mfa.enabledAt, 'UTC')}</span>
             ) : null
           }
+        />
+        <PasskeysPanel
+          passkeys={passkeys.passkeys}
+          available={passkeys.available && mfa.available}
+          mfaOn={mfa.status === 'on'}
         />
       </Card>
 

@@ -6,7 +6,14 @@ export const MFA_CHANGED = 'identity.mfa_changed';
 
 const payload = z.object({
   userId: z.uuid(),
-  change: z.enum(['enabled', 'disabled', 'recovery_codes_regenerated', 'recovery_code_used']),
+  change: z.enum([
+    'enabled',
+    'disabled',
+    'recovery_codes_regenerated',
+    'recovery_code_used',
+    'passkey_added',
+    'passkey_removed',
+  ]),
 });
 
 const MESSAGES: Record<z.infer<typeof payload>['change'], { subject: string; lines: string[] }> = {
@@ -29,6 +36,19 @@ const MESSAGES: Record<z.infer<typeof payload>['change'], { subject: string; lin
     lines: [
       'New recovery codes were created for your EventHub OS account. The previous codes no',
       'longer work.',
+    ],
+  },
+  passkey_added: {
+    subject: 'A passkey was added to your EventHub OS account',
+    lines: [
+      'A passkey was added to your EventHub OS account. It can now be used instead of a code',
+      'from your authenticator app when you sign in.',
+    ],
+  },
+  passkey_removed: {
+    subject: 'A passkey was removed from your EventHub OS account',
+    lines: [
+      'A passkey was removed from your EventHub OS account. It no longer works for signing in.',
     ],
   },
   recovery_code_used: {

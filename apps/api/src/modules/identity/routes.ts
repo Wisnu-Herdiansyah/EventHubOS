@@ -1,3 +1,4 @@
+import type { PasskeyRelyingParty } from './passkeys.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { AppError, createDomainEvent, type Actor } from '@eventhub/kernel';
@@ -23,6 +24,8 @@ import {
 export interface IdentitySettings {
   /** Seals authenticator secrets (ADR-0022); null or absent: two-step verification unavailable. */
   mfaEncryptionKey?: Buffer | null;
+  /** Passkeys as a second step (ADR-0033); null or absent: passkeys unavailable. */
+  passkeys?: PasskeyRelyingParty | null;
   sessionTtlSeconds: number;
   /** Idle timeout (ADR-0018); defaults to DEFAULT_SESSION_IDLE_SECONDS. */
   sessionIdleSeconds?: number;
@@ -124,6 +127,8 @@ const mfaChallengeSchema = z
     /** Single use; send it back with a code to POST /v1/auth/login/mfa. */
     challengeToken: z.string(),
     expiresAt: z.iso.datetime(),
+    /** The account has a passkey that can complete this sign-in (ADR-0033). */
+    passkey: z.boolean(),
   })
   .meta({ id: 'MfaChallenge' });
 
@@ -343,10 +348,19 @@ export function identityRoutes(
               account.out_user_id,
               correlationId,
             );
+            const passkeys = settings.passkeys
+              ? (
+                  await client.query<{ n: number }>(
+                    'SELECT count(*)::int AS n FROM eventhub.auth_passkey_list($1)',
+                    [account.out_user_id],
+                  )
+                ).rows[0]!.n
+              : 0;
             return {
               mfaRequired: true as const,
               challengeToken: challenge.token,
               expiresAt: c.rows[0]!.auth_mfa_create_challenge.toISOString(),
+              passkey: passkeys > 0,
             };
           }
           const { token, hash } = newSessionToken();
