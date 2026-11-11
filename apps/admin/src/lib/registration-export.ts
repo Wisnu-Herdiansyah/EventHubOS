@@ -3,6 +3,15 @@ import { toCsv } from './csv';
 import { isoToZonedLocal } from './time';
 
 type Export = components['schemas']['RegistrationExport'];
+type Question = components['schemas']['RegistrationQuestion'];
+
+/** An answer as people read it (ADR-0041): yes/no in words, nothing when unanswered. */
+export function answerText(q: Pick<Question, 'type'>, value: string | boolean | undefined): string {
+  if (value === undefined) return '';
+  if (q.type === 'yes_no' || typeof value === 'boolean')
+    return value === true ? 'Yes' : value === false ? 'No' : String(value);
+  return value;
+}
 
 /** "2027-03-01 09:00" in the event's time zone: sortable and read correctly by spreadsheets. */
 const local = (iso: string | null, timeZone: string) =>
@@ -15,9 +24,14 @@ const STATUS: Record<string, string> = {
 };
 const BY: Record<string, string> = { attendee: 'Attendee', organizer: 'Organizer' };
 
-/** The attendee list as CSV (ADR-0027), times in the event's time zone. */
+/**
+ * The attendee list as CSV (ADR-0027), times in the event's time zone, then one column per
+ * registration question (ADR-0041). Answers come from the public, so the same formula
+ * protection applies to them as to names.
+ */
 export function registrationsCsv(e: Export): string {
   const tz = e.timezone;
+  const questions = e.questions;
   return toCsv(
     [
       'Name',
@@ -27,6 +41,7 @@ export function registrationsCsv(e: Export): string {
       `Cancelled at (${tz})`,
       'Cancelled by',
       `Checked in at (${tz})`,
+      ...questions.map((q) => q.label),
     ],
     e.data.map((r) => [
       r.name,
@@ -36,6 +51,7 @@ export function registrationsCsv(e: Export): string {
       local(r.cancelledAt, tz),
       r.cancelledBy ? (BY[r.cancelledBy] ?? r.cancelledBy) : '',
       local(r.checkedInAt, tz),
+      ...questions.map((q) => answerText(q, r.answers?.[q.id])),
     ]),
   );
 }

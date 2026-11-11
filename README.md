@@ -31,7 +31,7 @@ Phase 0 (foundation) plus Phase 1 slices:
   drafts, and immutable published revisions; editors save, Event managers publish. The program
   has multi-day agenda sessions with rooms and linked speakers, and speaker bios (ADR-0040).
 - **Free registration** (ADR-0023): visitors register on the public page (name, email,
-  privacy consent) and cancel with an emailed link; organizers see attendees, capacity and state,
+  privacy consent, plus up to 10 organizer questions, ADR-0041) and cancel with an emailed link; organizers see attendees, capacity and state,
   can download the list as CSV (ADR-0027), keep a waitlist that fills freed seats in order
   and tells people when it closes (ADR-0035, ADR-0038), email everyone signed up with a plain-text announcement (ADR-0037), and check
   attendees in at the door (ADR-0028),

@@ -715,3 +715,83 @@ test('an organizer emails an announcement to everyone registered (ADR-0037)', as
   await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/announcements`);
   await expect(page.getByRole('main')).toContainText('can send announcements');
 });
+
+test('an organizer asks registration questions and reads the answers (ADR-0041)', async ({
+  page,
+  browser,
+}) => {
+  const t = await publishedEvent('questions');
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}`);
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  const card = page.getByRole('region', { name: 'Registration questions' });
+  await card.getByRole('button', { name: 'Add question' }).click();
+  await card.getByLabel('Question 1', { exact: true }).fill('Company');
+  await card.getByRole('checkbox', { name: 'Required (question 1)' }).check();
+  await card.getByRole('button', { name: 'Add question' }).click();
+  await card.getByLabel('Question 2', { exact: true }).fill('Lunch');
+  await card.getByLabel('Answer type (question 2)').selectOption('choice');
+  await card.getByLabel('Options (question 2)').fill('Regular\nVegan');
+  await card.getByRole('checkbox', { name: 'Required (question 2)' }).check();
+  // A choice with one option is refused, and the message names the question.
+  await card.getByRole('button', { name: 'Add question' }).click();
+  await card.getByLabel('Question 3', { exact: true }).fill('Size');
+  await card.getByLabel('Answer type (question 3)').selectOption('choice');
+  await card.getByLabel('Options (question 3)').fill('Only one');
+  await card.getByRole('button', { name: 'Save questions' }).click();
+  await expect(card.getByText('Question 3 · Options: Give at least two options.')).toBeVisible();
+  await card.getByRole('button', { name: 'Remove question 3' }).click();
+  await card.getByRole('button', { name: 'Save questions' }).click();
+  await expect(card.getByText('Questions saved.')).toBeVisible();
+  await expectAccessible(page);
+
+  // Saving the other settings keeps the questions.
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(page.getByText('Settings saved.')).toBeVisible();
+  await page.reload();
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  await expect(card.getByLabel('Question 2', { exact: true })).toHaveValue('Lunch');
+
+  // The visitor answers them; a missing required answer is explained, and what was typed stays.
+  const v = await visitor(browser);
+  await v.page.goto(t.url);
+  const form = v.page.getByRole('region', { name: 'Save your seat' });
+  const attendee = uniqueEmail('asked');
+  await form.getByLabel('Name', { exact: true }).fill('Ana Answer');
+  await form.getByLabel('Email', { exact: true }).fill(attendee);
+  await form.getByRole('radio', { name: 'Vegan' }).check();
+  await form.getByRole('checkbox').check();
+  await axeScan(v.page);
+  // The browser would stop an empty required field; send it anyway, as a script could.
+  await form
+    .getByLabel('Company', { exact: true })
+    .evaluate((el) => el.removeAttribute('required'));
+  await form.getByRole('button', { name: 'Save my seat' }).click();
+  await expect(form.getByText('This question needs an answer.')).toBeVisible();
+  await expect(form.getByLabel('Name', { exact: true })).toHaveValue('Ana Answer');
+  await expect(form.getByRole('radio', { name: 'Vegan' })).toBeChecked();
+  await form.getByLabel('Company', { exact: true }).fill('Acme, Inc.');
+  await form.getByRole('checkbox').check();
+  await form.getByRole('button', { name: 'Save my seat' }).click();
+  await expect(form.getByRole('status')).toContainText('Check your email');
+  await v.context.close();
+
+  // The organizer reads the answers in the list and the download.
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/registrations`);
+  const row = page
+    .getByRole('region', { name: 'Attendees' })
+    .getByRole('row')
+    .filter({ hasText: 'Ana Answer' });
+  await row.getByText('2 of 2').click();
+  await expect(row.getByText('Acme, Inc.')).toBeVisible();
+  await expect(row.getByText('Vegan')).toBeVisible();
+  await expectAccessible(page);
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download CSV' }).click(),
+  ]);
+  const csv = await readFile(await download.path(), 'utf8');
+  expect(csv).toContain(',Company,Lunch');
+  expect(csv).toContain(`Ana Answer,${attendee},Registered,`);
+  expect(csv).toContain(',"Acme, Inc.",Vegan');
+});

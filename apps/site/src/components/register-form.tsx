@@ -3,6 +3,7 @@
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { registerAction, type RegisterState } from '@/app/actions';
+import type { Question } from '@/lib/public-api';
 
 function Submit({ label, waitlist }: { label: string; waitlist: boolean }) {
   const { pending } = useFormStatus();
@@ -24,15 +25,18 @@ export function RegisterForm({
   privacyPolicyUrl,
   ctaLabel,
   waitlist = false,
+  questions = [],
 }: {
   handle: string;
   eventSlug: string;
   privacyPolicyUrl: string | null;
   ctaLabel: string;
   waitlist?: boolean;
+  /** The event's extra questions (ADR-0041). */
+  questions?: Question[];
 }) {
   const [state, action] = useActionState<RegisterState, FormData>(
-    registerAction.bind(null, handle, eventSlug),
+    registerAction.bind(null, handle, eventSlug, questions),
     { status: 'idle' },
   );
   if (state.status === 'done') {
@@ -95,6 +99,14 @@ export function RegisterForm({
           </span>
         ) : null}
       </div>
+      {questions.map((q) => (
+        <QuestionField
+          key={q.id}
+          question={q}
+          error={err[`q-${q.id}`]}
+          value={state.values?.[`q-${q.id}`]}
+        />
+      ))}
       {/* Honeypot: hidden from people and screen readers; bots tend to fill it in. */}
       <div className="site-trap" aria-hidden="true">
         <label htmlFor="reg-website">Website</label>
@@ -130,5 +142,101 @@ export function RegisterForm({
         <Submit label={waitlist ? 'Join the waitlist' : ctaLabel} waitlist={waitlist} />
       </div>
     </form>
+  );
+}
+
+/** One registration question (ADR-0041), with its hint and error tied to the input. */
+function QuestionField({
+  question: q,
+  error,
+  value,
+}: {
+  question: Question;
+  error?: string;
+  value?: string;
+}) {
+  const id = `reg-q-${q.id}`;
+  const name = `q-${q.id}`;
+  const described =
+    [q.help ? `${id}-help` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') ||
+    undefined;
+  const label = (
+    <>
+      {q.label}
+      {q.required ? null : <span className="site-optional"> (optional)</span>}
+    </>
+  );
+  const help = q.help ? (
+    <span id={`${id}-help`} className="site-help">
+      {q.help}
+    </span>
+  ) : null;
+  const errorText = error ? (
+    <span id={`${id}-error`} className="site-error">
+      {error}
+    </span>
+  ) : null;
+  if (q.type === 'choice' || q.type === 'yes_no') {
+    const options =
+      q.type === 'yes_no'
+        ? [
+            { value: 'yes', label: 'Yes' },
+            { value: 'no', label: 'No' },
+          ]
+        : (q.options ?? []).map((o) => ({ value: o, label: o }));
+    return (
+      <fieldset
+        className="site-field site-choice"
+        aria-describedby={described}
+        aria-invalid={error ? true : undefined}
+      >
+        <legend>{label}</legend>
+        {help}
+        {options.map((o, i) => (
+          <label key={o.value} className="site-check">
+            <input
+              type="radio"
+              name={name}
+              value={o.value}
+              required={q.required && i === 0}
+              defaultChecked={value === o.value}
+            />
+            <span>{o.label}</span>
+          </label>
+        ))}
+        {errorText}
+      </fieldset>
+    );
+  }
+  return (
+    <div className="site-field">
+      <label htmlFor={id}>{label}</label>
+      {help}
+      {q.type === 'long_text' ? (
+        <textarea
+          id={id}
+          name={name}
+          className="site-input"
+          rows={4}
+          maxLength={2000}
+          required={q.required}
+          defaultValue={value}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={described}
+        />
+      ) : (
+        <input
+          id={id}
+          name={name}
+          className="site-input"
+          maxLength={200}
+          required={q.required}
+          defaultValue={value}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={described}
+        />
+      )}
+      {errorText}
+    </div>
   );
 }

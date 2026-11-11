@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { questionSchema, storedQuestions } from '../registration/questions.ts';
 import { notFound } from '@eventhub/kernel';
 import { withTransaction, type Pool } from '@eventhub/db';
 import { definePublicRoute, type AnyRoute } from '../../http/route.ts';
@@ -44,6 +45,8 @@ const publicEventPageSchema = z
       state: z.enum(['open', 'not_open_yet', 'closed', 'full', 'waitlist']),
       opensAt: z.string().nullable(),
       closesAt: z.string(),
+      /** Extra questions on the sign-up form (ADR-0041). */
+      questions: z.array(questionSchema),
     }),
   })
   .meta({ id: 'PublicEventPage' });
@@ -91,10 +94,18 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
             out_closes_at: Date;
             out_privacy_policy_url: string | null;
           }>('SELECT * FROM eventhub.public_registration_state($1, $2)', [p.handle, p.eventSlug]);
-          return { row: rows[0], reg: reg.rows[0]! };
+          const q = await client.query<{ questions: unknown }>(
+            'SELECT eventhub.public_registration_questions($1, $2) AS questions',
+            [p.handle, p.eventSlug],
+          );
+          return {
+            row: rows[0],
+            reg: reg.rows[0]!,
+            questions: storedQuestions(q.rows[0]?.questions),
+          };
         });
         if (!found) throw notFound('Page');
-        const { row, reg } = found;
+        const { row, reg, questions } = found;
         return {
           status: 200,
           body: {
@@ -117,6 +128,7 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
               state: reg.out_state,
               opensAt: reg.out_opens_at?.toISOString() ?? null,
               closesAt: reg.out_closes_at.toISOString(),
+              questions,
             },
           },
         };

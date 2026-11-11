@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import type { components } from '@/lib/api-types';
 import { api, unwrap } from '@/lib/api';
-import { errorToFormState, type FormState } from '@/lib/errors';
+import { ApiError, errorToFormState, type FormState } from '@/lib/errors';
 import { zonedLocalToIso } from '@/lib/time';
 import { formText, submittedValues } from '@/lib/form-data';
 
@@ -165,6 +165,17 @@ export async function updateEventSettingsAction(
         values: submittedValues(form),
       };
     const client = await api();
+    // The registration section is replaced as a whole: keep the questions, which have their own
+    // editor (ADR-0041).
+    const current = unwrap(
+      await client.GET('/v1/organizations/{organizationId}/events/{eventId}', {
+        params: { path: { organizationId, eventId: eventId! } },
+      }),
+    );
+    const questions = current.settings.registration?.questions;
+    if (questions && questions.length > 0) {
+      settings.registration = { ...(settings.registration ?? {}), questions };
+    }
     unwrap(
       await client.PATCH('/v1/organizations/{organizationId}/events/{eventId}', {
         params: {
@@ -179,6 +190,75 @@ export async function updateEventSettingsAction(
   } catch (error) {
     return { ...errorToFormState(error), values: submittedValues(form) };
   }
+}
+
+type Question = components['schemas']['RegistrationQuestion'];
+
+/**
+ * Saves the registration questions (ADR-0041), keeping the rest of the registration settings.
+ * The questions arrive as JSON from the editor; the API validates them.
+ */
+export async function updateRegistrationQuestionsAction(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  try {
+    const { organizationId, eventId } = ids(form);
+    let questions: Question[];
+    try {
+      const parsed: unknown = JSON.parse(str(form, 'questions') || '[]');
+      if (!Array.isArray(parsed)) throw new Error('not a list');
+      questions = parsed as Question[];
+    } catch {
+      return { ok: false, message: 'Something went wrong. Please try again.' };
+    }
+    const client = await api();
+    const current = unwrap(
+      await client.GET('/v1/organizations/{organizationId}/events/{eventId}', {
+        params: { path: { organizationId, eventId: eventId! } },
+      }),
+    );
+    const { questions: _old, ...rest } = current.settings.registration ?? {};
+    const registration = questions.length > 0 ? { ...rest, questions } : rest;
+    unwrap(
+      await client.PATCH('/v1/organizations/{organizationId}/events/{eventId}', {
+        params: {
+          path: { organizationId, eventId: eventId! },
+          header: { 'Idempotency-Key': str(form, 'idempotencyKey') },
+        },
+        body: {
+          expectedVersion: Number(str(form, 'expectedVersion')),
+          settings: { registration: Object.keys(registration).length > 0 ? registration : null },
+        },
+      }),
+    );
+    revalidatePath(`/orgs/${organizationId}/events/${eventId}`);
+    return { ok: true, message: 'Questions saved.' };
+  } catch (error) {
+    if (error instanceof ApiError && error.fields.length > 0) {
+      return {
+        ok: false,
+        message: 'Some questions need attention.',
+        fields: Object.fromEntries(error.fields.map((f, i) => [String(i), questionIssue(f)])),
+      };
+    }
+    return errorToFormState(error);
+  }
+}
+
+const QUESTION_FIELDS: Record<string, string> = {
+  label: 'Question',
+  options: 'Options',
+  help: 'Hint',
+  id: 'ID',
+};
+
+/** "Question 2 · Options: Give at least two options." from an API field path. */
+function questionIssue(f: { path: string; message: string }): string {
+  const m = /questions\.(\d+)(?:\.([A-Za-z]+))?/.exec(f.path);
+  if (!m) return f.message;
+  const part = m[2] ? ` · ${QUESTION_FIELDS[m[2]] ?? m[2]}` : '';
+  return `Question ${Number(m[1]) + 1}${part}: ${f.message}`;
 }
 
 export async function transitionEventAction(_prev: FormState, form: FormData): Promise<FormState> {

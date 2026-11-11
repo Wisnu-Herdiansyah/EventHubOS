@@ -4,13 +4,16 @@ import { headers } from 'next/headers';
 import { clientIpFromForwarded } from '@/lib/client-ip';
 import { siteConfig } from '@/lib/config';
 import { HANDLE, SLUG } from '@/lib/host';
+import type { Question } from '@/lib/public-api';
 
 /** What the registration form shows after a submit. */
 export interface RegisterState {
   status: 'idle' | 'done' | 'error';
   message?: string;
-  fields?: Partial<Record<'name' | 'email' | 'privacyConsent', string>>;
-  values?: { name: string; email: string };
+  /** Errors by field: name, email, privacyConsent, or `q-<question id>`. */
+  fields?: Record<string, string>;
+  /** What was typed, by field name, so a failed submit keeps it. */
+  values?: Record<string, string>;
 }
 
 async function forwardedFor(): Promise<Record<string, string>> {
@@ -25,15 +28,39 @@ const text = (form: FormData, key: string) => {
 };
 
 const FIELD = /^body\.(name|email|privacyConsent)$/;
+const ANSWER = /^body\.answers\.([a-z0-9-]{1,40})$/;
+
+/**
+ * Answers from the form (ADR-0041): text and choices as strings, yes/no as booleans (left out
+ * when not chosen). The API checks them against the event's own questions.
+ */
+function answersFrom(questions: Question[], form: FormData): Record<string, string | boolean> {
+  const answers: Record<string, string | boolean> = {};
+  for (const q of questions.slice(0, 10)) {
+    const raw = form.get(`q-${q.id}`);
+    if (typeof raw !== 'string') continue;
+    if (q.type === 'yes_no') {
+      if (raw === 'yes' || raw === 'no') answers[q.id] = raw === 'yes';
+    } else {
+      answers[q.id] = raw.slice(0, 2000);
+    }
+  }
+  return answers;
+}
 
 /** Free registration (ADR-0023). The API applies every rule; this only relays and explains. */
 export async function registerAction(
   handle: string,
   eventSlug: string,
+  questions: Question[],
   _prev: RegisterState,
   form: FormData,
 ): Promise<RegisterState> {
-  const values = { name: text(form, 'name'), email: text(form, 'email') };
+  const values: Record<string, string> = { name: text(form, 'name'), email: text(form, 'email') };
+  for (const q of questions.slice(0, 10)) {
+    const v = form.get(`q-${q.id}`);
+    if (typeof v === 'string') values[`q-${q.id}`] = v.slice(0, 2000);
+  }
   if (!HANDLE.test(handle) || !SLUG.test(eventSlug)) {
     return { status: 'error', message: 'This page is not available.' };
   }
@@ -49,6 +76,7 @@ export async function registerAction(
           email: values.email,
           privacyConsent: form.get('privacyConsent') === 'yes',
           website: text(form, 'website'),
+          ...(questions.length > 0 ? { answers: answersFrom(questions, form) } : {}),
         }),
       },
     );
@@ -60,10 +88,12 @@ export async function registerAction(
       };
     };
     if (res.status === 202) return { status: 'done', message: body.message };
-    const fields: RegisterState['fields'] = {};
+    const fields: Record<string, string> = {};
     for (const f of body.error?.details?.fields ?? []) {
       const m = FIELD.exec(f.path);
-      if (m) fields[m[1] as 'name' | 'email' | 'privacyConsent'] ??= f.message;
+      if (m) fields[m[1]!] ??= f.message;
+      const a = ANSWER.exec(f.path);
+      if (a) fields[`q-${a[1]}`] ??= f.message;
     }
     if (Object.keys(fields).length > 0) {
       return { status: 'error', message: 'Check the highlighted fields.', fields, values };

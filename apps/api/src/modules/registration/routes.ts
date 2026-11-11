@@ -15,6 +15,7 @@ import { uuid } from '../../http/schemas.ts';
 import { slugSchema } from '../event/routes.ts';
 import { emailSchema } from '../identity/password.ts';
 import { withOrganization, type OrganizationAccess } from '../tenancy/access.ts';
+import { answersInput, checkAnswers, questionSchema, storedQuestions } from './questions.ts';
 
 /**
  * Free event registration (ADR-0023). Visitors sign up on the public page and cancel with the
@@ -49,6 +50,8 @@ const registerBody = z
     privacyConsent: z.literal(true, 'Agree to the privacy policy to register.'),
     /** Honeypot: hidden from people, filled in by naive bots. Must be empty. */
     website: z.string().max(200).optional(),
+    /** Answers to the event's questions, by question ID (ADR-0041). */
+    answers: answersInput.optional(),
   })
   .strict()
   .meta({ id: 'PublicRegistrationRequest' });
@@ -78,6 +81,11 @@ const registrationSchema = z
     promotedBy: z.enum(['waitlist', 'organizer']).nullable(),
     /** When a waiting person was told the waitlist closed (ADR-0038), or null. */
     waitlistClosedAt: z.iso.datetime().nullable(),
+    /**
+     * Answers to the registration questions (ADR-0041). Personal data: only in the attendee list
+     * and export (registration.manage), never at the door.
+     */
+    answers: z.record(z.string(), z.union([z.string(), z.boolean()])).optional(),
   })
   .meta({ id: 'Registration' });
 
@@ -112,6 +120,7 @@ interface RegistrationRow {
   promoted_at: Date | null;
   promoted_by: 'waitlist' | 'organizer' | null;
   waitlist_closed_at: Date | null;
+  answers: Record<string, string | boolean>;
 }
 
 const toDto = (r: RegistrationRow) => ({
@@ -126,10 +135,17 @@ const toDto = (r: RegistrationRow) => ({
   promotedAt: r.promoted_at?.toISOString() ?? null,
   promotedBy: r.promoted_by,
   waitlistClosedAt: r.waitlist_closed_at?.toISOString() ?? null,
+  answers: r.answers,
 });
 
+/** For the door: the same row without the answers (data minimization, ADR-0041). */
+const toDoorDto = (r: RegistrationRow) => {
+  const { answers: _answers, ...rest } = toDto(r);
+  return rest;
+};
+
 const REGISTRATION_COLUMNS =
-  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at, promoted_at, promoted_by, waitlist_closed_at';
+  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at, promoted_at, promoted_by, waitlist_closed_at, answers';
 
 /** For the door: no email confirmation, just who and when (ADR-0028). */
 const checkInResultSchema = z
@@ -231,16 +247,31 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
         // A filled honeypot looks like success and does nothing.
         if (body.website) return { status: 202, body: ACCEPTED };
         const outcome = await withTransaction(pool, {}, async (client) => {
+          // The event's current questions decide which answers are valid (ADR-0041).
+          const q = await client.query<{ questions: unknown }>(
+            'SELECT eventhub.public_registration_questions($1, $2) AS questions',
+            [params.handle, params.eventSlug],
+          );
+          const { answers, issues } = checkAnswers(
+            storedQuestions(q.rows[0]?.questions),
+            body.answers ?? {},
+          );
+          if (issues.length > 0) {
+            throw new AppError('validation_failed', 'Check your answers.', {
+              details: { fields: issues },
+            });
+          }
           const { rows } = await client.query<{
             out_outcome: string;
             out_registration_id: string | null;
             out_organization_id: string | null;
             out_event_id: string | null;
-          }>('SELECT * FROM eventhub.public_register($1, $2, $3, $4)', [
+          }>('SELECT * FROM eventhub.public_register_with_answers($1, $2, $3, $4, $5)', [
             params.handle,
             params.eventSlug,
             body.email,
             body.name,
+            JSON.stringify(answers),
           ]);
           const r = rows[0]!;
           if (r.out_registration_id && r.out_organization_id) {
@@ -534,6 +565,8 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
               generatedAt: z.iso.datetime(),
               /** More registrations exist than one export holds. */
               truncated: z.boolean(),
+              /** The event's current questions, for the answer columns (ADR-0041). */
+              questions: z.array(questionSchema),
               data: z.array(registrationSchema),
             })
             .meta({ id: 'RegistrationExport' }),
@@ -546,8 +579,14 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
           params.organizationId,
           'registration.export_pii',
           async (client, access) => {
-            const ev = await client.query<{ name: string; slug: string; timezone: string }>(
-              'SELECT name, slug, timezone FROM eventhub.event WHERE organization_id = $1 AND id = $2',
+            const ev = await client.query<{
+              name: string;
+              slug: string;
+              timezone: string;
+              questions: unknown;
+            }>(
+              `SELECT name, slug, timezone, settings->'registration'->'questions' AS questions
+                 FROM eventhub.event WHERE organization_id = $1 AND id = $2`,
               [access.organizationId, params.eventId],
             );
             const event = ev.rows[0];
@@ -581,6 +620,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                 timezone: event.timezone,
                 generatedAt: new Date().toISOString(),
                 truncated,
+                questions: storedQuestions(event.questions),
                 data,
               },
             };
@@ -818,7 +858,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                 body: {
                   confirmed: c.confirmed,
                   checkedIn: c.checked_in,
-                  data: t.rows.map(toDto),
+                  data: t.rows.map(toDoorDto),
                 },
               };
             }
@@ -834,7 +874,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
             );
             return {
               status: 200,
-              body: { confirmed: c.confirmed, checkedIn: c.checked_in, data: rows.map(toDto) },
+              body: { confirmed: c.confirmed, checkedIn: c.checked_in, data: rows.map(toDoorDto) },
             };
           },
         );

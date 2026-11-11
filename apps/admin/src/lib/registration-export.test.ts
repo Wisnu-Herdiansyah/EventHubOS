@@ -32,12 +32,16 @@ describe('CSV (formula injection and quoting)', () => {
 });
 
 describe('attendee export (ADR-0027)', () => {
-  const data = {
+  const data: Parameters<typeof registrationsCsv>[0] = {
     eventName: 'Jakarta Summit',
     eventSlug: 'jakarta-summit',
     timezone: 'Asia/Jakarta',
     generatedAt: '2027-02-28T18:30:00Z',
     truncated: false,
+    questions: [
+      { id: 'company', type: 'short_text' as const, label: 'Company', required: true },
+      { id: 'photos', type: 'yes_no' as const, label: 'Photos OK?', required: false },
+    ],
     data: [
       {
         id: '00000000-0000-4000-8000-000000000001',
@@ -51,6 +55,7 @@ describe('attendee export (ADR-0027)', () => {
         promotedAt: null,
         promotedBy: null,
         waitlistClosedAt: null,
+        answers: { company: 'Acme, Inc.', photos: true },
       },
       {
         id: '00000000-0000-4000-8000-000000000002',
@@ -64,15 +69,16 @@ describe('attendee export (ADR-0027)', () => {
         promotedAt: null,
         promotedBy: null,
         waitlistClosedAt: null,
+        answers: { company: '=HYPERLINK("http://evil.example")' },
       },
     ],
   };
 
   it('lists attendees with times in the event time zone', () => {
     expect(registrationsCsv(data).slice(1).split('\r\n')).toEqual([
-      'Name,Email,Status,Registered at (Asia/Jakarta),Cancelled at (Asia/Jakarta),Cancelled by,Checked in at (Asia/Jakarta)',
-      'Ade Wisnu,ade@example.test,Registered,2027-02-01 09:00,,,2027-03-01 08:05',
-      "'=cmd,x@example.test,Cancelled,2027-02-02 09:00,2027-02-03 09:30,Organizer,",
+      'Name,Email,Status,Registered at (Asia/Jakarta),Cancelled at (Asia/Jakarta),Cancelled by,Checked in at (Asia/Jakarta),Company,Photos OK?',
+      'Ade Wisnu,ade@example.test,Registered,2027-02-01 09:00,,,2027-03-01 08:05,"Acme, Inc.",Yes',
+      `'=cmd,x@example.test,Cancelled,2027-02-02 09:00,2027-02-03 09:30,Organizer,,"'=HYPERLINK(""http://evil.example"")",`,
       '',
     ]);
   });

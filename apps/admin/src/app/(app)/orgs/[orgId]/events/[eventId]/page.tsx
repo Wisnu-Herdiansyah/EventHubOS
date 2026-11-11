@@ -14,6 +14,7 @@ import { Meter } from '@/components/ui/chart';
 import { Icon } from '@/components/ui/icons';
 import { Notice } from '@/components/ui/notice';
 import { PageHeader } from '@/components/ui/page-header';
+import { QuestionsEditor } from '@/components/questions-editor';
 import { Toast } from '@/components/ui/toast';
 import { Tabs } from '@/components/ui/tabs';
 import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
@@ -340,6 +341,22 @@ export default async function EventPage({
       />
     </Card>
   ) : null;
+  const questionsCard = canEdit ? (
+    <Card
+      className="narrow"
+      title="Registration questions"
+      titleId="questions-heading"
+      description="Extra questions on the sign-up form, after name and email."
+    >
+      <QuestionsEditor
+        organizationId={orgId}
+        eventId={eventId}
+        version={evt.version}
+        idempotencyKey={newIdempotencyKey()}
+        initial={evt.settings.registration?.questions ?? []}
+      />
+    </Card>
+  ) : null;
 
   return (
     <div className="stack">
@@ -422,7 +439,16 @@ export default async function EventPage({
           label="Event sections"
           tabs={[
             { id: 'overview', label: 'Overview', panel: overview },
-            { id: 'settings', label: 'Settings', panel: settings },
+            {
+              id: 'settings',
+              label: 'Settings',
+              panel: (
+                <div className="stack">
+                  {settings}
+                  {questionsCard}
+                </div>
+              ),
+            },
           ]}
         />
       ) : (
