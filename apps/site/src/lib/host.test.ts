@@ -66,4 +66,17 @@ describe('site CSP', async () => {
     expect(csp).toContain('upgrade-insecure-requests');
     expect(csp).not.toContain('unsafe-inline');
   });
+
+  it('maps an event’s calendar file, and only that file name (ADR-0048)', () => {
+    expect(internalPath('acme', '/jakarta-summit/calendar.ics')).toBe('/k/acme/jakarta-summit');
+    for (const bad of [
+      '/jakarta-summit/calendar.ICS',
+      '/jakarta-summit/calendar',
+      '/jakarta-summit/other.ics',
+      '/Bad_Slug/calendar.ics',
+      '/a/b/calendar.ics',
+    ]) {
+      expect(internalPath('acme', bad), bad).toBeNull();
+    }
+  });
 });

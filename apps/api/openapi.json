@@ -6517,6 +6517,144 @@
         }
       }
     },
+    "/v1/public/sites/{handle}/events/{eventSlug}/calendar": {
+      "get": {
+        "operationId": "getPublicEventCalendar",
+        "summary": "What an Add to calendar file needs for a public event page (ADR-0048). Same visibility as the page: everything else is 404.",
+        "tags": [
+          "public"
+        ],
+        "security": [],
+        "x-eventhub-requires": "public",
+        "x-eventhub-rate-limit": {
+          "max": 600,
+          "timeWindow": "1 minute"
+        },
+        "parameters": [
+          {
+            "name": "handle",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])$"
+            }
+          },
+          {
+            "name": "eventSlug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64,
+              "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$"
+            }
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicEventCalendar"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or Idempotency-Key missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated, or invalid credentials on login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (missing permission or unverified email)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found (also returned for resources in other organizations)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Idempotency-Key reused with a different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (generic body with correlation ID)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/public/sites/{handle}/events/{eventSlug}/registrations": {
       "post": {
         "operationId": "registerForEvent",
@@ -13793,6 +13931,55 @@
         "required": [
           "staff",
           "mfaEnabled"
+        ],
+        "additionalProperties": false
+      },
+      "PublicEventCalendar": {
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "venueMode": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "uid",
+          "sequence",
+          "updatedAt",
+          "name",
+          "startsAt",
+          "endsAt",
+          "timezone",
+          "venueMode",
+          "description"
         ],
         "additionalProperties": false
       },

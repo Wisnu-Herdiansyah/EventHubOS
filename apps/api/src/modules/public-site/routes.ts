@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { uuid } from '../../http/schemas.ts';
 import { questionSchema, storedQuestions } from '../registration/questions.ts';
@@ -58,6 +59,28 @@ const publicEventPageSchema = z
     }),
   })
   .meta({ id: 'PublicEventPage' });
+
+const publicEventCalendarSchema = z
+  .object({
+    /** Stable and opaque: derived from the event, not its slug, so renaming keeps the entry. */
+    uid: z.string(),
+    /** Rises whenever the event changes, so a re-imported file replaces the entry. */
+    sequence: z.number().int().min(0),
+    updatedAt: z.string(),
+    name: z.string(),
+    startsAt: z.string(),
+    endsAt: z.string(),
+    timezone: z.string(),
+    venueMode: z.string(),
+    description: z.string().nullable(),
+  })
+  .meta({ id: 'PublicEventCalendar' });
+
+/** Calendar UID of an event (ADR-0048): a one-way digest, so the event's ID is not published. */
+export function calendarUid(eventId: string): string {
+  const digest = createHash('sha256').update(`eventhub-calendar:${eventId}`).digest('hex');
+  return `${digest.slice(0, 32)}@eventhub`;
+}
 
 interface Row {
   out_event_name: string;
@@ -179,6 +202,49 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
         });
         if (!counted) throw notFound('Page');
         return { status: 204, body: null };
+      },
+    }),
+
+    definePublicRoute({
+      method: 'GET',
+      path: '/v1/public/sites/:handle/events/:eventSlug/calendar',
+      operationId: 'getPublicEventCalendar',
+      summary:
+        'What an Add to calendar file needs for a public event page (ADR-0048). Same visibility as the page: everything else is 404.',
+      tags: ['public'],
+      idempotent: false,
+      rateLimit: { max: 600, timeWindow: '1 minute' },
+      schemas: { params, response: { status: 200, schema: publicEventCalendarSchema } },
+      async handler({ params: p }) {
+        const row = await withTransaction(pool, {}, async (client) => {
+          const { rows } = await client.query<{
+            out_event_id: string;
+            out_version: number;
+            out_updated_at: Date;
+            out_event_name: string;
+            out_starts_at: Date;
+            out_ends_at: Date;
+            out_timezone: string;
+            out_venue_mode: string;
+            out_description: string | null;
+          }>('SELECT * FROM eventhub.public_event_calendar($1, $2)', [p.handle, p.eventSlug]);
+          return rows[0];
+        });
+        if (!row) throw notFound('Page');
+        return {
+          status: 200,
+          body: {
+            uid: calendarUid(row.out_event_id),
+            sequence: Math.max(0, row.out_version - 1),
+            updatedAt: row.out_updated_at.toISOString(),
+            name: row.out_event_name,
+            startsAt: row.out_starts_at.toISOString(),
+            endsAt: row.out_ends_at.toISOString(),
+            timezone: row.out_timezone,
+            venueMode: row.out_venue_mode,
+            description: row.out_description,
+          },
+        };
       },
     }),
   ];

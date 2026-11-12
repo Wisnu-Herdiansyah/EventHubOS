@@ -98,6 +98,7 @@ export default async function PublicEventPage({ params }: { params: Params }) {
           sections={page.sections}
           timezone={page.timezone}
           imageUrl={(id) => `/images/${id}/small.webp`}
+          calendarHref={`/${eventSlug}/calendar.ics`}
         />
       </main>
     </>

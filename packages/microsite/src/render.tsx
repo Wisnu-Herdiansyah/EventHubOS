@@ -269,6 +269,7 @@ export function SitePreview({
   registerSlot,
   timezone,
   imageUrl,
+  calendarHref,
 }: {
   brand?: string;
   name: string;
@@ -286,6 +287,8 @@ export function SitePreview({
   timezone?: string;
   /** Where library images are served from (ADR-0042). */
   imageUrl?: ImageUrl;
+  /** Public site only: the event's calendar file (ADR-0048), linked under the date. */
+  calendarHref?: string;
 }) {
   const Name = asPage ? 'h1' : 'span';
   const speakers = speakerIndex(sections);
@@ -296,6 +299,11 @@ export function SitePreview({
         <span className="site-nav__title">
           <Name className="site-nav__name">{name}</Name>
           {dateLine ? <span className="site-nav__date">{dateLine}</span> : null}
+          {calendarHref ? (
+            <a className="site-calendar-link" href={calendarHref} download>
+              Add to calendar
+            </a>
+          ) : null}
         </span>
         {register && register.type === 'register' && register.ctaLabel ? (
           <a className="site-cta" href="#register">

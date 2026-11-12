@@ -278,6 +278,17 @@
   color: var(--site-text-secondary);
 }
 
+.site-calendar-link {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  font-size: 0.875rem;
+  color: var(--site-brand);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 h1.site-nav__name {
   font-size: 1.0625rem;
   line-height: 1.3;

@@ -740,6 +740,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/public/sites/{handle}/events/{eventSlug}/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What an Add to calendar file needs for a public event page (ADR-0048). Same visibility as the page: everything else is 404. */
+        get: operations["getPublicEventCalendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/public/sites/{handle}/events/{eventSlug}/registrations": {
         parameters: {
             query?: never;
@@ -1864,6 +1881,17 @@ export interface components {
         PlatformStatus: {
             staff: boolean;
             mfaEnabled: boolean;
+        };
+        PublicEventCalendar: {
+            uid: string;
+            sequence: number;
+            updatedAt: string;
+            name: string;
+            startsAt: string;
+            endsAt: string;
+            timezone: string;
+            venueMode: string;
+            description: string | null;
         };
         PublicEventPage: {
             handle: string;
@@ -6805,6 +6833,103 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation failed or Idempotency-Key missing */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unauthenticated, or invalid credentials on login */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden (missing permission or unverified email) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found (also returned for resources in other organizations) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Idempotency-Key reused with a different payload */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error (generic body with correlation ID) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getPublicEventCalendar: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Correlation-Id"?: string;
+            };
+            path: {
+                handle: string;
+                eventSlug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicEventCalendar"];
+                };
             };
             /** @description Validation failed or Idempotency-Key missing */
             400: {
