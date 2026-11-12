@@ -4,7 +4,7 @@
 - Date: 2026-11-12
 - Decision owner: product owner (D1 in `docs/architecture/open-decisions.md`)
 - Builds on: ADR-0042 (asset library and the `ObjectStore` port)
-- Leaves open: D7 (region and data residency), D8 (RPO and RTO), D11 (cache and rate-limit store)
+- Leaves open: D8 (RPO and RTO), D11 (cache and rate-limit store). Region: ADR-0052 (Singapore)
 
 ## Decision
 
