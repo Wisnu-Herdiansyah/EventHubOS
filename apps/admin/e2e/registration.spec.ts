@@ -342,6 +342,43 @@ test('an attendee shows the ticket from their email; the door scans it in once',
   const qr = v.page.getByRole('img', { name: /^Ticket QR code [0-9A-F]{4}-[0-9A-F]{4}$/ });
   await expect(qr).toBeVisible();
   await axeScan(v.page);
+
+  // Add to calendar (ADR-0048): from the ticket, the event page and the email, the same file.
+  const readIcs = async (click: () => Promise<void>) => {
+    const [download] = await Promise.all([v.page.waitForEvent('download'), click()]);
+    expect(download.suggestedFilename()).toMatch(/^[a-z0-9-]+\.ics$/);
+    return (await readFile(await download.path(), 'utf8')).replace(/\r\n /g, '');
+  };
+  const fromTicket = await readIcs(() =>
+    v.page.getByRole('link', { name: 'Add to calendar' }).click(),
+  );
+  expect(fromTicket).toMatch(/^BEGIN:VCALENDAR\r\n/);
+  expect(fromTicket).toContain('\r\nSUMMARY:Private Summit\r\n');
+  expect(fromTicket).toMatch(/\r\nUID:[0-9a-f]{32}@eventhub\r\n/);
+  expect(fromTicket).toContain(`\r\nURL:${t.url}\r\n`);
+  expect(fromTicket).not.toContain(t.eventId);
+  await v.page.goto(t.url);
+  const fromPage = await readIcs(() =>
+    v.page.getByRole('link', { name: 'Add to calendar' }).click(),
+  );
+  const stable = (ics: string) => ics.replace(/\r\nDTSTAMP:\S+/, '');
+  expect(stable(fromPage)).toBe(stable(fromTicket));
+  const mailed = (await mailMessage(attendees[0]!.email, 'registration_confirmed')).text;
+  expect(mailed).toContain(`Add it to your calendar: ${t.url}/calendar.ics`);
+  // Served as a calendar file that browsers will not treat as a page.
+  const headers = await v.page.evaluate(async () => {
+    const res = await fetch(`${location.pathname}/calendar.ics`);
+    return {
+      status: res.status,
+      type: res.headers.get('content-type'),
+      sniff: res.headers.get('x-content-type-options'),
+    };
+  });
+  expect(headers).toEqual({
+    status: 200,
+    type: 'text/calendar; charset=utf-8',
+    sniff: 'nosniff',
+  });
   await v.context.close();
 
   // The organizer cancels one registration.
@@ -608,6 +645,8 @@ test('a full event takes a waitlist; freed seats go to people in the order they 
   const waitMail = await mailMessage(people.first, 'registration_waitlisted');
   expect(waitMail.subject).toMatch(/^You're on the waitlist: /);
   expect(waitMail.text).not.toContain('/ticket#id=');
+  // No calendar entry until there is a seat (ADR-0048).
+  expect(waitMail.text).not.toContain('/calendar.ics');
 
   // Someone leaves the waitlist with their emailed link.
   await v.page.goto(await mailLink(people.leaver, 'registration_waitlisted'));

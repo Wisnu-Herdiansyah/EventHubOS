@@ -29,6 +29,10 @@ export function internalPath(handle: string, pathname: string): string | null {
   if (parts.length === 2 && SLUG.test(parts[0]!) && parts[1] === 'ticket') {
     return `/s/${handle}/${parts[0]}/ticket`;
   }
+  // The event as a calendar file (ADR-0048).
+  if (parts.length === 2 && SLUG.test(parts[0]!) && parts[1] === 'calendar.ics') {
+    return `/k/${handle}/${parts[0]}`;
+  }
   // An image used on this organization's published pages (ADR-0042).
   if (
     parts.length === 3 &&

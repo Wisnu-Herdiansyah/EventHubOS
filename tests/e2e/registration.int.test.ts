@@ -171,6 +171,8 @@ describe('event registration', () => {
     expect(mail.text).toContain(
       `https://${t.handle}.eventhub.example/${t.slug}/ticket#id=${list[0].id}`,
     );
+    // ADR-0048: the event's calendar file.
+    expect(mail.text).toContain(`https://${t.handle}.eventhub.example/${t.slug}/calendar.ics`);
   });
 
   it('answers a repeat sign-up the same way, without a second registration', async () => {

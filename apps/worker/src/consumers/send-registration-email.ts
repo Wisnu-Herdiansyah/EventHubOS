@@ -145,6 +145,8 @@ export function sendRegistrationConfirmationConsumer(
             ? [
                 '',
                 `Your ticket (show its QR code at the door): ${site}/${r.out_event_slug}/ticket#id=${payload.registrationId}`,
+                // ADR-0048: the same file as the page's Add to calendar link.
+                `Add it to your calendar: ${site}/${r.out_event_slug}/calendar.ics`,
               ]
             : []),
           '',

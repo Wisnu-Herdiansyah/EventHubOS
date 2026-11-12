@@ -1,8 +1,8 @@
 # Repository map against the technical architecture
 
 Where each part of `TECHNICAL_ARCHITECTURE.md` lives, and how far it goes. ADRs explain the
-decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0047 (migrations
-`0001`–`0029`).
+decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0048 (migrations
+`0001`–`0030`).
 
 **Status words**
 
@@ -18,7 +18,7 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0047
 | pnpm TypeScript monorepo                                  | `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`                                | Done (ADR-0002)                                                                                                                                                                                                    |
 | Typed, fail-closed configuration (§10)                    | `packages/config`                                                                          | Done for api, worker and migrator; admin and site validate their own (`apps/*/src/lib/config.ts`). Local-only adapters are refused in staging/production                                                           |
 | Errors, permission catalog, domain events, provider ports | `packages/kernel` (ports and contract tests in `packages/kernel/src/testing`)              | Done. Permission catalog v2 (ADR-0045). Ports: `EventPublisher`, `EmailSender`, `ObjectStore`, `EmailFeedbackReceiver`                                                                                             |
-| PostgreSQL schema, RLS, roles, migrations (§4, §5, §10)   | `packages/db/migrations` (`0001`–`0029`), `packages/db/src/{bootstrap,migrate}.ts`         | Done. Forced RLS on every tenant table; definer functions for public, worker and platform access; expand-only migrations checked in CI (`pnpm db:check`)                                                           |
+| PostgreSQL schema, RLS, roles, migrations (§4, §5, §10)   | `packages/db/migrations` (`0001`–`0030`), `packages/db/src/{bootstrap,migrate}.ts`         | Done. Forced RLS on every tenant table; definer functions for public, worker and platform access; expand-only migrations checked in CI (`pnpm db:check`)                                                           |
 | Tenant context propagation (§4)                           | `packages/db/src/transaction.ts`, `apps/api/src/modules/tenancy/access.ts`                 | Done (ADR-0003). Server-resolved membership, deny by default, two-step requirement (ADR-0024), support-access fallback (ADR-0045)                                                                                  |
 | Audit, outbox, idempotency (§6)                           | `packages/db/src/{audit,outbox,idempotency}.ts`, `apps/api/src/http/idempotent-command.ts` | Done (ADR-0004)                                                                                                                                                                                                    |
 | Core API, OpenAPI contract, consistent errors (§6)        | `apps/api` (Fastify), `apps/api/openapi.json`                                              | Done (ADR-0006). The contract is generated from route definitions, and CI checks that it is current; responses are validated against it outside production. Binary and raw-body routes since ADR-0042 and ADR-0043 |
@@ -61,13 +61,14 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0047
 
 ## Registration and event day
 
-| Element                 | Location                                                                         | Status                                                                                     |
-| ----------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Free registration       | `apps/api/src/modules/registration`, `apps/site`, migration `0014`               | Done (ADR-0023): public sign-up, emailed cancel link, attendee list, CSV export (ADR-0027) |
-| Registration questions  | `apps/api/src/modules/registration/questions.ts`, migration `0024`               | Done (ADR-0041)                                                                            |
-| Waitlist                | migrations `0021`, `0023`, `apps/worker/src/waitlist-closer.ts`                  | Done (ADR-0035, ADR-0038)                                                                  |
-| Check-in and QR tickets | migration `0018`, `apps/admin/src/components/{check-in-desk,ticket-scanner}.tsx` | Done (ADR-0028, ADR-0029)                                                                  |
-| Paid ticketing, billing | —                                                                                | Blocked on D2                                                                              |
+| Element                 | Location                                                                                               | Status                                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| Free registration       | `apps/api/src/modules/registration`, `apps/site`, migration `0014`                                     | Done (ADR-0023): public sign-up, emailed cancel link, attendee list, CSV export (ADR-0027)             |
+| Registration questions  | `apps/api/src/modules/registration/questions.ts`, migration `0024`                                     | Done (ADR-0041)                                                                                        |
+| Waitlist                | migrations `0021`, `0023`, `apps/worker/src/waitlist-closer.ts`                                        | Done (ADR-0035, ADR-0038)                                                                              |
+| Check-in and QR tickets | migration `0018`, `apps/admin/src/components/{check-in-desk,ticket-scanner}.tsx`                       | Done (ADR-0028, ADR-0029)                                                                              |
+| Add to calendar         | `apps/site/src/lib/calendar.ts`, `apps/site/src/app/k`, `public-site` calendar route, migration `0030` | Done (ADR-0048): iCalendar file from the page, ticket and confirmation email. Subscription feeds later |
+| Paid ticketing, billing | —                                                                                                      | Blocked on D2                                                                                          |
 
 ## Communication
 
