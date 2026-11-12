@@ -102,6 +102,13 @@ TEST_DATABASE_ADMIN_URL=... pnpm --filter @eventhub/admin e2e   # browser end-to
 pnpm --filter @eventhub/admin generate:api-types              # after openapi:generate
 ```
 
+Container images (ADR-0053), one target per service:
+
+```bash
+docker build --target api -t eventhub-api:test .     # also: worker, admin, site
+DATABASE_ADMIN_URL=postgres://postgres:<pw>@127.0.0.1:5432/postgres scripts/container-smoke.sh
+```
+
 ## Running locally
 
 ```bash

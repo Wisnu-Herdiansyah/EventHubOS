@@ -1,0 +1,17 @@
+# Build context for the container images (ADR-0053). Only what a build needs; never secrets.
+**/node_modules
+**/.next
+**/.turbo
+**/*.tsbuildinfo
+.git
+.github
+.env
+.env.*
+!.env.example
+.local
+docs
+infra
+**/test-results
+**/playwright-report
+**/coverage
+apps/admin/e2e

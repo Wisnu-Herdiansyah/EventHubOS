@@ -102,6 +102,42 @@ jobs:
           path: apps/admin/playwright-report
           retention-days: 7
 
+  container-images:
+    name: container images (build, smoke test, vulnerability scan)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      # The four runtime images of ADR-0053, built from one Dockerfile. Nothing is pushed: the
+      # registry belongs to the staging project (ADR-0051), which does not exist yet.
+      - name: Build images
+        run: |
+          for target in api worker admin site; do
+            docker build --target "$target" -t "eventhub-$target:test" .
+          done
+          docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep eventhub-
+      - name: Start PostgreSQL 16 with a random per-run admin password
+        run: |
+          PW="$(openssl rand -hex 24)"
+          echo "::add-mask::$PW"
+          docker run -d --name pg -e POSTGRES_PASSWORD="$PW" -p 127.0.0.1:5432:5432 postgres:16
+          for i in $(seq 1 30); do docker exec pg pg_isready -h 127.0.0.1 -U postgres -q && break; sleep 1; done
+          docker exec pg pg_isready -h 127.0.0.1 -U postgres
+          echo "DATABASE_ADMIN_URL=postgres://postgres:${PW}@127.0.0.1:5432/postgres" >> "$GITHUB_ENV"
+      # Runs each image as Cloud Run will: non-root, configuration from the environment,
+      # migrations from the api image, health and SIGTERM checks.
+      - name: Smoke test
+        run: scripts/container-smoke.sh
+      # Fails on any HIGH or CRITICAL vulnerability that has a fix available.
+      - name: Vulnerability scan (Trivy)
+        run: |
+          for target in api worker admin site; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+              mirror.gcr.io/aquasec/trivy:0.65.0@sha256:a22415a38938a56c379387a8163fcb0ce38b10ace73e593475d3658d578b2436 \
+              image --quiet --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+              --exit-code 1 --format table "eventhub-$target:test"
+          done
+
   security:
     name: secret and dependency scanning
     runs-on: ubuntu-24.04

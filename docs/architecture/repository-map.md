@@ -1,7 +1,7 @@
 # Repository map against the technical architecture
 
 Where each part of `TECHNICAL_ARCHITECTURE.md` lives, and how far it goes. ADRs explain the
-decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0052 (migrations
+decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0053 (migrations
 `0001`–`0032`).
 
 **Status words**
@@ -25,6 +25,7 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0052
 | Structured logging, redaction, correlation IDs (§11)      | `apps/api/src/app.ts`, `packages/kernel/src/redaction.ts`                                  | Partial: done; W3C tracing and an observability stack are not chosen yet                                                                                                                                           |
 | Worker and outbox relay (§2, §6)                          | `apps/worker`                                                                              | Done (ADR-0009): per-event transactions, dead-lettering, health log, replay CLI, waitlist-closing sweep. Runbook: `docs/operations/outbox-runbook.md`                                                              |
 | CI: format, lint, types, tests, scanning, migrations      | `.github/workflows/ci.yml`                                                                 | Done: unit, integration (PostgreSQL 16), browser e2e, gitleaks and dependency audit. The e2e browser install falls back when the Ubuntu mirror is down                                                             |
+| Container images                                          | `Dockerfile`, `.dockerignore`, `scripts/container-smoke.sh`                                | Done (ADR-0053): api, worker, admin and site images; non-root, no secrets; smoke-tested and scanned in CI. Registry push and deploy wait for the staging project                                                   |
 | Infrastructure as code                                    | `infra/`                                                                                   | Not started: Google Cloud (ADR-0051) in Singapore (ADR-0052); needs the real project, billing and domain identifiers                                                                                               |
 
 ## Identity and access
