@@ -1,8 +1,8 @@
 # Repository map against the technical architecture
 
 Where each part of `TECHNICAL_ARCHITECTURE.md` lives, and how far it goes. ADRs explain the
-decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0048 (migrations
-`0001`–`0030`).
+decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0049 (migrations
+`0001`–`0031`).
 
 **Status words**
 
@@ -18,7 +18,7 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0048
 | pnpm TypeScript monorepo                                  | `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`                                | Done (ADR-0002)                                                                                                                                                                                                    |
 | Typed, fail-closed configuration (§10)                    | `packages/config`                                                                          | Done for api, worker and migrator; admin and site validate their own (`apps/*/src/lib/config.ts`). Local-only adapters are refused in staging/production                                                           |
 | Errors, permission catalog, domain events, provider ports | `packages/kernel` (ports and contract tests in `packages/kernel/src/testing`)              | Done. Permission catalog v2 (ADR-0045). Ports: `EventPublisher`, `EmailSender`, `ObjectStore`, `EmailFeedbackReceiver`                                                                                             |
-| PostgreSQL schema, RLS, roles, migrations (§4, §5, §10)   | `packages/db/migrations` (`0001`–`0030`), `packages/db/src/{bootstrap,migrate}.ts`         | Done. Forced RLS on every tenant table; definer functions for public, worker and platform access; expand-only migrations checked in CI (`pnpm db:check`)                                                           |
+| PostgreSQL schema, RLS, roles, migrations (§4, §5, §10)   | `packages/db/migrations` (`0001`–`0031`), `packages/db/src/{bootstrap,migrate}.ts`         | Done. Forced RLS on every tenant table; definer functions for public, worker and platform access; expand-only migrations checked in CI (`pnpm db:check`)                                                           |
 | Tenant context propagation (§4)                           | `packages/db/src/transaction.ts`, `apps/api/src/modules/tenancy/access.ts`                 | Done (ADR-0003). Server-resolved membership, deny by default, two-step requirement (ADR-0024), support-access fallback (ADR-0045)                                                                                  |
 | Audit, outbox, idempotency (§6)                           | `packages/db/src/{audit,outbox,idempotency}.ts`, `apps/api/src/http/idempotent-command.ts` | Done (ADR-0004)                                                                                                                                                                                                    |
 | Core API, OpenAPI contract, consistent errors (§6)        | `apps/api` (Fastify), `apps/api/openapi.json`                                              | Done (ADR-0006). The contract is generated from route definitions, and CI checks that it is current; responses are validated against it outside production. Binary and raw-body routes since ADR-0042 and ADR-0043 |
@@ -72,12 +72,13 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0048
 
 ## Communication
 
-| Element                | Location                                                                                                                                                     | Status                                                                       |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| Transactional email    | `EmailSender` port, `apps/worker/src/adapters`, `apps/worker/src/consumers`                                                                                  | Done (ADR-0008): Resend plus local fakes; live contract via `pnpm test:live` |
-| Announcements          | `apps/api/src/modules/announcement`, migration `0022`, worker `send-announcement`                                                                            | Done (ADR-0037)                                                              |
-| Bounces and complaints | `EmailFeedbackReceiver` port, `apps/api/src/{adapters/resend-email-feedback.ts,modules/email-feedback}`, `apps/worker/src/email-policy.ts`, migration `0026` | Done (ADR-0043). Configure the provider webhook before enabling it           |
-| SMS, WhatsApp          | —                                                                                                                                                            | Blocked on D4 (channels beyond email)                                        |
+| Element                     | Location                                                                                                                                                     | Status                                                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| Transactional email         | `EmailSender` port, `apps/worker/src/adapters`, `apps/worker/src/consumers`                                                                                  | Done (ADR-0008): Resend plus local fakes; live contract via `pnpm test:live`                                                    |
+| Announcements               | `apps/api/src/modules/announcement`, migration `0022`, worker `send-announcement`                                                                            | Done (ADR-0037)                                                                                                                 |
+| Bounces and complaints      | `EmailFeedbackReceiver` port, `apps/api/src/{adapters/resend-email-feedback.ts,modules/email-feedback}`, `apps/worker/src/email-policy.ts`, migration `0026` | Done (ADR-0043). Configure the provider webhook before enabling it                                                              |
+| Email notification settings | `NOTIFICATIONS` in `packages/kernel`, `apps/api/src/modules/notifications`, worker `send-data-download-email`, migration `0031`                              | Done (ADR-0049): per-person, per-organization settings; data download alerts to Owners and Admins; security notices always sent |
+| SMS, WhatsApp               | —                                                                                                                                                            | Blocked on D4 (channels beyond email)                                                                                           |
 
 ## Reporting
 

@@ -208,6 +208,15 @@ export function describeAuditEvent(
         summary: 'Viewed the organization (support access)',
         details: typeof m.permission === 'string' ? [`Using ${m.permission}`] : [],
       };
+    // Email settings (ADR-0049): a person's own choice.
+    case 'notification.setting_changed':
+      return {
+        summary:
+          m.enabled === false
+            ? 'Turned off download alert emails for themselves'
+            : 'Turned on download alert emails for themselves',
+        details: [],
+      };
     // Audit log export (ADR-0047).
     case 'audit.exported':
       return {

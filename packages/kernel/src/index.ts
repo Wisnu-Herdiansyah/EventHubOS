@@ -4,3 +4,4 @@ export * from './domain-event.ts';
 export * from './ports.ts';
 export * from './redaction.ts';
 export * from './event-themes.ts';
+export * from './notifications.ts';

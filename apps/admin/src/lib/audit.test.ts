@@ -26,6 +26,18 @@ const record = (
   }) satisfies AuditRecord;
 
 describe('describeAuditEvent', () => {
+  it('describes a person changing their own email settings (ADR-0049)', () => {
+    const off = record('notification.setting_changed', { kind: 'data_download', enabled: false });
+    expect(describeAuditEvent(off, names)).toEqual({
+      summary: 'Turned off download alert emails for themselves',
+      details: [],
+    });
+    const on = record('notification.setting_changed', { kind: 'data_download', enabled: true });
+    expect(describeAuditEvent(on, names).summary).toBe(
+      'Turned on download alert emails for themselves',
+    );
+  });
+
   it('describes registrations without personal data', () => {
     const ev = '22222222-2222-4222-8222-222222222222';
     expect(
