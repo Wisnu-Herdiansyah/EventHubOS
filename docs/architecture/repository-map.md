@@ -1,7 +1,7 @@
 # Repository map against the technical architecture
 
 Where each part of `TECHNICAL_ARCHITECTURE.md` lives, and how far it goes. ADRs explain the
-decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0046 (migrations
+decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0047 (migrations
 `0001`–`0029`).
 
 **Status words**
@@ -45,7 +45,7 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0046
 | --------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Organizations and settings        | `apps/api/src/modules/organization`, migrations `0003`, `0005`                                    | Done (ADR-0012): profile, billing contact, public handle, security settings. Retention settings wait for D9                                                                                           |
 | Team: invitations, roles, removal | `apps/api/src/modules/membership`                                                                 | Done (ADR-0010, ADR-0012)                                                                                                                                                                             |
-| Audit log viewer                  | `apps/api/src/modules/audit`, migration `0006`                                                    | Partial: filtered, paginated, tenant-isolated (ADR-0013); export not built                                                                                                                            |
+| Audit log viewer                  | `apps/api/src/modules/audit`, migration `0006`                                                    | Done: filtered, paginated, tenant-isolated (ADR-0013); CSV export up to 10,000 entries, itself audited (ADR-0047). Background export for larger logs waits for D1, D7                                 |
 | Platform staff and support access | `apps/api/src/modules/{platform,support}`, `apps/api/src/cli/platform-staff.ts`, migration `0028` | Done (ADR-0045): operator-made staff, organization-granted read-only support access with per-request audit. Break-glass and write support later. Runbook: `docs/operations/platform-staff-runbook.md` |
 
 ## Events, pages and public sites

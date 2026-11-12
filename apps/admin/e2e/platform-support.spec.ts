@@ -80,6 +80,10 @@ test('an Owner lets EventHub support look at the organization, then turns it off
   await expect(sp.getByRole('heading', { level: 1, name })).toBeVisible();
   await expect(sp.getByRole('button', { name: /New event|Create event/ })).toHaveCount(0);
   await axeScan(sp);
+  // Support can read the audit log but not take a copy of it (ADR-0047).
+  await sp.goto(`/orgs/${orgId}/audit`);
+  await expect(sp.getByText('Created the organization')).toBeVisible();
+  await expect(sp.getByRole('button', { name: 'Download CSV' })).toHaveCount(0);
 
   // The Owner sees the visit in the audit log.
   await page.goto(`/orgs/${orgId}/audit`);

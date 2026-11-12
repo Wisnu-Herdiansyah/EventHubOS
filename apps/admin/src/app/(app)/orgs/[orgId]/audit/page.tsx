@@ -42,7 +42,9 @@ export default async function AuditLogPage({
 }) {
   const { orgId } = await params;
   if (!UUID.test(orgId)) notFound();
-  const { filters, ignored } = parseAuditFilters(await searchParams);
+  const sp = await searchParams;
+  const { filters, ignored } = parseAuditFilters(sp);
+  const exportDenied = sp.notice === 'export_denied';
   const path = { organizationId: orgId };
 
   let org, page, members, events;
@@ -164,6 +166,9 @@ export default async function AuditLogPage({
             </form>
           </Card>
 
+          {exportDenied ? (
+            <Notice>You don’t have permission to download the audit log.</Notice>
+          ) : null}
           {ignored ? (
             <Notice>Some filters in the link were not valid and were ignored.</Notice>
           ) : null}
@@ -183,6 +188,33 @@ export default async function AuditLogPage({
           ) : null}
 
           <Card title="Activity" titleId="entries-heading">
+            {org.role !== 'support' ? (
+              <form method="post" action={`/orgs/${orgId}/audit/export`} className="form__actions">
+                {filters.category ? (
+                  <input type="hidden" name="category" value={filters.category} />
+                ) : null}
+                {filters.actorId ? (
+                  <input type="hidden" name="actorId" value={filters.actorId} />
+                ) : null}
+                {filters.targetType && filters.targetId ? (
+                  <>
+                    <input type="hidden" name="targetType" value={filters.targetType} />
+                    <input type="hidden" name="targetId" value={filters.targetId} />
+                  </>
+                ) : null}
+                {filters.fromDate ? (
+                  <input type="hidden" name="from" value={filters.fromDate} />
+                ) : null}
+                {filters.toDate ? <input type="hidden" name="to" value={filters.toDate} /> : null}
+                <button type="submit" className="btn btn--secondary btn--sm">
+                  Download CSV
+                </button>
+                <span className="list__meta">
+                  Matches these filters, newest first, up to 10,000 entries. Downloads are recorded
+                  in this log.
+                </span>
+              </form>
+            ) : null}
             {page.data.length === 0 ? (
               <EmptyState
                 icon="history"
