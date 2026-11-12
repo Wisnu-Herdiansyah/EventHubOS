@@ -86,7 +86,7 @@ export default async function EventPage({
   const notice = typeof sp.notice === 'string' ? NOTICES[sp.notice] : undefined;
   if (!UUID.test(orgId) || !UUID.test(eventId)) notFound();
   const path = { organizationId: orgId, eventId };
-  let org, evt, checklist, regSummary;
+  let org, evt, checklist, regSummary, images;
   try {
     const client = await api();
     org = unwrap(
@@ -97,6 +97,12 @@ export default async function EventPage({
     evt = unwrap(
       await client.GET('/v1/organizations/{organizationId}/events/{eventId}', { params: { path } }),
     );
+    // Sharing image choices (ADR-0046); the library is readable with event.read.
+    images = unwrap(
+      await client.GET('/v1/organizations/{organizationId}/assets', {
+        params: { path: { organizationId: orgId } },
+      }),
+    ).data.map((a) => ({ id: a.id, name: a.name }));
     checklist = unwrap(
       await client.GET('/v1/organizations/{organizationId}/events/{eventId}/checklist', {
         params: { path },
@@ -119,8 +125,10 @@ export default async function EventPage({
   const local = (iso?: string) => (iso ? isoToZonedLocal(iso, evt.timezone) : '');
   const defaults: SettingsDefaults = {
     visibility: s.visibility ?? 'public',
+    theme: s.theme ?? 'default',
     title: s.sharing?.title ?? '',
     description: s.sharing?.description ?? '',
+    sharingImage: s.sharing?.imageAssetId ?? '',
     privacyPolicyUrl: s.legal?.privacyPolicyUrl ?? '',
     termsUrl: s.legal?.termsUrl ?? '',
     email: s.contact?.email ?? '',
@@ -338,6 +346,7 @@ export default async function EventPage({
         timeZone={evt.timezone}
         idempotencyKey={newIdempotencyKey()}
         defaults={defaults}
+        images={images}
       />
     </Card>
   ) : null;

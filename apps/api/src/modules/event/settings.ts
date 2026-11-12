@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { EVENT_THEMES } from '@eventhub/kernel';
 import { questionsSchema } from '../registration/questions.ts';
 
 /**
@@ -6,8 +7,7 @@ import { questionsSchema } from '../registration/questions.ts';
  * presentation/configuration that has no relational meaning; ownership, lifecycle, and schedule
  * stay in columns. Bump SETTINGS_VERSION and add a migration step when the shape changes.
  *
- * Not yet here: theme/brand selection and sharing image (depend on the Phase 2 design system and
- * asset library).
+ * Theme and sharing image since ADR-0046.
  */
 export const SETTINGS_VERSION = 1;
 
@@ -17,6 +17,8 @@ const httpsUrl = z
   .describe('HTTPS URL');
 
 export const visibilitySchema = z.enum(['public', 'unlisted', 'private']);
+/** A tested colour preset for the public page (ADR-0046); unset means 'default'. */
+export const themeSchema = z.enum(EVENT_THEMES);
 
 const sections = {
   visibility: visibilitySchema,
@@ -37,6 +39,8 @@ const sections = {
     .object({
       title: z.string().trim().min(1).max(70).optional(),
       description: z.string().trim().min(1).max(200).optional(),
+      /** Library image shown when the page is shared (ADR-0046). Must be in the library. */
+      imageAssetId: z.uuid().optional(),
     })
     .strict(),
   contact: z
@@ -61,6 +65,7 @@ const sections = {
 export const eventSettingsSchema = z
   .object({
     visibility: sections.visibility.optional(),
+    theme: themeSchema.optional(),
     registration: sections.registration.optional(),
     sharing: sections.sharing.optional(),
     contact: sections.contact.optional(),
@@ -75,6 +80,7 @@ export type EventSettings = z.infer<typeof eventSettingsSchema>;
 export const eventSettingsPatchSchema = z
   .object({
     visibility: sections.visibility.nullable().optional(),
+    theme: themeSchema.nullable().optional(),
     registration: sections.registration.nullable().optional(),
     sharing: sections.sharing.nullable().optional(),
     contact: sections.contact.nullable().optional(),

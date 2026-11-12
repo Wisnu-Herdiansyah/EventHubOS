@@ -1498,6 +1498,8 @@ export interface components {
         EventSettings: {
             /** @enum {string} */
             visibility?: "public" | "unlisted" | "private";
+            /** @enum {string} */
+            theme?: "default" | "navy-gold" | "forest" | "ember";
             registration?: {
                 /** Format: date-time */
                 opensAt?: string;
@@ -1511,6 +1513,8 @@ export interface components {
             sharing?: {
                 title?: string;
                 description?: string;
+                /** Format: uuid */
+                imageAssetId?: string;
             };
             contact?: {
                 /** Format: email */
@@ -1542,6 +1546,7 @@ export interface components {
         };
         EventSettingsPatch: {
             visibility?: ("public" | "unlisted" | "private") | null;
+            theme?: ("default" | "navy-gold" | "forest" | "ember") | null;
             registration?: {
                 /** Format: date-time */
                 opensAt?: string;
@@ -1555,6 +1560,8 @@ export interface components {
             sharing?: {
                 title?: string;
                 description?: string;
+                /** Format: uuid */
+                imageAssetId?: string;
             } | null;
             contact?: {
                 /** Format: email */
@@ -1835,7 +1842,10 @@ export interface components {
             sharing: {
                 title: string | null;
                 description: string | null;
+                imageAssetId: string | null;
             };
+            /** @enum {string} */
+            theme: "default" | "navy-gold" | "forest" | "ember";
             revision: number;
             publishedAt: string;
             sections: components["schemas"]["PageSection"][];

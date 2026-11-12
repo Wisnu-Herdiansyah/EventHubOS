@@ -1,8 +1,8 @@
 # Repository map against the technical architecture
 
 Where each part of `TECHNICAL_ARCHITECTURE.md` lives, and how far it goes. ADRs explain the
-decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0045 (migrations
-`0001`–`0028`).
+decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0046 (migrations
+`0001`–`0029`).
 
 **Status words**
 
@@ -18,7 +18,7 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0045
 | pnpm TypeScript monorepo                                  | `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`                                | Done (ADR-0002)                                                                                                                                                                                                    |
 | Typed, fail-closed configuration (§10)                    | `packages/config`                                                                          | Done for api, worker and migrator; admin and site validate their own (`apps/*/src/lib/config.ts`). Local-only adapters are refused in staging/production                                                           |
 | Errors, permission catalog, domain events, provider ports | `packages/kernel` (ports and contract tests in `packages/kernel/src/testing`)              | Done. Permission catalog v2 (ADR-0045). Ports: `EventPublisher`, `EmailSender`, `ObjectStore`, `EmailFeedbackReceiver`                                                                                             |
-| PostgreSQL schema, RLS, roles, migrations (§4, §5, §10)   | `packages/db/migrations` (`0001`–`0028`), `packages/db/src/{bootstrap,migrate}.ts`         | Done. Forced RLS on every tenant table; definer functions for public, worker and platform access; expand-only migrations checked in CI (`pnpm db:check`)                                                           |
+| PostgreSQL schema, RLS, roles, migrations (§4, §5, §10)   | `packages/db/migrations` (`0001`–`0029`), `packages/db/src/{bootstrap,migrate}.ts`         | Done. Forced RLS on every tenant table; definer functions for public, worker and platform access; expand-only migrations checked in CI (`pnpm db:check`)                                                           |
 | Tenant context propagation (§4)                           | `packages/db/src/transaction.ts`, `apps/api/src/modules/tenancy/access.ts`                 | Done (ADR-0003). Server-resolved membership, deny by default, two-step requirement (ADR-0024), support-access fallback (ADR-0045)                                                                                  |
 | Audit, outbox, idempotency (§6)                           | `packages/db/src/{audit,outbox,idempotency}.ts`, `apps/api/src/http/idempotent-command.ts` | Done (ADR-0004)                                                                                                                                                                                                    |
 | Core API, OpenAPI contract, consistent errors (§6)        | `apps/api` (Fastify), `apps/api/openapi.json`                                              | Done (ADR-0006). The contract is generated from route definitions, and CI checks that it is current; responses are validated against it outside production. Binary and raw-body routes since ADR-0042 and ADR-0043 |
@@ -57,7 +57,7 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0045
 | Public event sites                        | `apps/site`, `apps/api/src/modules/public-site`, migration `0012`                                                     | Done (ADR-0021): `{handle}.{domain}/{slug}`, published revisions only. CDN caching and edge limits wait for D1                           |
 | Asset library (images)                    | `apps/api/src/modules/asset`, `ObjectStore` adapters in `packages/kernel`, migration `0025`                           | Partial (ADR-0042): uploads re-encoded, speaker photos, public serving for published pages. The production object store waits for D1, D7 |
 | Custom domains (§8)                       | —                                                                                                                     | Blocked on D1                                                                                                                            |
-| Themes and brand kits, sharing images     | —                                                                                                                     | Not started; can build on the asset library                                                                                              |
+| Themes and sharing images                 | `settings.theme`, `settings.sharing.imageAssetId`, `EVENT_THEMES` in `packages/kernel`, migration `0029`              | Done (ADR-0046): tested colour presets and a library image for link previews. Custom brand colours later                                 |
 
 ## Registration and event day
 

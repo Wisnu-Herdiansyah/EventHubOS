@@ -213,6 +213,8 @@ try {
       SITE_API_URL: apiUrl,
       SITE_DOMAIN: 'localhost',
       SITE_HTTPS: '0',
+      // Absolute links (link previews, ADR-0046) carry the test port.
+      SITE_PUBLIC_PORT: String(sitePort),
       // Tests send X-Forwarded-For like a load balancer; the site passes the visitor IP on.
       SITE_TRUSTED_PROXY_HOPS: '1',
     },

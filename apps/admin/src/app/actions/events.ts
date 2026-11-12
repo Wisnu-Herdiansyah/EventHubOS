@@ -136,7 +136,16 @@ function settingsFromForm(
     fields.waitlistLimit = 'Enter a whole number of at least 1, or leave it empty.';
   return {
     visibility: (str(form, 'visibility') || 'public') as SettingsPatch['visibility'],
-    sharing: section({ title: opt('title'), description: opt('description') }),
+    // The standard colours are the absence of a theme (ADR-0046).
+    theme:
+      str(form, 'theme') && str(form, 'theme') !== 'default'
+        ? (str(form, 'theme') as SettingsPatch['theme'])
+        : null,
+    sharing: section({
+      title: opt('title'),
+      description: opt('description'),
+      imageAssetId: opt('sharingImage'),
+    }),
     legal: section({ privacyPolicyUrl: opt('privacyPolicyUrl'), termsUrl: opt('termsUrl') }),
     contact: section({ email: opt('email'), url: opt('contactUrl') }),
     registration: section({
