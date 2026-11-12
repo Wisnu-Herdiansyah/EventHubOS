@@ -192,6 +192,41 @@ export function describeAuditEvent(
         summary: m.self === true ? 'Left the organization' : `Removed ${member} (${role(m.role)})`,
         details: revokedLine,
       };
+    // Support access (ADR-0045).
+    case 'organization.support_access_granted':
+      return {
+        summary: 'Let EventHub support view the organization',
+        details:
+          typeof m.expiresAt === 'string'
+            ? [`Until ${m.expiresAt.slice(0, 16).replace('T', ' ')} UTC`]
+            : [],
+      };
+    case 'organization.support_access_revoked':
+      return { summary: 'Turned off EventHub support access', details: [] };
+    case 'support.accessed':
+      return {
+        summary: 'Viewed the organization (support access)',
+        details: typeof m.permission === 'string' ? [`Using ${m.permission}`] : [],
+      };
+    // Audit log export (ADR-0047).
+    case 'audit.exported':
+      return {
+        summary: 'Downloaded the audit log',
+        details: [
+          `${count(m.count)} entr${count(m.count) === 1 ? 'y' : 'ies'}${
+            Array.isArray(m.filters) && m.filters.length > 0
+              ? `, filtered by ${m.filters.join(', ')}`
+              : ', no filters'
+          }`,
+        ],
+      };
+    // Image library (ADR-0042).
+    case 'asset.uploaded':
+      return { summary: 'Uploaded an image', details: [] };
+    case 'asset.updated':
+      return { summary: 'Renamed or re-described an image', details: [] };
+    case 'asset.deleted':
+      return { summary: 'Deleted an image', details: [] };
     default:
       return { summary: e.action, details: [] };
   }

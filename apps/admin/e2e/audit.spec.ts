@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { expect, type Page } from '@playwright/test';
 import {
   createEventViaApi,
@@ -130,4 +131,43 @@ test("another organization's audit log is not found", async ({ page }) => {
   const response = await page.goto(`/orgs/${orgId}/audit`);
   expect(response?.status()).toBe(404);
   await expect(page.getByText('Created the organization')).toHaveCount(0);
+});
+
+test('an Admin downloads the filtered log as CSV, and the download is recorded (ADR-0047)', async ({
+  page,
+}) => {
+  const owner = await verifiedAccount('audit-export');
+  const orgId = await createOrgViaApi(owner.token, 'Export Org');
+  const admin = await joinAs(owner.token, orgId, 'audit-export-admin', 'admin');
+  await createEventViaApi(owner.token, orgId);
+  await patchOrgViaApi(owner.token, orgId, { displayName: 'Export Org Renamed' });
+
+  await signIn(page, admin.email);
+  await page.goto(`/orgs/${orgId}/audit`);
+  await page.getByLabel('Category').selectOption('organization.');
+  await applyFilters(page);
+  const shown = await entries(page).count();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download CSV' }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^audit-log-\d{4}-\d{2}-\d{2}\.csv$/);
+  const lines = (await readFile(await download.path(), 'utf8'))
+    .replace(/^\uFEFF/, '')
+    .trim()
+    .split('\r\n');
+  expect(lines[0]).toBe(
+    'When (Asia/Jakarta),Who,What,Details,Action,Object type,Object ID,Data,Reference',
+  );
+  // The same entries as the filtered page, and nothing from other categories.
+  expect(lines).toHaveLength(shown + 1);
+  expect(lines.some((l) => l.includes('event.created'))).toBe(false);
+  expect(lines[1]).toContain("Changed the organization's name");
+  expect(lines[1]).toContain('organization.updated');
+  // Still on the page, with the filter kept; the download is now in the log.
+  await expect(page.getByRole('heading', { level: 1, name: 'Audit log' })).toBeVisible();
+  await page.getByRole('link', { name: 'Clear filters' }).click();
+  await expect(entries(page).first()).toContainText('Downloaded the audit log');
+  await expect(entries(page).first()).toContainText(admin.email);
+  await expectAccessible(page);
 });

@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -10,6 +10,8 @@ import {
 } from '@eventhub/db/testing';
 import { Argon2idPasswordHasher } from '../src/adapters/argon2id-password-hasher.ts';
 import { buildApp } from '../src/app.ts';
+import { AUDIT_EXPORT_LIMIT } from '../src/modules/audit/routes.ts';
+import { setPlatformStaff } from '../src/modules/platform/staff-admin.ts';
 import { DatabaseSessionAuthenticator } from '../src/modules/identity/authenticator.ts';
 
 const pools = createTestPools();
@@ -190,4 +192,140 @@ describe('audit log viewer', () => {
       pools.app.query('DELETE FROM eventhub.audit_event WHERE id = $1', [id]),
     ).rejects.toMatchObject({ code: '42501' });
   });
+});
+
+describe('audit log export (ADR-0047)', () => {
+  let ip = 0;
+  const exportLog = (orgId: string, as: FixtureUser, payload: Record<string, unknown> = {}) =>
+    app.inject({
+      method: 'POST',
+      url: `/v1/organizations/${orgId}/audit-events/export`,
+      headers: auth(as),
+      payload,
+      // Ten exports a minute per address: spread the calls so the limit does not decide the test.
+      remoteAddress: `10.47.${Math.floor(++ip / 250)}.${ip % 250}`,
+    });
+  const exported = async (orgId: string) =>
+    (
+      await pools.migrator.query<{ actor_id: string; metadata: Record<string, unknown> }>(
+        `SELECT actor_id, metadata FROM eventhub.audit_event
+          WHERE organization_id = $1 AND action = 'audit.exported' ORDER BY occurred_at`,
+        [orgId],
+      )
+    ).rows;
+
+  it('returns the filtered log newest first with the organization’s time zone, and audits it', async () => {
+    const t = await busyOrg(['admin']);
+    const res = await exportLog(t.orgId, t.members.admin!, { actionPrefix: 'event.' });
+    expect(res.statusCode, res.body).toBe(200);
+    const body = res.json();
+    expect(body.timezone).toBe('UTC');
+    expect(body.truncated).toBe(false);
+    expect((body.data as AuditItem[]).map((d) => d.action)).toEqual([
+      'event.updated',
+      'event.created',
+    ]);
+    expect(Date.parse(body.generatedAt)).not.toBeNaN();
+    // The export is recorded, after the read, so the file does not contain itself.
+    expect(await exported(t.orgId)).toEqual([
+      { actor_id: t.members.admin!.id, metadata: { count: 2, filters: ['actionPrefix'] } },
+    ]);
+    const again = (await exportLog(t.orgId, t.owner)).json().data as AuditItem[];
+    expect(again[0]!.action).toBe('audit.exported');
+    expect(again[0]!.metadata).toEqual({ count: 2, filters: ['actionPrefix'] });
+  });
+
+  it('takes the list’s filters and refuses paging fields and bad values', async () => {
+    const t = await busyOrg();
+    const actions = async (payload: Record<string, unknown>) =>
+      ((await exportLog(t.orgId, t.owner, payload)).json().data as AuditItem[]).map(
+        (d) => d.action,
+      );
+    expect(await actions({ targetType: 'event', targetId: t.eventId })).toEqual([
+      'event.updated',
+      'event.created',
+    ]);
+    expect(await actions({ actorId: randomUUID() })).toEqual([]);
+    for (const bad of [
+      { cursor: 'abc' },
+      { limit: 5 },
+      { action: 'membership.' },
+      { from: 'yesterday' },
+    ]) {
+      expect((await exportLog(t.orgId, t.owner, bad)).statusCode, JSON.stringify(bad)).toBe(400);
+    }
+  });
+
+  it('needs audit.read; other tenants get 404 and nothing is recorded for them', async () => {
+    const t = await busyOrg(['event_manager', 'billing_admin', 'viewer']);
+    for (const role of ['event_manager', 'billing_admin', 'viewer']) {
+      expect((await exportLog(t.orgId, t.members[role]!)).statusCode, role).toBe(403);
+    }
+    const other = await busyOrg();
+    expect((await exportLog(t.orgId, other.owner)).statusCode).toBe(404);
+    expect(await exported(t.orgId)).toEqual([]);
+    // Each organization's export holds only its own rows.
+    const mine = (await exportLog(other.orgId, other.owner)).json().data as AuditItem[];
+    const theirs = await pools.migrator.query<{ id: string }>(
+      'SELECT id FROM eventhub.audit_event WHERE organization_id = $1',
+      [t.orgId],
+    );
+    const ids = new Set(mine.map((d) => d.id));
+    for (const r of theirs.rows) expect(ids.has(r.id)).toBe(false);
+  });
+
+  it('is refused under support access, which can still read the list', async () => {
+    const t = await busyOrg();
+    const staff = await createFixtureUser(pools.migrator);
+    await setPlatformStaff(pools.migrator, {
+      action: 'grant',
+      email: staff.email,
+      operator: 'Test',
+    });
+    await pools.migrator.query(
+      `INSERT INTO eventhub.auth_mfa_factor (user_id, secret_sealed, status, activated_at)
+       VALUES ($1, $2, 'active', now())`,
+      [staff.id, randomBytes(40)],
+    );
+    await pools.migrator.query(
+      `INSERT INTO eventhub.support_grant (organization_id, granted_by, expires_at)
+       VALUES ($1, $2, now() + interval '1 hour')`,
+      [t.orgId, t.owner.id],
+    );
+    expect((await t.list('', staff)).statusCode).toBe(200);
+    const res = await exportLog(t.orgId, staff);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().error.details.reason).toBe('support_read_only');
+    expect(await exported(t.orgId)).toEqual([]);
+  });
+
+  it(`stops at ${AUDIT_EXPORT_LIMIT.toLocaleString('en')} entries, newest kept, and says so`, async () => {
+    const t = await busyOrg();
+    await pools.migrator.query(
+      `INSERT INTO eventhub.audit_event (organization_id, occurred_at, actor_type, actor_id, action,
+                                         target_type, target_id, correlation_id)
+       SELECT $1, now() - interval '1 day' - make_interval(secs => g), 'user', $2, 'event.updated',
+              'event', $3, 'bulk'
+         FROM generate_series(1, $4::int) g`,
+      [t.orgId, t.owner.id, t.eventId, AUDIT_EXPORT_LIMIT],
+    );
+    const body = (await exportLog(t.orgId, t.owner)).json();
+    expect(body.truncated).toBe(true);
+    expect(body.data).toHaveLength(AUDIT_EXPORT_LIMIT);
+    // The three real entries are the newest; the oldest bulk rows are left out.
+    expect((body.data as AuditItem[]).slice(0, 3).map((d) => d.action)).toEqual([
+      'membership.invited',
+      'event.updated',
+      'event.created',
+    ]);
+    expect((await exported(t.orgId))[0]!.metadata).toEqual({
+      count: AUDIT_EXPORT_LIMIT,
+      filters: [],
+    });
+    // Exactly the limit (the bulk rows, all older than a day) is complete.
+    const to = new Date(Date.now() - 86_400_000).toISOString();
+    const exact = (await exportLog(t.orgId, t.owner, { to })).json();
+    expect(exact.data).toHaveLength(AUDIT_EXPORT_LIMIT);
+    expect(exact.truncated).toBe(false);
+  }, 60_000);
 });
