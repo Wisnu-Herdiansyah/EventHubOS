@@ -2,7 +2,7 @@
 
 - Status: accepted
 - Date: 2026-11-12
-- Builds on: ADR-0051 (Google Cloud, Cloud Run), ADR-0052 (Singapore)
+- Builds on: ADR-0051 (Google Cloud, Cloud Run), ADR-0052 (region; now ADR-0055)
 
 ## Decision
 
@@ -75,10 +75,10 @@ missing static files and keeping npm in the image are each caught (7 of 7).
 
 ## Not done here
 
-- **Pushing to Artifact Registry and deploying to Cloud Run.** Both need the staging project in
-  Singapore, which does not exist yet. The project, billing and domain identifiers come from the
-  product owner and are not invented here. The registry would be
-  `asia-southeast1-docker.pkg.dev/<project>/eventhub`.
+- **Pushing to a registry and deploying.** Both need the staging projects, and their identifiers
+  come from the product owner; they are not invented here. The worker's registry would sit in the
+  worker's region, which follows the database (ADR-0055), for example
+  `<region>-docker.pkg.dev/<project>/eventhub`.
 - **Image signing and provenance attestations.** These come with the registry.
 
 ## Alternatives

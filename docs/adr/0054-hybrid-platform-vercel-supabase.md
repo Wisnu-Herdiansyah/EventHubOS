@@ -3,26 +3,26 @@
 - Status: accepted, pending the verification check below
 - Date: 2026-11-12
 - Decision owner: product owner (D1). Replaces ADR-0051 (Google Cloud for everything)
-- Keeps: ADR-0052 (Singapore), ADR-0053 (container images)
+- Keeps: ADR-0053 (container images). Region: ADR-0055 (chosen by Supabase for speed; was ADR-0052)
 - Leaves open: D8 (RPO and RTO), D10 (legal artefacts), D11 (shared cache and rate-limit store)
 
 ## Decision
 
-| Piece                            | Where                                                                   | Region (ADR-0052)               |
-| -------------------------------- | ----------------------------------------------------------------------- | ------------------------------- |
-| Admin app, public site (Next.js) | **Vercel**                                                              | Functions in `sin1` (Singapore) |
-| Organizer subdomains and domains | **Vercel** domains (wildcard `{handle}` subdomains, custom domains)     | Edge network                    |
-| API (Fastify)                    | **Vercel** Functions                                                    | `sin1`                          |
-| PostgreSQL 16                    | **Supabase** Postgres, connected through its pooler                     | Southeast Asia (Singapore)      |
-| Uploaded images                  | **Supabase Storage**, a private bucket (built in this change)           | Same Supabase project           |
-| Worker (outbox relay and emails) | **Cloud Run** container (the `worker` image, ADR-0053), always on       | `asia-southeast1`               |
-| Secrets                          | Vercel and Supabase environment settings; Secret Manager for the worker | Per provider                    |
+| Piece                            | Where                                                                   | Region (ADR-0055)       |
+| -------------------------------- | ----------------------------------------------------------------------- | ----------------------- |
+| Admin app, public site (Next.js) | **Vercel**                                                              | Closest to the database |
+| Organizer subdomains and domains | **Vercel** domains (wildcard `{handle}` subdomains, custom domains)     | Edge network            |
+| API (Fastify)                    | **Vercel** Functions                                                    | Closest to the database |
+| PostgreSQL 16                    | **Supabase** Postgres, connected through its pooler                     | Recommended by Supabase |
+| Uploaded images                  | **Supabase Storage**, a private bucket (built in this change)           | Same Supabase project   |
+| Worker (outbox relay and emails) | **Cloud Run** container (the `worker` image, ADR-0053), always on       | Closest to the database |
+| Secrets                          | Vercel and Supabase environment settings; Secret Manager for the worker | Per provider            |
 
 ### Choices made inside the decision
 
 - **The worker stays a container.** Its loop polls the outbox every second, and Vercel Functions
   do not run continuously. Vercel Cron would delay emails by up to a minute, and Vercel Queues is
-  in public beta. The worker image is already built and smoke-tested, and Cloud Run in Singapore
+  in public beta. The worker image is already built and smoke-tested, and Cloud Run runs next to the database
   needs no new provider.
 - **The API runs on Vercel** next to the apps that call it. Its in-process rate limiting becomes
   per function instance, which is weaker, so D11 (a shared store, for example Redis from the
@@ -58,7 +58,7 @@
 ## Verification before staging (needs the product owner's projects)
 
 These are assumptions until checked against a real Supabase project and Vercel team in
-Singapore. The checklist is in `docs/operations/hybrid-platform-verification.md`.
+the region Supabase picks. The checklist is in `docs/operations/hybrid-platform-verification.md`.
 
 1. Our bootstrap creates the three least-privilege roles on Supabase, whose `postgres` role is not
    a full superuser, and forced row-level security holds for them.
@@ -66,9 +66,9 @@ Singapore. The checklist is in `docs/operations/hybrid-platform-verification.md`
 3. Per-transaction tenant settings (`set_config(..., true)`) and advisory locks work through the
    pooler in transaction mode, which serverless functions need. The integration suite passes
    against it.
-4. The Fastify API runs on Vercel Functions in `sin1`, and the admin and site reach it.
-5. Where Vercel keeps logs and build output, recorded against ADR-0052 (Singapore). Until this is
-   checked, no claim is made that every copy of the data stays in Singapore.
+4. The Fastify API runs on Vercel Functions in the region closest to the database, and the admin and site reach it.
+5. The regions picked and the measured API-to-database round trip, recorded in ADR-0055. There
+   is no data-residency guarantee (ADR-0055).
 
 ## Alternatives
 
