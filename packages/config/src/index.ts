@@ -68,39 +68,59 @@ function assertDatabaseTls(
 }
 
 /**
- * Object storage for uploaded images (ADR-0042). Only local adapters exist: the production
- * provider waits for D1/D7. Optional: without it, image uploads report themselves as unavailable.
- * `local_directory` (local development, e2e) and `in_memory` (tests) are refused in
- * staging/production, so no remote environment silently keeps files on one machine's disk.
+ * Object storage for uploaded images (ADR-0042). Optional: without it, image uploads report
+ * themselves as unavailable.
+ * - `gcs`: a private Cloud Storage bucket (ADR-0051, D1), the only store allowed in
+ *   staging/production. Credentials come from Application Default Credentials (the service
+ *   account the service runs as), never from configuration.
+ * - `local_directory` (local development, e2e) and `in_memory` (tests) are refused in
+ *   staging/production, so no remote environment silently keeps files on one machine's disk.
  */
-export const OBJECT_STORE_ADAPTERS = ['local_directory', 'in_memory'] as const;
+export const OBJECT_STORE_ADAPTERS = ['gcs', 'local_directory', 'in_memory'] as const;
 export type ObjectStoreAdapter = (typeof OBJECT_STORE_ADAPTERS)[number];
 export interface ObjectStoreConfig {
   adapter: ObjectStoreAdapter;
   /** Present for `local_directory`. */
   directory: string | undefined;
+  /** Present for `gcs`. */
+  bucket: string | undefined;
 }
+
+/** Cloud Storage bucket names (no dots: domain-named buckets need verification). */
+const GCS_BUCKET_NAME = /^[a-z0-9][a-z0-9_-]{1,61}[a-z0-9]$/;
 
 const objectStoreFields = {
   OBJECT_STORE: z.enum(OBJECT_STORE_ADAPTERS).optional(),
   OBJECT_STORE_DIR: z.string().min(1).optional(),
+  GCS_BUCKET: z.string().regex(GCS_BUCKET_NAME, 'a Cloud Storage bucket name').optional(),
 };
 
 function objectStoreConfig(
   environment: DeployEnvironment,
-  c: { OBJECT_STORE?: ObjectStoreAdapter | undefined; OBJECT_STORE_DIR?: string | undefined },
+  c: {
+    OBJECT_STORE?: ObjectStoreAdapter | undefined;
+    OBJECT_STORE_DIR?: string | undefined;
+    GCS_BUCKET?: string | undefined;
+  },
 ): ObjectStoreConfig | null {
   if (!c.OBJECT_STORE) return null;
-  if (isRemoteEnvironment(environment)) {
+  if (c.OBJECT_STORE !== 'gcs' && isRemoteEnvironment(environment)) {
     throw new ConfigError(
       ['OBJECT_STORE'],
-      `local-only object stores are refused in ${environment}; the provider awaits D1/D7`,
+      `local-only object stores are refused in ${environment}; use gcs (ADR-0051)`,
     );
   }
   if (c.OBJECT_STORE === 'local_directory' && !c.OBJECT_STORE_DIR) {
     throw new ConfigError(['OBJECT_STORE_DIR'], 'required when OBJECT_STORE=local_directory');
   }
-  return { adapter: c.OBJECT_STORE, directory: c.OBJECT_STORE_DIR };
+  if (c.OBJECT_STORE === 'gcs' && !c.GCS_BUCKET) {
+    throw new ConfigError(['GCS_BUCKET'], 'required when OBJECT_STORE=gcs');
+  }
+  return {
+    adapter: c.OBJECT_STORE,
+    directory: c.OBJECT_STORE === 'local_directory' ? c.OBJECT_STORE_DIR : undefined,
+    bucket: c.OBJECT_STORE === 'gcs' ? c.GCS_BUCKET : undefined,
+  };
 }
 
 const baseSchema = z.object({

@@ -3,6 +3,7 @@ import { simpleWebAuthnRelyingParty } from './adapters/simplewebauthn-passkeys.t
 import { createPool } from '@eventhub/db';
 import { InMemoryObjectStore, type ObjectStore } from '@eventhub/kernel';
 import { LocalDirectoryObjectStore } from '@eventhub/kernel/object-stores';
+import { CloudStorageObjectStore, cloudStorageBucket } from '@eventhub/kernel/gcs-object-store';
 import { buildApp, loggerOptions } from './app.ts';
 import { Argon2idPasswordHasher } from './adapters/argon2id-password-hasher.ts';
 import { ResendEmailFeedbackReceiver } from './adapters/resend-email-feedback.ts';
@@ -16,6 +17,7 @@ const pool = createPool({
 function selectObjectStore(): ObjectStore | null {
   const c = config.objectStore;
   if (!c) return null;
+  if (c.adapter === 'gcs') return new CloudStorageObjectStore(cloudStorageBucket(c.bucket!));
   return c.adapter === 'local_directory'
     ? new LocalDirectoryObjectStore(c.directory!)
     : new InMemoryObjectStore();

@@ -363,11 +363,12 @@ describe('object storage (ADR-0042)', () => {
     expect(loadApiConfig({ ...api, OBJECT_STORE: 'in_memory' }).objectStore).toEqual({
       adapter: 'in_memory',
       directory: undefined,
+      bucket: undefined,
     });
     expect(
       loadWorkerConfig({ ...worker, OBJECT_STORE: 'local_directory', OBJECT_STORE_DIR: '/tmp/o' })
         .objectStore,
-    ).toEqual({ adapter: 'local_directory', directory: '/tmp/o' });
+    ).toEqual({ adapter: 'local_directory', directory: '/tmp/o', bucket: undefined });
   });
 
   it('needs a directory for local_directory', () => {
@@ -380,6 +381,34 @@ describe('object storage (ADR-0042)', () => {
     expect(captureError(() => loadApiConfig({ ...api, OBJECT_STORE: 's3' })).keys).toEqual([
       'OBJECT_STORE',
     ]);
+  });
+
+  it('accepts Cloud Storage everywhere, with a valid bucket name (ADR-0051)', () => {
+    const remote = {
+      DATABASE_APP_URL: `${localUrl}?sslmode=require`,
+      MFA_ENCRYPTION_KEY: MFA_KEY,
+      OBJECT_STORE: 'gcs',
+      GCS_BUCKET: 'eventhub-images-prod',
+    };
+    for (const env of ['staging', 'production']) {
+      expect(loadApiConfig({ EVENTHUB_ENV: env, ...remote }).objectStore, env).toEqual({
+        adapter: 'gcs',
+        directory: undefined,
+        bucket: 'eventhub-images-prod',
+      });
+    }
+    expect(
+      loadApiConfig({ ...api, OBJECT_STORE: 'gcs', GCS_BUCKET: 'dev-images' }).objectStore,
+    ).toMatchObject({ adapter: 'gcs', bucket: 'dev-images' });
+    expect(captureError(() => loadApiConfig({ ...api, OBJECT_STORE: 'gcs' })).keys).toEqual([
+      'GCS_BUCKET',
+    ]);
+    for (const bad of ['UPPER', 'has.dot', 'gs://bucket', 'a']) {
+      expect(
+        captureError(() => loadApiConfig({ ...api, OBJECT_STORE: 'gcs', GCS_BUCKET: bad })).keys,
+        bad,
+      ).toEqual(['GCS_BUCKET']);
+    }
   });
 
   it('refuses the local adapters in staging and production', () => {
