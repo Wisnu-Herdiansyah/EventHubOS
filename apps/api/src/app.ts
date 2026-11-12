@@ -34,6 +34,7 @@ import { assetRoutes } from './modules/asset/routes.ts';
 import { emailFeedbackRoutes } from './modules/email-feedback/routes.ts';
 import { platformRoutes } from './modules/platform/routes.ts';
 import { supportRoutes } from './modules/support/routes.ts';
+import { notificationRoutes } from './modules/notifications/routes.ts';
 
 export interface AppDependencies {
   pool: Pool;
@@ -84,6 +85,7 @@ export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
     ...assetRoutes(deps.pool, deps.objectStore ?? null),
     ...emailFeedbackRoutes(deps.pool, deps.emailFeedback ?? null),
     ...supportRoutes(deps.pool),
+    ...notificationRoutes(deps.pool),
     ...platformRoutes(deps.pool),
     ...auditRoutes(deps.pool),
   ];

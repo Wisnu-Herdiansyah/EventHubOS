@@ -1817,3 +1817,12 @@
 .theme-swatch__chip--ember {
   background: linear-gradient(135deg, var(--swatch-ember-brand) 50%, var(--swatch-ember-soft) 50%);
 }
+
+/* A short bulleted list inside a card (e.g. notices always sent, ADR-0049). */
+.bullets {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-left: 1.25rem;
+  list-style: disc;
+}

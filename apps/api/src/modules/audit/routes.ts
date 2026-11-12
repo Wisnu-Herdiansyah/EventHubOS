@@ -5,6 +5,7 @@ import { defineRoute, type AnyRoute } from '../../http/route.ts';
 import { uuid } from '../../http/schemas.ts';
 import { decodeCursor, encodeCursor } from '../event/routes.ts';
 import { withOrganization } from '../tenancy/access.ts';
+import { enqueueDataDownload } from '../notifications/data-download.ts';
 
 /**
  * Audit log viewer (ADR-0013). Read-only view over `audit_event` for one organization. Tenant RLS
@@ -299,6 +300,14 @@ export function auditRoutes(pool: Pool): AnyRoute[] {
                   .filter((k) => body[k as keyof Filters] !== undefined)
                   .sort(),
               },
+            });
+            await enqueueDataDownload(client, {
+              organizationId: access.organizationId,
+              userId: access.userId,
+              correlationId,
+              what: 'audit_log',
+              count: page.length,
+              truncated: rows.length > AUDIT_EXPORT_LIMIT,
             });
             return {
               status: 200,

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { GrantSupportAccessForm, RevokeSupportAccessDialog } from '@/components/support-access';
+import { DownloadAlertsForm } from '@/components/notification-settings';
 import { formatInZone } from '@/lib/time';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
@@ -24,6 +25,12 @@ export const metadata: Metadata = { title: 'Organization settings' };
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
+const ALWAYS_SENT: Record<string, string> = {
+  security_settings: 'When someone changes the two-step verification requirement',
+  support_access: 'When EventHub support access is turned on or off',
+  two_step_reminder: 'Reminders to set up two-step verification, while you need it',
+};
+
 export default async function OrganizationSettingsPage({
   params,
 }: {
@@ -31,7 +38,7 @@ export default async function OrganizationSettingsPage({
 }) {
   const { orgId } = await params;
   if (!UUID.test(orgId)) notFound();
-  let org, mfa, members, support;
+  let org, mfa, members, support, notices;
   try {
     const client = await api();
     org = unwrap(
@@ -39,6 +46,14 @@ export default async function OrganizationSettingsPage({
         params: { path: { organizationId: orgId } },
       }),
     );
+    // ADR-0049: the person's own email settings (members only; support has none).
+    if (!org.mfaSetupRequired && org.role !== 'support') {
+      notices = unwrap(
+        await client.GET('/v1/organizations/{organizationId}/notification-settings', {
+          params: { path: { organizationId: orgId } },
+        }),
+      );
+    }
     if (settingsAbilities(org.role).canEditProfile && !org.mfaSetupRequired) {
       mfa = unwrap(await client.GET('/v1/auth/mfa'));
       // ADR-0025: who the requirement would hold out (membership.manage sees two-step status).
@@ -207,6 +222,40 @@ export default async function OrganizationSettingsPage({
                 change anything or see attendee details, and every page they open is in your audit
                 log. Owners are emailed when access is turned on or off.
               </p>
+            </Card>
+          ) : null}
+
+          {notices && (notices.settings.length > 0 || notices.alwaysSent.length > 0) ? (
+            <Card
+              title="Email notifications"
+              titleId="notifications-heading"
+              description="Your own choices for this organization. Other people choose for themselves."
+            >
+              <div className="stack">
+                {notices.settings.some((n) => n.kind === 'data_download') ? (
+                  <DownloadAlertsForm
+                    organizationId={orgId}
+                    idempotencyKey={newIdempotencyKey()}
+                    enabled={notices.settings.find((n) => n.kind === 'data_download')!.enabled}
+                  />
+                ) : null}
+                {notices.alwaysSent.length > 0 ? (
+                  <div className="stack-sm">
+                    <p>
+                      <strong>Always sent to you</strong>
+                    </p>
+                    <ul className="bullets">
+                      {notices.alwaysSent.map((k) => (
+                        <li key={k}>{ALWAYS_SENT[k]}</li>
+                      ))}
+                    </ul>
+                    <p className="field__hint">
+                      These are security notices. They can’t be turned off, so nobody can weaken the
+                      organization’s protection quietly.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
             </Card>
           ) : null}
 

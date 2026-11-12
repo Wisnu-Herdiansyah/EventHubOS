@@ -16,6 +16,7 @@ import { slugSchema } from '../event/routes.ts';
 import { emailSchema } from '../identity/password.ts';
 import { withOrganization, type OrganizationAccess } from '../tenancy/access.ts';
 import { answersInput, checkAnswers, questionSchema, storedQuestions } from './questions.ts';
+import { enqueueDataDownload } from '../notifications/data-download.ts';
 
 /**
  * Free event registration (ADR-0023). Visitors sign up on the public page and cancel with the
@@ -635,6 +636,16 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
               targetId: params.eventId,
               correlationId,
               metadata: { count: data.length, status: body.status ?? 'all', truncated },
+            });
+            // ADR-0049: the other Owners and Admins are told, unless they turned it off.
+            await enqueueDataDownload(client, {
+              organizationId: access.organizationId,
+              userId: principal.userId,
+              correlationId,
+              what: 'attendee_list',
+              count: data.length,
+              truncated,
+              event: { id: params.eventId, name: event.name },
             });
             return {
               status: 200,

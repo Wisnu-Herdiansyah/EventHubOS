@@ -19,6 +19,7 @@ import { sendMfaChangedEmailConsumer } from './consumers/send-mfa-email.ts';
 import { sendSecurityChangedEmailConsumer } from './consumers/send-security-change-email.ts';
 import { sendTwoStepReminderConsumer } from './consumers/send-two-step-reminder.ts';
 import { sendSupportAccessEmailConsumer } from './consumers/send-support-access-email.ts';
+import { sendDataDownloadEmailConsumer } from './consumers/send-data-download-email.ts';
 import { sendAnnouncementConsumer } from './consumers/send-announcement.ts';
 import { closeWaitlistsOnce } from './waitlist-closer.ts';
 import {
@@ -97,6 +98,7 @@ const consumers = [
   sendMfaChangedEmailConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
   sendSecurityChangedEmailConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
   sendSupportAccessEmailConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
+  sendDataDownloadEmailConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
   sendTwoStepReminderConsumer(emailSender, { appBaseUrl: config.appBaseUrl }),
   sendAnnouncementConsumer(emailSender, { publicSiteUrl: config.publicSiteUrl }),
   sendRegistrationConfirmationConsumer(emailSender, {
