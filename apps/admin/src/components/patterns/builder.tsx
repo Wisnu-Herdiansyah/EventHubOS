@@ -108,6 +108,7 @@ export function PageEditor({
   timezone,
   live,
   images = [],
+  brand,
 }: {
   initialSections: Section[];
   initialVersion?: number;
@@ -117,6 +118,8 @@ export function PageEditor({
   live?: LiveBinding;
   /** The organization's image library, for speaker photos (ADR-0042). */
   images?: LibraryImage[];
+  /** The event's colour preset (ADR-0046), so the preview matches the public page. */
+  brand?: string;
 }) {
   // Previews load library images through the admin's own authenticated proxy.
   const imageUrl: ImageUrl | undefined = live
@@ -529,6 +532,7 @@ export function PageEditor({
         <div className="builder__canvas" aria-label="Preview" role="region">
           <div className={`preview preview--${viewport}`}>
             <SitePreview
+              brand={brand}
               name={eventName}
               sections={sections}
               selectedId={selectedId}

@@ -201,7 +201,10 @@ async function record(
   );
 }
 
-/** Event names whose draft or current published page uses the image (at most 5). */
+/**
+ * Event names that use the image (at most 5): in a draft or the current published page, or as
+ * the event's sharing image (ADR-0046).
+ */
 export async function assetUsage(
   client: PoolClient,
   organizationId: string,
@@ -209,13 +212,16 @@ export async function assetUsage(
 ): Promise<string[]> {
   const { rows } = await client.query<{ name: string }>(
     `SELECT DISTINCT e.name
-       FROM eventhub.event_page p
-       JOIN eventhub.event e ON e.organization_id = p.organization_id AND e.id = p.event_id
+       FROM eventhub.event e
+       LEFT JOIN eventhub.event_page p
+         ON p.organization_id = e.organization_id AND p.event_id = e.id
        LEFT JOIN eventhub.page_revision r
          ON r.organization_id = p.organization_id AND r.page_id = p.id
         AND r.revision = p.published_revision
-      WHERE p.organization_id = $1
-        AND (jsonb_path_exists(p.draft_sections, '$.** ? (@ == $id)', jsonb_build_object('id', $2::text))
+      WHERE e.organization_id = $1
+        AND (e.settings->'sharing'->>'imageAssetId' = $2::text
+             OR jsonb_path_exists(coalesce(p.draft_sections, '[]'::jsonb), '$.** ? (@ == $id)',
+                                  jsonb_build_object('id', $2::text))
              OR jsonb_path_exists(coalesce(r.sections, '[]'::jsonb), '$.** ? (@ == $id)',
                                   jsonb_build_object('id', $2::text)))
       ORDER BY e.name

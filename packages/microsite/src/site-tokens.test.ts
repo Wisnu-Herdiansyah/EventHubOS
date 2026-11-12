@@ -62,3 +62,37 @@ describe('microsite styles', () => {
     expect(css.match(/var\(--(?!site-)[a-z-]+\)/g) ?? []).toEqual([]);
   });
 });
+
+describe('themes (ADR-0046)', () => {
+  it('has a CSS preset for every theme organizers can choose, and no others', async () => {
+    const { EVENT_THEMES } = await import('@eventhub/kernel');
+    const css = readFileSync(join(dir, 'site-tokens.css'), 'utf8');
+    const presets = [...css.matchAll(/\.site\[data-brand='([a-z-]+)'\]/g)].map((m) => m[1]);
+    expect(['default', ...presets].sort()).toEqual([...EVENT_THEMES].sort());
+  });
+});
+
+describe('admin theme swatches (ADR-0046)', () => {
+  it('show the same brand and soft colours as the presets', () => {
+    const site = readFileSync(join(dir, 'site-tokens.css'), 'utf8');
+    const admin = readFileSync(join(dir, '../../../apps/admin/src/styles/tokens.css'), 'utf8');
+    const colours = (block: string) => [
+      block.match(/--site-brand:\s*(#[0-9a-f]{6})/i)?.[1],
+      block.match(/--site-brand-soft:\s*(#[0-9a-f]{6})/i)?.[1],
+    ];
+    const presets: Record<string, Array<string | undefined>> = {
+      default: colours(site.match(/\.site\s*\{([^}]*)\}/)![1]!),
+    };
+    for (const m of site.matchAll(/\.site\[data-brand='([a-z-]+)'\]\s*\{([^}]*)\}/g)) {
+      presets[m[1]!] = colours(m[2]!);
+    }
+    for (const [name, [brand, soft]] of Object.entries(presets)) {
+      const token = (part: string) =>
+        admin
+          .match(new RegExp(`--swatch-${name}-${part}:\\s*(#[0-9a-f]{6})`, 'i'))?.[1]
+          ?.toLowerCase();
+      expect(token('brand'), name).toBe(brand!.toLowerCase());
+      expect(token('soft'), name).toBe(soft!.toLowerCase());
+    }
+  });
+});

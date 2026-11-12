@@ -1,5 +1,6 @@
 'use client';
 
+import { EVENT_THEMES, type EventTheme } from '@eventhub/kernel';
 import { useActionState } from 'react';
 import {
   createEventAction,
@@ -191,10 +192,23 @@ export function DuplicateEventForm(props: {
   );
 }
 
+/** Page colour presets (ADR-0046), from the shared list the API validates against. */
+const THEME_LABELS: Record<EventTheme, string> = {
+  default: 'Blue (standard)',
+  'navy-gold': 'Navy and gold',
+  forest: 'Forest',
+  ember: 'Ember',
+};
+const THEMES = EVENT_THEMES.map((value) => ({ value, label: THEME_LABELS[value] }));
+
 export interface SettingsDefaults {
   visibility: string;
+  /** Page colour preset (ADR-0046). */
+  theme: string;
   title: string;
   description: string;
+  /** Library image for link previews, or empty (ADR-0046). */
+  sharingImage: string;
   privacyPolicyUrl: string;
   termsUrl: string;
   email: string;
@@ -245,9 +259,12 @@ export function EventSettingsForm(props: {
   timeZone: string;
   idempotencyKey: string;
   defaults: SettingsDefaults;
+  /** The organization's image library, for the sharing image (ADR-0046). */
+  images?: Array<{ id: string; name: string }>;
 }) {
   const [state, action] = useActionState(updateEventSettingsAction, initialFormState);
   const d = props.defaults;
+  const images = props.images ?? [];
   return (
     <form action={action} className="form" noValidate>
       <FormMessage state={state} />
@@ -263,6 +280,28 @@ export function EventSettingsForm(props: {
         options={VISIBILITY}
         defaultValue={d.visibility}
       />
+      <fieldset className="fieldset">
+        <legend className="fieldset__legend">Look</legend>
+        <Select
+          name="theme"
+          label="Page colours"
+          state={state}
+          options={THEMES.map((t) => ({ value: t.value, label: t.label }))}
+          defaultValue={d.theme}
+          hint="Colour sets checked for readable contrast. They apply to the public page and the editor preview."
+        />
+        <ul className="theme-swatches" aria-label="Page colour sets">
+          {THEMES.map((t) => (
+            <li key={t.value} className="theme-swatch">
+              <span
+                className={`theme-swatch__chip theme-swatch__chip--${t.value}`}
+                aria-hidden="true"
+              />
+              {t.label}
+            </li>
+          ))}
+        </ul>
+      </fieldset>
       <fieldset className="fieldset">
         <legend className="fieldset__legend">Sharing</legend>
         <Field
@@ -280,6 +319,24 @@ export function EventSettingsForm(props: {
           defaultValue={d.description}
           maxLength={200}
           hint="Up to 200 characters."
+        />
+        <Select
+          name="sharingImage"
+          label="Sharing image"
+          state={state}
+          options={[
+            { value: '', label: 'No image' },
+            ...(d.sharingImage && !images.some((i) => i.id === d.sharingImage)
+              ? [{ value: d.sharingImage, label: 'Current image' }]
+              : []),
+            ...images.map((i) => ({ value: i.id, label: i.name })),
+          ]}
+          defaultValue={d.sharingImage}
+          hint={
+            images.length === 0
+              ? 'Your image library is empty. Upload images on the Images page.'
+              : 'Shown in link previews (chat apps, social networks). Wide images work best, about 1200 × 630.'
+          }
         />
       </fieldset>
       <fieldset className="fieldset">

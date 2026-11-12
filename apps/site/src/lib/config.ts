@@ -30,3 +30,12 @@ export function siteConfig() {
   };
   return cached;
 }
+
+/**
+ * The port in the site's own public address, for absolute links (link previews, ADR-0046):
+ * empty on standard ports. Only plain-HTTP local and test runs use a port.
+ */
+export function siteDevPort(): string {
+  const port = process.env.SITE_PUBLIC_PORT;
+  return port && /^\d{2,5}$/.test(port) ? `:${port}` : '';
+}

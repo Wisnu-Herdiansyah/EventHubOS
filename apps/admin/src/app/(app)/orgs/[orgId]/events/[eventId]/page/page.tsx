@@ -103,6 +103,9 @@ export default async function EventMicrositePage({
         initialVersion={page.draft.version}
         eventName={evt.name}
         timezone={evt.timezone}
+        brand={
+          evt.settings.theme && evt.settings.theme !== 'default' ? evt.settings.theme : undefined
+        }
         live={{
           organizationId: orgId,
           eventId,

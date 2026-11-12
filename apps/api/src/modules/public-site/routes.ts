@@ -1,6 +1,7 @@
 import { z } from 'zod';
+import { uuid } from '../../http/schemas.ts';
 import { questionSchema, storedQuestions } from '../registration/questions.ts';
-import { notFound } from '@eventhub/kernel';
+import { EVENT_THEMES, notFound } from '@eventhub/kernel';
 import { withTransaction, type Pool } from '@eventhub/db';
 import { definePublicRoute, type AnyRoute } from '../../http/route.ts';
 import { slugSchema } from '../event/routes.ts';
@@ -32,7 +33,14 @@ const publicEventPageSchema = z
     lifecycle: z.enum(['published', 'live', 'ended']),
     /** Unlisted events are reachable by link but must not be indexed by search engines. */
     indexable: z.boolean(),
-    sharing: z.object({ title: z.string().nullable(), description: z.string().nullable() }),
+    sharing: z.object({
+      title: z.string().nullable(),
+      description: z.string().nullable(),
+      /** Library image for link previews (ADR-0046), served at /images/{id}/large.webp. */
+      imageAssetId: uuid.nullable(),
+    }),
+    /** Colour preset of the page (ADR-0046). */
+    theme: z.enum(EVENT_THEMES),
     revision: z.number().int(),
     publishedAt: z.string(),
     /** Visible sections only, in page order. */
@@ -94,6 +102,10 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
             out_closes_at: Date;
             out_privacy_policy_url: string | null;
           }>('SELECT * FROM eventhub.public_registration_state($1, $2)', [p.handle, p.eventSlug]);
+          const look = await client.query<{
+            out_theme: (typeof EVENT_THEMES)[number];
+            out_sharing_image_id: string | null;
+          }>('SELECT * FROM eventhub.public_event_presentation($1, $2)', [p.handle, p.eventSlug]);
           const q = await client.query<{ questions: unknown }>(
             'SELECT eventhub.public_registration_questions($1, $2) AS questions',
             [p.handle, p.eventSlug],
@@ -101,11 +113,12 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
           return {
             row: rows[0],
             reg: reg.rows[0]!,
+            look: look.rows[0],
             questions: storedQuestions(q.rows[0]?.questions),
           };
         });
         if (!found) throw notFound('Page');
-        const { row, reg, questions } = found;
+        const { row, reg, look, questions } = found;
         return {
           status: 200,
           body: {
@@ -119,7 +132,14 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
             language: row.out_primary_language,
             lifecycle: row.out_lifecycle,
             indexable: row.out_visibility === 'public',
-            sharing: { title: row.out_sharing_title, description: row.out_sharing_description },
+            sharing: {
+              title: row.out_sharing_title,
+              description: row.out_sharing_description,
+              imageAssetId: look?.out_sharing_image_id ?? null,
+            },
+            theme: EVENT_THEMES.includes(look?.out_theme as (typeof EVENT_THEMES)[number])
+              ? look!.out_theme
+              : 'default',
             revision: row.out_revision,
             publishedAt: row.out_published_at.toISOString(),
             sections: row.out_sections.filter((s) => s.visible),

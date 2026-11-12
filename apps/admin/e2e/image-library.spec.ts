@@ -242,3 +242,58 @@ test('the library is in the sidebar for its organization, and closed to stranger
   await signIn(page, stranger.email);
   expect((await page.goto(`/orgs/${orgId}/images`))?.status()).toBe(404);
 });
+
+test('an organizer picks page colours and a sharing image (ADR-0046)', async ({
+  page,
+  browser,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const t = await publishedEvent('theme');
+  await signIn(page, t.owner.email);
+
+  // An image in the library first.
+  await page.goto(`/orgs/${t.orgId}/images`);
+  const upload = page.getByRole('region', { name: 'Upload' });
+  await upload.getByLabel('Image').setInputFiles({
+    name: 'Share card.png',
+    mimeType: 'image/png',
+    buffer: png(1200, 630, [31, 107, 74]),
+  });
+  await upload.getByRole('button', { name: 'Upload image' }).click();
+  await expect(page.getByText('Image uploaded.')).toBeVisible();
+
+  // Event settings: colours and sharing image.
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}`);
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  const settings = page.getByRole('region', { name: 'Settings' });
+  await settings.getByLabel('Page colours').selectOption({ label: 'Forest' });
+  await settings.getByLabel('Sharing image').selectOption({ label: 'Share card' });
+  await settings.getByRole('button', { name: /^Save/ }).click();
+  await expect(page.getByText(/saved/i).first()).toBeVisible();
+  await expect(settings.getByLabel('Page colours')).toHaveValue('forest');
+  await axeScan(page);
+
+  // The editor preview uses the colours too.
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/page`);
+  await expect(page.locator('.builder .site')).toHaveAttribute('data-brand', 'forest');
+
+  // Visitors see the colours, and link previews get the image from the event's own address.
+  const context = await browser.newContext();
+  const visitor = await context.newPage();
+  await visitor.goto(`${t.origin}/${t.slug}`);
+  await expect(visitor.locator('.site')).toHaveAttribute('data-brand', 'forest');
+  const og = await visitor.locator('meta[property="og:image"]').getAttribute('content');
+  expect(og).toMatch(
+    new RegExp(
+      `^${t.origin.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/images/[0-9a-f-]{36}/large\\.webp$`,
+    ),
+  );
+  await expect(visitor.locator('meta[name="twitter:card"]')).toHaveAttribute(
+    'content',
+    'summary_large_image',
+  );
+  const status = await visitor.evaluate(async (u) => (await fetch(u)).status, og!);
+  expect(status).toBe(200);
+  await axeScan(visitor);
+  await context.close();
+});

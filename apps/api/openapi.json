@@ -12195,6 +12195,15 @@
               "private"
             ]
           },
+          "theme": {
+            "type": "string",
+            "enum": [
+              "default",
+              "navy-gold",
+              "forest",
+              "ember"
+            ]
+          },
           "registration": {
             "type": "object",
             "properties": {
@@ -12243,6 +12252,11 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 200
+              },
+              "imageAssetId": {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               }
             },
             "additionalProperties": false
@@ -12314,6 +12328,22 @@
               }
             ]
           },
+          "theme": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "default",
+                  "navy-gold",
+                  "forest",
+                  "ember"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "registration": {
             "anyOf": [
               {
@@ -12371,6 +12401,11 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 200
+                  },
+                  "imageAssetId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                   }
                 },
                 "additionalProperties": false
@@ -13596,13 +13631,35 @@
                   "string",
                   "null"
                 ]
+              },
+              "imageAssetId": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "format": "uuid",
+                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
               }
             },
             "required": [
               "title",
-              "description"
+              "description",
+              "imageAssetId"
             ],
             "additionalProperties": false
+          },
+          "theme": {
+            "type": "string",
+            "enum": [
+              "default",
+              "navy-gold",
+              "forest",
+              "ember"
+            ]
           },
           "revision": {
             "type": "integer",
@@ -13674,6 +13731,7 @@
           "lifecycle",
           "indexable",
           "sharing",
+          "theme",
           "revision",
           "publishedAt",
           "sections",

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { siteConfig, siteDevPort } from '@/lib/config';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { after } from 'next/server';
@@ -46,12 +47,27 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   if (!page) return { title: 'Page not found' };
   const title = page.sharing.title ?? page.name;
   const description = page.sharing.description ?? undefined;
+  // The sharing image (ADR-0046), as an absolute address on this event's own site: link
+  // previews fetch it from there.
+  const { domain, https } = siteConfig();
+  const origin = `${https ? 'https' : 'http'}://${handle}.${domain}${siteDevPort()}`;
+  const image = page.sharing.imageAssetId
+    ? `${origin}/images/${page.sharing.imageAssetId}/large.webp`
+    : undefined;
   return {
     title,
     description,
     // Unlisted events are shared by link only.
     robots: page.indexable ? { index: true, follow: true } : { index: false, follow: false },
-    openGraph: { title, description, type: 'website' },
+    openGraph: {
+      title,
+      description,
+      type: 'website',
+      ...(image ? { images: [{ url: image }] } : {}),
+    },
+    twitter: image
+      ? { card: 'summary_large_image', title, description, images: [image] }
+      : { card: 'summary', title, description },
   };
 }
 
@@ -74,6 +90,7 @@ export default async function PublicEventPage({ params }: { params: Params }) {
       <main id="main">
         <SitePreview
           asPage
+          brand={page.theme === 'default' ? undefined : page.theme}
           registerSlot={registerSlot(page, handle, eventSlug)}
           name={page.name}
           lang={page.language}

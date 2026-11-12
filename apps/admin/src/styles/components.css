@@ -1764,3 +1764,56 @@
 .support-banner {
   margin-bottom: var(--space-4);
 }
+
+/* Page colour sets (ADR-0046): decorative swatches next to the theme choice (colours in tokens.css). */
+.theme-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-secondary);
+}
+
+.theme-swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.theme-swatch__chip {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: var(--radius-pill);
+  border: var(--border-width) solid var(--color-divider);
+}
+
+.theme-swatch__chip--default {
+  background: linear-gradient(
+    135deg,
+    var(--swatch-default-brand) 50%,
+    var(--swatch-default-soft) 50%
+  );
+}
+
+.theme-swatch__chip--navy-gold {
+  background: linear-gradient(
+    135deg,
+    var(--swatch-navy-gold-brand) 50%,
+    var(--swatch-navy-gold-soft) 50%
+  );
+}
+
+.theme-swatch__chip--forest {
+  background: linear-gradient(
+    135deg,
+    var(--swatch-forest-brand) 50%,
+    var(--swatch-forest-soft) 50%
+  );
+}
+
+.theme-swatch__chip--ember {
+  background: linear-gradient(135deg, var(--swatch-ember-brand) 50%, var(--swatch-ember-soft) 50%);
+}

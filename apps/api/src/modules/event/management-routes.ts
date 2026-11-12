@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { lockPageImages } from '../asset/routes.ts';
 import {
   AppError,
   createDomainEvent,
@@ -254,6 +255,26 @@ export function eventManagementRoutes(pool: Pool): AnyRoute[] {
                 }
 
                 const settings = applySettingsPatch(row.settings, body.settings ?? {});
+                // The sharing image must be in this organization's library (ADR-0046); the row
+                // stays locked until commit, so it cannot be deleted meanwhile.
+                const sharingImage = settings.sharing?.imageAssetId;
+                if (body.settings?.sharing && sharingImage) {
+                  const missing = await lockPageImages(
+                    client,
+                    access.organizationId,
+                    [{ assetId: sharingImage, path: ['settings', 'sharing', 'imageAssetId'] }],
+                    'body',
+                  );
+                  if (missing.length > 0) {
+                    throw new AppError(
+                      'validation_failed',
+                      'The sharing image is not in the library.',
+                      {
+                        details: { fields: missing },
+                      },
+                    );
+                  }
+                }
                 const startsAt = body.startsAt ? new Date(body.startsAt) : row.starts_at;
                 const endsAt = body.endsAt ? new Date(body.endsAt) : row.ends_at;
                 const issues = settingsIssues(settings, { startsAt, endsAt });

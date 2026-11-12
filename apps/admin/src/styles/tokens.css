@@ -148,3 +148,16 @@
     --duration-slow: 0ms;
   }
 }
+
+/* Public page colour presets (ADR-0046), shown as swatches next to the theme choice. They mirror
+   packages/microsite/src/site-tokens.css and are the same in light and dark mode. */
+:root {
+  --swatch-default-brand: #0058b0;
+  --swatch-default-soft: #e5f0ff;
+  --swatch-navy-gold-brand: #1b2a4a;
+  --swatch-navy-gold-soft: #efe4cf;
+  --swatch-forest-brand: #1f6b4a;
+  --swatch-forest-soft: #dcefe5;
+  --swatch-ember-brand: #b3261e;
+  --swatch-ember-soft: #fbe3e0;
+}
