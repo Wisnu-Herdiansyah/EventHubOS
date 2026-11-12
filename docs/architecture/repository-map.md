@@ -1,7 +1,7 @@
 # Repository map against the technical architecture
 
 Where each part of `TECHNICAL_ARCHITECTURE.md` lives, and how far it goes. ADRs explain the
-decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0049 (migrations
+decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0051 (migrations
 `0001`–`0031`).
 
 **Status words**
@@ -25,7 +25,7 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0049
 | Structured logging, redaction, correlation IDs (§11)      | `apps/api/src/app.ts`, `packages/kernel/src/redaction.ts`                                  | Partial: done; W3C tracing and an observability stack are not chosen yet                                                                                                                                           |
 | Worker and outbox relay (§2, §6)                          | `apps/worker`                                                                              | Done (ADR-0009): per-event transactions, dead-lettering, health log, replay CLI, waitlist-closing sweep. Runbook: `docs/operations/outbox-runbook.md`                                                              |
 | CI: format, lint, types, tests, scanning, migrations      | `.github/workflows/ci.yml`                                                                 | Done: unit, integration (PostgreSQL 16), browser e2e, gitleaks and dependency audit. The e2e browser install falls back when the Ubuntu mirror is down                                                             |
-| Infrastructure as code                                    | `infra/`                                                                                   | Blocked on D1, D7                                                                                                                                                                                                  |
+| Infrastructure as code                                    | `infra/`                                                                                   | Blocked on D7 (region); platform chosen (ADR-0051: Google Cloud)                                                                                                                                                   |
 
 ## Identity and access
 
@@ -50,14 +50,14 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0049
 
 ## Events, pages and public sites
 
-| Element                                   | Location                                                                                                              | Status                                                                                                                                   |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Events, settings, lifecycle               | `apps/api/src/modules/event`, migration `0004`                                                                        | Done (ADR-0011): checklist, publish/unpublish, archive/restore, duplicate (ADR-0036), search and filters (ADR-0039)                      |
-| Microsite builder, drafts, revisions (§7) | `apps/api/src/modules/page`, `packages/microsite`, `apps/admin/src/components/patterns/builder.tsx`, migration `0011` | Done (ADR-0020): typed, versioned sections; agenda v2 and speakers v3 (ADR-0040, ADR-0042). Rich text waits for D13                      |
-| Public event sites                        | `apps/site`, `apps/api/src/modules/public-site`, migration `0012`                                                     | Done (ADR-0021): `{handle}.{domain}/{slug}`, published revisions only. CDN caching and edge limits wait for D1                           |
-| Asset library (images)                    | `apps/api/src/modules/asset`, `ObjectStore` adapters in `packages/kernel`, migration `0025`                           | Partial (ADR-0042): uploads re-encoded, speaker photos, public serving for published pages. The production object store waits for D1, D7 |
-| Custom domains (§8)                       | —                                                                                                                     | Blocked on D1                                                                                                                            |
-| Themes and sharing images                 | `settings.theme`, `settings.sharing.imageAssetId`, `EVENT_THEMES` in `packages/kernel`, migration `0029`              | Done (ADR-0046): tested colour presets and a library image for link previews. Custom brand colours later                                 |
+| Element                                   | Location                                                                                                              | Status                                                                                                                                                                           |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Events, settings, lifecycle               | `apps/api/src/modules/event`, migration `0004`                                                                        | Done (ADR-0011): checklist, publish/unpublish, archive/restore, duplicate (ADR-0036), search and filters (ADR-0039)                                                              |
+| Microsite builder, drafts, revisions (§7) | `apps/api/src/modules/page`, `packages/microsite`, `apps/admin/src/components/patterns/builder.tsx`, migration `0011` | Done (ADR-0020): typed, versioned sections; agenda v2 and speakers v3 (ADR-0040, ADR-0042). Rich text waits for D13                                                              |
+| Public event sites                        | `apps/site`, `apps/api/src/modules/public-site`, migration `0012`                                                     | Done (ADR-0021): `{handle}.{domain}/{slug}`, published revisions only. CDN caching and edge limits: Cloud CDN and Cloud Armor (ADR-0051), configured with the staging IaC        |
+| Asset library (images)                    | `apps/api/src/modules/asset`, `ObjectStore` adapters in `packages/kernel`, migration `0025`                           | Partial (ADR-0042): uploads re-encoded, speaker photos, public serving for published pages. Production store: a private Cloud Storage bucket (ADR-0051); its region waits for D7 |
+| Custom domains (§8)                       | —                                                                                                                     | Not started: platform chosen (ADR-0051, Certificate Manager and the load balancer); waits for staging IaC                                                                        |
+| Themes and sharing images                 | `settings.theme`, `settings.sharing.imageAssetId`, `EVENT_THEMES` in `packages/kernel`, migration `0029`              | Done (ADR-0046): tested colour presets and a library image for link previews. Custom brand colours later                                                                         |
 
 ## Registration and event day
 

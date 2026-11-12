@@ -10,6 +10,7 @@ import {
   type ObjectStore,
 } from '@eventhub/kernel';
 import { LocalDirectoryObjectStore } from '@eventhub/kernel/object-stores';
+import { CloudStorageObjectStore, cloudStorageBucket } from '@eventhub/kernel/gcs-object-store';
 import { deleteAssetObjectsConsumer } from './consumers/delete-asset-objects.ts';
 import { SuppressingEmailSender, suppressionLookup } from './adapters/suppressing-email-sender.ts';
 import { LocalFileEmailSender } from './adapters/local-file-email-sender.ts';
@@ -55,6 +56,7 @@ function selectEmailSender(): EmailSender {
 function selectObjectStore(): ObjectStore | null {
   const c = config.objectStore;
   if (!c) return null;
+  if (c.adapter === 'gcs') return new CloudStorageObjectStore(cloudStorageBucket(c.bucket!));
   return c.adapter === 'local_directory'
     ? new LocalDirectoryObjectStore(c.directory!)
     : new InMemoryObjectStore();
