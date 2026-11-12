@@ -106,7 +106,8 @@ const summarySchema = z
     capacity: z.number().int().nullable(),
     /** Whether sign-ups join a waitlist once the event is full. */
     waitlist: z.boolean(),
-    state: z.enum(['open', 'not_open_yet', 'closed', 'full']),
+    /** cancelled: the event was cancelled (ADR-0050); final. */
+    state: z.enum(['open', 'not_open_yet', 'closed', 'full', 'cancelled']),
     opensAt: z.iso.datetime().nullable(),
     closesAt: z.iso.datetime(),
   })
@@ -351,6 +352,10 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
             throw new AppError('conflict', 'Registration is closed.', {
               details: { reason: 'registration_closed' },
             });
+          case 'cancelled':
+            throw new AppError('conflict', 'This event is cancelled.', {
+              details: { reason: 'event_cancelled' },
+            });
           default:
             throw notFound('Page');
         }
@@ -452,7 +457,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
               checked_in: number;
               capacity: number | null;
               waitlist: boolean;
-              state: 'open' | 'not_open_yet' | 'closed' | 'full';
+              state: 'open' | 'not_open_yet' | 'closed' | 'full' | 'cancelled';
               opens_at: Date | null;
               closes_at: Date;
             }>(

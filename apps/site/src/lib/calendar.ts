@@ -18,6 +18,8 @@ export interface CalendarEvent {
   timezone: string;
   venueMode: string;
   description: string | null;
+  /** The event was cancelled (ADR-0050): STATUS:CANCELLED under the same UID. */
+  cancelled?: boolean;
 }
 
 /** 20270301T020000Z */
@@ -101,12 +103,13 @@ export function eventIcs(e: CalendarEvent, pageUrl: string): string {
     `LAST-MODIFIED:${icsDate(e.updatedAt)}`,
     `DTSTART:${icsDate(e.startsAt)}`,
     `DTEND:${icsDate(e.endsAt)}`,
-    `SUMMARY:${icsText(e.name)}`,
+    `SUMMARY:${icsText(e.cancelled ? `Cancelled: ${e.name}` : e.name)}`,
     `DESCRIPTION:${icsText(description)}`,
     ...(LOCATION[e.venueMode] ? [`LOCATION:${LOCATION[e.venueMode]}`] : []),
     `URL:${icsText(pageUrl)}`,
-    'STATUS:CONFIRMED',
-    'TRANSP:OPAQUE',
+    e.cancelled ? 'STATUS:CANCELLED' : 'STATUS:CONFIRMED',
+    // A cancelled event no longer blocks the time.
+    e.cancelled ? 'TRANSP:TRANSPARENT' : 'TRANSP:OPAQUE',
     'END:VEVENT',
     'END:VCALENDAR',
   ];

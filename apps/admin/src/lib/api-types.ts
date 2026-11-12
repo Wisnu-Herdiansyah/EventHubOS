@@ -621,6 +621,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/organizations/{organizationId}/events/{eventId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a scheduled, published or live event (ADR-0050). Final: registration closes, the public page and calendar file say it is cancelled, and everyone registered or waiting can be emailed the reason. */
+        post: operations["cancelEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/organizations/{organizationId}/events/{eventId}/transitions": {
         parameters: {
             query?: never;
@@ -1398,6 +1415,11 @@ export interface components {
             /** Format: date-time */
             to?: string;
         };
+        CancelEventRequest: {
+            expectedVersion: number;
+            reason: string;
+            notifyAttendees: boolean;
+        };
         CancelRegistrationRequest: {
             token: string;
         };
@@ -1520,6 +1542,11 @@ export interface components {
             settings: components["schemas"]["EventSettings"];
             lifecycleChangedAt: string | null;
             archivedFrom: ("draft" | "scheduled" | "ended") | null;
+            cancellation: {
+                /** Format: date-time */
+                cancelledAt: string;
+                reason: string;
+            } | null;
         };
         EventChecklist: {
             /** Format: uuid */
@@ -1936,6 +1963,7 @@ export interface components {
             timezone: string;
             venueMode: string;
             description: string | null;
+            cancelled: boolean;
         };
         PublicEventPage: {
             handle: string;
@@ -1958,11 +1986,15 @@ export interface components {
             theme: "default" | "navy-gold" | "forest" | "ember";
             revision: number;
             publishedAt: string;
+            cancellation: {
+                cancelledAt: string;
+                reason: string;
+            } | null;
             sections: components["schemas"]["PageSection"][];
             privacyPolicyUrl: string | null;
             registration: {
                 /** @enum {string} */
-                state: "open" | "not_open_yet" | "closed" | "full" | "waitlist";
+                state: "open" | "not_open_yet" | "closed" | "full" | "waitlist" | "cancelled";
                 opensAt: string | null;
                 closesAt: string;
                 questions: components["schemas"]["RegistrationQuestion"][];
@@ -2061,7 +2093,7 @@ export interface components {
             capacity: number | null;
             waitlist: boolean;
             /** @enum {string} */
-            state: "open" | "not_open_yet" | "closed" | "full";
+            state: "open" | "not_open_yet" | "closed" | "full" | "cancelled";
             opensAt: string | null;
             /** Format: date-time */
             closesAt: string;
@@ -6187,6 +6219,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventChecklist"];
+                };
+            };
+            /** @description Validation failed or Idempotency-Key missing */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unauthenticated, or invalid credentials on login */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden (missing permission or unverified email) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found (also returned for resources in other organizations) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Idempotency-Key reused with a different payload */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error (generic body with correlation ID) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    cancelEvent: {
+        parameters: {
+            query?: never;
+            header: {
+                "X-Correlation-Id"?: string;
+                "Idempotency-Key": string;
+            };
+            path: {
+                organizationId: string;
+                eventId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CancelEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Event"];
                 };
             };
             /** @description Validation failed or Idempotency-Key missing */

@@ -8,6 +8,7 @@ import {
   type SettingsDefaults,
 } from '@/components/org-forms';
 import { Badge } from '@/components/ui/badge';
+import { CancelEventDialog } from '@/components/cancel-event';
 import { ButtonLink } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Meter } from '@/components/ui/chart';
@@ -142,7 +143,13 @@ export default async function EventPage({
   const warnings = checklist.items
     .filter((i) => i.severity === 'recommended' && !i.complete)
     .map((i) => ({ id: i.id, message: i.message }));
-  const canEdit = can(org.role, 'event.update') && evt.lifecycle !== 'archived';
+  const canEdit =
+    can(org.role, 'event.update') && evt.lifecycle !== 'archived' && !evt.cancellation;
+  // ADR-0050: announced events that are not over can be cancelled, once.
+  const canCancel =
+    can(org.role, 'event.publish') &&
+    !evt.cancellation &&
+    ['scheduled', 'published', 'live'].includes(evt.lifecycle);
   const site = checklist.publicSite;
   const publicUrl = publicSiteUrl(adminConfig().publicSiteUrl, site.handle, site.eventSlug);
   const isPublic =
@@ -248,6 +255,31 @@ export default async function EventPage({
 
         {evt.lifecycle === 'archived' ? (
           <Notice>Archived events are read-only. Restore the event to edit it.</Notice>
+        ) : null}
+
+        {evt.cancellation ? (
+          <Notice tone="danger" title="This event is cancelled">
+            <p>
+              Cancelled {formatInZone(evt.cancellation.cancelledAt, evt.timezone)}. Registration is
+              closed for good, and the public page and calendar file say so.
+            </p>
+            <p className="wrap-anywhere">Reason: {evt.cancellation.reason}</p>
+          </Notice>
+        ) : canCancel ? (
+          <Card
+            title="Cancel event"
+            titleId="cancel-heading"
+            description="If the event will not happen. This cannot be undone; you can duplicate the event to run it again later."
+          >
+            <CancelEventDialog
+              organizationId={orgId}
+              eventId={eventId}
+              version={evt.version}
+              idempotencyKey={newIdempotencyKey()}
+              people={regSummary.confirmed + regSummary.waitlisted}
+              canEmail={can(org.role, 'communication.send')}
+            />
+          </Card>
         ) : null}
       </div>
 
@@ -382,6 +414,11 @@ export default async function EventPage({
             <Badge tone={status.tone} dot>
               {status.label}
             </Badge>
+            {evt.cancellation ? (
+              <Badge tone="danger" dot>
+                Cancelled
+              </Badge>
+            ) : null}
             <span>{formatInZone(evt.startsAt, evt.timezone)}</span>
           </span>
         }

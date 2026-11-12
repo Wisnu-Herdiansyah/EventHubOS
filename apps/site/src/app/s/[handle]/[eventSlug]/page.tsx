@@ -31,9 +31,11 @@ function registerSlot(page: PublicEventPageData, handle: string, eventSlug: stri
   const message =
     r.state === 'not_open_yet'
       ? `Registration opens ${r.opensAt ? eventDateLine(r.opensAt, page.timezone) : 'soon'}.`
-      : r.state === 'full'
-        ? 'This event is full.'
-        : 'Registration is closed.';
+      : r.state === 'cancelled'
+        ? 'This event is cancelled, so registration is closed.'
+        : r.state === 'full'
+          ? 'This event is full.'
+          : 'Registration is closed.';
   return (
     <p className="site-notice" role="status">
       {message}
@@ -99,6 +101,14 @@ export default async function PublicEventPage({ params }: { params: Params }) {
           timezone={page.timezone}
           imageUrl={(id) => `/images/${id}/small.webp`}
           calendarHref={`/${eventSlug}/calendar.ics`}
+          banner={
+            page.cancellation ? (
+              <>
+                <p className="site-banner__title">This event is cancelled</p>
+                <p className="site-banner__text">{page.cancellation.reason}</p>
+              </>
+            ) : undefined
+          }
         />
       </main>
     </>

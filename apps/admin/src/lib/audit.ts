@@ -115,6 +115,18 @@ export function describeAuditEvent(
           : [],
       };
     }
+    // Event cancellation (ADR-0050).
+    case 'event.cancelled': {
+      const n = typeof m.notified === 'number' ? m.notified : 0;
+      return {
+        summary: `Cancelled ${event}`,
+        details: [
+          n > 0
+            ? `Emailed ${n.toLocaleString('en')} ${n === 1 ? 'person' : 'people'} registered or waiting.`
+            : 'Nobody was emailed.',
+        ],
+      };
+    }
     case 'event.page_draft_saved':
       return {
         summary: `Saved the microsite draft of ${event}`,

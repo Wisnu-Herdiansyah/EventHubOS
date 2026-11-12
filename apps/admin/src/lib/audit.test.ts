@@ -38,6 +38,22 @@ describe('describeAuditEvent', () => {
     );
   });
 
+  it('describes a cancellation and how many people were emailed (ADR-0050)', () => {
+    const ev = '22222222-2222-4222-8222-222222222222';
+    expect(
+      describeAuditEvent(
+        record('event.cancelled', { lifecycle: 'published', notified: 2 }, ev),
+        names,
+      ),
+    ).toEqual({
+      summary: 'Cancelled Jakarta Summit',
+      details: ['Emailed 2 people registered or waiting.'],
+    });
+    expect(
+      describeAuditEvent(record('event.cancelled', { notified: 0 }, ev), names).details,
+    ).toEqual(['Nobody was emailed.']);
+  });
+
   it('describes registrations without personal data', () => {
     const ev = '22222222-2222-4222-8222-222222222222';
     expect(

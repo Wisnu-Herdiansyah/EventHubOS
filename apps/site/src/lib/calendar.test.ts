@@ -104,6 +104,24 @@ describe('eventIcs', () => {
   });
 });
 
+describe('cancelled events (ADR-0050)', () => {
+  it('keep the UID, say CANCELLED, stop blocking the time, and say so in the title', () => {
+    const lines = unfold(eventIcs({ ...event, cancelled: true }, url));
+    expect(lines).toEqual(
+      expect.arrayContaining([
+        `UID:${event.uid}`,
+        'STATUS:CANCELLED',
+        'TRANSP:TRANSPARENT',
+        'SUMMARY:Cancelled: Summit 2027',
+      ]),
+    );
+    expect(lines).not.toContain('STATUS:CONFIRMED');
+    expect(unfold(eventIcs(event, url))).toEqual(
+      expect.arrayContaining(['STATUS:CONFIRMED', 'TRANSP:OPAQUE', 'SUMMARY:Summit 2027']),
+    );
+  });
+});
+
 describe('icsFilename', () => {
   it('names the file after the event', () => {
     expect(icsFilename('summit-2027')).toBe('summit-2027.ics');
