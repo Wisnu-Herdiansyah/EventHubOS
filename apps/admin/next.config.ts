@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { NextConfig } from 'next';
 
 /**
@@ -6,6 +7,14 @@ import type { NextConfig } from 'next';
  */
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // Container images (ADR-0053) set NEXT_OUTPUT=standalone: a traced, self-contained server.
+  // Local development and the e2e harness keep the normal output and `next start`.
+  ...(process.env.NEXT_OUTPUT === 'standalone'
+    ? {
+        output: 'standalone' as const,
+        outputFileTracingRoot: path.join(import.meta.dirname, '../..'),
+      }
+    : {}),
   reactStrictMode: true,
   // Workspace packages ship TypeScript source (e.g. the shared permission catalog).
   transpilePackages: ['@eventhub/kernel', '@eventhub/microsite'],
