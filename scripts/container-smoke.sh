@@ -90,7 +90,7 @@ for s in api admin site; do
   host_port=$((18090 + ${#CONTAINERS[@]}))
   # Bridge network and a published port: reachable only if the server binds 0.0.0.0:8080.
   docker run -d --name "smoke-port-$s" -p "127.0.0.1:${host_port}:8080" -e EVENTHUB_ENV=ci \
-    -e DATABASE_APP_URL=postgres://nobody:none@127.0.0.1:1/none \
+    -e DATABASE_APP_URL=postgres://nobody@127.0.0.1:1/none \
     -e ADMIN_API_URL=http://127.0.0.1:1 -e SITE_API_URL=http://127.0.0.1:1 \
     -e SITE_DOMAIN=events.test -e SITE_HTTPS=0 "$(img "$s")" >/dev/null
   case "$s" in
