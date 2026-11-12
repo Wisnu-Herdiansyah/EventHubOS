@@ -1,6 +1,6 @@
 # ADR-0052: Singapore as the region (closes D7)
 
-- Status: accepted
+- Status: replaced by ADR-0055 (region chosen by Supabase for speed; no residency guarantee)
 - Date: 2026-11-12
 - Decision owner: product owner (D7 in `docs/architecture/open-decisions.md`)
 - Builds on: ADR-0051 (Google Cloud)

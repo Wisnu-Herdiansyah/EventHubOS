@@ -1,6 +1,7 @@
 # ADR-0051: Google Cloud as the platform (closes D1)
 
-- Status: accepted
+- Status: replaced by ADR-0054 (hybrid: Vercel, Supabase, Cloud Run for the worker). The Cloud
+  Storage adapter stays available
 - Date: 2026-11-12
 - Decision owner: product owner (D1 in `docs/architecture/open-decisions.md`)
 - Builds on: ADR-0042 (asset library and the `ObjectStore` port)

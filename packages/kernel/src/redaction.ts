@@ -12,6 +12,16 @@ export const LOG_REDACT_PATHS: readonly string[] = [
   '*.password',
   '*.token',
   '*.secret',
+  // Provider keys held in configuration (ADR-0054) and their request headers. pino's `*` matches
+  // one level, so nested configuration objects need each depth listed.
+  '*.secretKey',
+  '*.*.secretKey',
+  '*.*.*.secretKey',
+  '*.apiKey',
+  '*.*.apiKey',
+  '*.*.*.apiKey',
+  'headers.apikey',
+  '*.headers.apikey',
   '*.email',
   // Email feedback (ADR-0043): recipient addresses from the provider.
   '*.recipients',

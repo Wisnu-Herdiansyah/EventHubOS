@@ -364,11 +364,17 @@ describe('object storage (ADR-0042)', () => {
       adapter: 'in_memory',
       directory: undefined,
       bucket: undefined,
+      supabase: undefined,
     });
     expect(
       loadWorkerConfig({ ...worker, OBJECT_STORE: 'local_directory', OBJECT_STORE_DIR: '/tmp/o' })
         .objectStore,
-    ).toEqual({ adapter: 'local_directory', directory: '/tmp/o', bucket: undefined });
+    ).toEqual({
+      adapter: 'local_directory',
+      directory: '/tmp/o',
+      bucket: undefined,
+      supabase: undefined,
+    });
   });
 
   it('needs a directory for local_directory', () => {
@@ -395,6 +401,7 @@ describe('object storage (ADR-0042)', () => {
         adapter: 'gcs',
         directory: undefined,
         bucket: 'eventhub-images-prod',
+        supabase: undefined,
       });
     }
     expect(
@@ -408,6 +415,51 @@ describe('object storage (ADR-0042)', () => {
         captureError(() => loadApiConfig({ ...api, OBJECT_STORE: 'gcs', GCS_BUCKET: bad })).keys,
         bad,
       ).toEqual(['GCS_BUCKET']);
+    }
+  });
+
+  // Not a key: a long enough string for the length rule, deliberately not key-shaped.
+  const PLACEHOLDER_KEY = 'x'.repeat(40);
+
+  it('accepts Supabase Storage everywhere, with all three settings (ADR-0054)', () => {
+    const supa = {
+      OBJECT_STORE: 'supabase',
+      SUPABASE_URL: 'https://abcdefghijkl.supabase.co',
+      SUPABASE_STORAGE_BUCKET: 'eventhub-images',
+      SUPABASE_SECRET_KEY: PLACEHOLDER_KEY,
+    };
+    for (const env of ['staging', 'production']) {
+      expect(
+        loadApiConfig({
+          EVENTHUB_ENV: env,
+          DATABASE_APP_URL: `${localUrl}?sslmode=require`,
+          MFA_ENCRYPTION_KEY: MFA_KEY,
+          ...supa,
+        }).objectStore,
+        env,
+      ).toEqual({
+        adapter: 'supabase',
+        directory: undefined,
+        bucket: 'eventhub-images',
+        supabase: {
+          url: 'https://abcdefghijkl.supabase.co',
+          secretKey: PLACEHOLDER_KEY,
+        },
+      });
+    }
+    expect(
+      captureError(() => loadApiConfig({ ...api, OBJECT_STORE: 'supabase' })).keys.toSorted(),
+    ).toEqual(['SUPABASE_SECRET_KEY', 'SUPABASE_STORAGE_BUCKET', 'SUPABASE_URL']);
+    for (const [key, bad] of [
+      ['SUPABASE_URL', 'http://abcdefghijkl.supabase.co'],
+      ['SUPABASE_URL', 'https://abcdefghijkl.supabase.co/storage/v1'],
+      ['SUPABASE_STORAGE_BUCKET', 'Images'],
+      ['SUPABASE_SECRET_KEY', 'x'],
+    ] as const) {
+      const e = captureError(() => loadApiConfig({ ...api, ...supa, [key]: bad }));
+      expect(e.keys, `${key}=${bad}`).toEqual([key]);
+      // The rejected value is never echoed back.
+      expect(e.message).not.toContain(bad);
     }
   });
 
