@@ -1,17 +1,18 @@
 import { z } from 'zod';
-import { AppError, createDomainEvent, notFound } from '@eventhub/kernel';
-import { enqueueEvent, writeAudit, type Pool } from '@eventhub/db';
+import { AppError, notFound } from '@eventhub/kernel';
+import { type Pool } from '@eventhub/db';
 import { runIdempotentCommand } from '../../http/idempotent-command.ts';
 import { defineRoute, type AnyRoute } from '../../http/route.ts';
 import { uuid } from '../../http/schemas.ts';
 import { withOrganization } from '../tenancy/access.ts';
+import { createAnnouncement } from './send.ts';
 
 /**
  * Event announcements (ADR-0037): one plain-text email from the organizer to the people
  * registered for an event, and optionally its waitlist. Recipients are captured when it is sent;
  * the worker emails them. No attendee details enter audit or outbox records.
  */
-export const ANNOUNCEMENT_REQUESTED = 'announcement.requested';
+export { ANNOUNCEMENT_REQUESTED } from './send.ts';
 /** Announcements per event in any 24 hours. */
 export const ANNOUNCEMENT_DAILY_LIMIT = 3;
 /** Recipients of one announcement; larger events need batched sending first. */
@@ -173,52 +174,15 @@ export function announcementRoutes(pool: Pool): AnyRoute[] {
                     { details: { reason: 'too_many_recipients' } },
                   );
                 }
-                const ins = await client.query<{ id: string }>(
-                  `INSERT INTO eventhub.announcement
-                     (organization_id, event_id, subject, body, audience, created_by)
-                   VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-                  [
-                    access.organizationId,
-                    params.eventId,
-                    body.subject,
-                    // Browsers submit text areas with CRLF line breaks; emails use LF.
-                    body.body.replace(/\r\n?/g, '\n'),
-                    body.audience,
-                    principal.userId,
-                  ],
-                );
-                const id = ins.rows[0]!.id;
-                await client.query(
-                  `INSERT INTO eventhub.announcement_recipient
-                     (organization_id, announcement_id, registration_id)
-                   SELECT organization_id, $3, id FROM eventhub.registration
-                    WHERE organization_id = $1 AND event_id = $2 AND status = ANY($4)`,
-                  [access.organizationId, params.eventId, id, statuses],
-                );
-                const actor = { type: 'user' as const, id: principal.userId };
-                // How many and to whom by group: never the people themselves.
-                await writeAudit(client, {
+                const { id } = await createAnnouncement(client, {
                   organizationId: access.organizationId,
-                  actor,
-                  action: 'event.announcement_sent',
-                  targetType: 'event',
-                  targetId: params.eventId,
+                  eventId: params.eventId,
+                  userId: principal.userId,
                   correlationId,
-                  metadata: { announcementId: id, audience: body.audience, recipients: n },
+                  subject: body.subject,
+                  body: body.body,
+                  audience: body.audience,
                 });
-                await enqueueEvent(
-                  client,
-                  createDomainEvent({
-                    eventType: ANNOUNCEMENT_REQUESTED,
-                    schemaVersion: 1,
-                    actor,
-                    organizationId: access.organizationId,
-                    aggregateType: 'event',
-                    aggregateId: params.eventId,
-                    correlationId,
-                    payload: { announcementId: id },
-                  }),
-                );
                 const { rows } = await client.query<AnnouncementRow>(
                   `${SELECT_ANNOUNCEMENTS} AND a.id = $3 GROUP BY a.id`,
                   [access.organizationId, params.eventId, id],

@@ -4,6 +4,10 @@ import { registrationStateLabel, seatsLabel } from './registrations';
 describe('registration labels', () => {
   it('names each state with a tone', () => {
     expect(registrationStateLabel('open')).toEqual({ label: 'Open', tone: 'success' });
+    expect(registrationStateLabel('cancelled')).toEqual({
+      label: 'Closed: event cancelled',
+      tone: 'danger',
+    });
     expect(registrationStateLabel('full')).toEqual({ label: 'Full', tone: 'warning' });
     expect(registrationStateLabel('not_open_yet').label).toBe('Not open yet');
     expect(registrationStateLabel('closed').label).toBe('Closed');

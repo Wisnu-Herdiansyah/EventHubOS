@@ -44,6 +44,8 @@ const publicEventPageSchema = z
     theme: z.enum(EVENT_THEMES),
     revision: z.number().int(),
     publishedAt: z.string(),
+    /** Set when the event is cancelled (ADR-0050): the page says so, with the reason. */
+    cancellation: z.object({ cancelledAt: z.string(), reason: z.string() }).nullable(),
     /** Visible sections only, in page order. */
     sections: z.array(sectionSchema),
     /** Shown with the consent checkbox of the registration form. */
@@ -51,7 +53,8 @@ const publicEventPageSchema = z
     /** Whether visitors can register now (ADR-0023). */
     registration: z.object({
       /** 'waitlist': full, and sign-ups join the waitlist (ADR-0035). */
-      state: z.enum(['open', 'not_open_yet', 'closed', 'full', 'waitlist']),
+      /** cancelled: the event was cancelled (ADR-0050). */
+      state: z.enum(['open', 'not_open_yet', 'closed', 'full', 'waitlist', 'cancelled']),
       opensAt: z.string().nullable(),
       closesAt: z.string(),
       /** Extra questions on the sign-up form (ADR-0041). */
@@ -73,6 +76,8 @@ const publicEventCalendarSchema = z
     timezone: z.string(),
     venueMode: z.string(),
     description: z.string().nullable(),
+    /** The event was cancelled (ADR-0050): the file says STATUS:CANCELLED. */
+    cancelled: z.boolean(),
   })
   .meta({ id: 'PublicEventCalendar' });
 
@@ -80,6 +85,12 @@ const publicEventCalendarSchema = z
 export function calendarUid(eventId: string): string {
   const digest = createHash('sha256').update(`eventhub-calendar:${eventId}`).digest('hex');
   return `${digest.slice(0, 32)}@eventhub`;
+}
+
+function cancellationDto(r?: { out_cancelled_at: Date | null; out_reason: string | null }) {
+  return r?.out_cancelled_at && r.out_reason !== null
+    ? { cancelledAt: r.out_cancelled_at.toISOString(), reason: r.out_reason }
+    : null;
 }
 
 interface Row {
@@ -120,7 +131,7 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
           );
           if (!rows[0]) return null;
           const reg = await client.query<{
-            out_state: 'open' | 'not_open_yet' | 'closed' | 'full' | 'waitlist';
+            out_state: 'open' | 'not_open_yet' | 'closed' | 'full' | 'waitlist' | 'cancelled';
             out_opens_at: Date | null;
             out_closes_at: Date;
             out_privacy_policy_url: string | null;
@@ -129,6 +140,10 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
             out_theme: (typeof EVENT_THEMES)[number];
             out_sharing_image_id: string | null;
           }>('SELECT * FROM eventhub.public_event_presentation($1, $2)', [p.handle, p.eventSlug]);
+          const cancel = await client.query<{
+            out_cancelled_at: Date | null;
+            out_reason: string | null;
+          }>('SELECT * FROM eventhub.public_event_cancellation($1, $2)', [p.handle, p.eventSlug]);
           const q = await client.query<{ questions: unknown }>(
             'SELECT eventhub.public_registration_questions($1, $2) AS questions',
             [p.handle, p.eventSlug],
@@ -137,11 +152,12 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
             row: rows[0],
             reg: reg.rows[0]!,
             look: look.rows[0],
+            cancellation: cancellationDto(cancel.rows[0]),
             questions: storedQuestions(q.rows[0]?.questions),
           };
         });
         if (!found) throw notFound('Page');
-        const { row, reg, look, questions } = found;
+        const { row, reg, look, cancellation, questions } = found;
         return {
           status: 200,
           body: {
@@ -165,6 +181,7 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
               : 'default',
             revision: row.out_revision,
             publishedAt: row.out_published_at.toISOString(),
+            cancellation,
             sections: row.out_sections.filter((s) => s.visible),
             privacyPolicyUrl: reg.out_privacy_policy_url,
             registration: {
@@ -228,7 +245,12 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
             out_venue_mode: string;
             out_description: string | null;
           }>('SELECT * FROM eventhub.public_event_calendar($1, $2)', [p.handle, p.eventSlug]);
-          return rows[0];
+          if (!rows[0]) return undefined;
+          const c = await client.query<{ out_cancelled_at: Date | null }>(
+            'SELECT out_cancelled_at FROM eventhub.public_event_cancellation($1, $2)',
+            [p.handle, p.eventSlug],
+          );
+          return { ...rows[0], cancelled: Boolean(c.rows[0]?.out_cancelled_at) };
         });
         if (!row) throw notFound('Page');
         return {
@@ -243,6 +265,7 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
             timezone: row.out_timezone,
             venueMode: row.out_venue_mode,
             description: row.out_description,
+            cancelled: row.cancelled,
           },
         };
       },
