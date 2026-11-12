@@ -270,6 +270,7 @@ export function SitePreview({
   timezone,
   imageUrl,
   calendarHref,
+  banner,
 }: {
   brand?: string;
   name: string;
@@ -289,6 +290,8 @@ export function SitePreview({
   imageUrl?: ImageUrl;
   /** Public site only: the event's calendar file (ADR-0048), linked under the date. */
   calendarHref?: string;
+  /** Public site only: an important notice above the page, e.g. a cancellation (ADR-0050). */
+  banner?: ReactNode;
 }) {
   const Name = asPage ? 'h1' : 'span';
   const speakers = speakerIndex(sections);
@@ -311,6 +314,11 @@ export function SitePreview({
           </a>
         ) : null}
       </header>
+      {banner ? (
+        <div className="site-banner" role="status">
+          {banner}
+        </div>
+      ) : null}
       {sections
         .filter((s) => s.visible)
         .map((s) => (

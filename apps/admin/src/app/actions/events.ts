@@ -293,3 +293,40 @@ export async function transitionEventAction(_prev: FormState, form: FormData): P
     return errorToFormState(error);
   }
 }
+
+/** Cancels the event for good (ADR-0050), optionally emailing everyone registered or waiting. */
+export async function cancelEventAction(_prev: FormState, form: FormData): Promise<FormState> {
+  const values = submittedValues(form);
+  const reason = str(form, 'reason').trim();
+  if (!reason) {
+    return {
+      ok: false,
+      message: 'Check the highlighted field.',
+      fields: { reason: 'Say why, in a sentence or two. Attendees will see it.' },
+      values,
+    };
+  }
+  try {
+    const { organizationId, eventId } = ids(form);
+    const client = await api();
+    const notifyAttendees = form.get('notifyAttendees') === 'on';
+    unwrap(
+      await client.POST('/v1/organizations/{organizationId}/events/{eventId}/cancel', {
+        params: {
+          path: { organizationId, eventId: eventId! },
+          header: { 'Idempotency-Key': str(form, 'idempotencyKey') },
+        },
+        body: { expectedVersion: Number(str(form, 'expectedVersion')), reason, notifyAttendees },
+      }),
+    );
+    revalidatePath(`/orgs/${organizationId}/events/${eventId}`);
+    return {
+      ok: true,
+      message: notifyAttendees
+        ? 'Event cancelled. Everyone registered or waiting is being emailed.'
+        : 'Event cancelled.',
+    };
+  } catch (error) {
+    return { ...errorToFormState(error), values };
+  }
+}

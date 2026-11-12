@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { ANNOUNCEMENT_MAX_RECIPIENTS } from '../announcement/routes.ts';
+import { createAnnouncement } from '../announcement/send.ts';
 import { lockPageImages } from '../asset/routes.ts';
 import {
   AppError,
@@ -137,7 +139,7 @@ async function record(
   client: PoolClient,
   access: OrganizationAccess,
   correlationId: string,
-  action: 'event.updated' | 'event.lifecycle_changed',
+  action: 'event.updated' | 'event.lifecycle_changed' | 'event.cancelled',
   eventId: string,
   metadata: Record<string, unknown>,
 ): Promise<void> {
@@ -208,6 +210,20 @@ async function assertPublishable(
   }
 }
 
+/** Events that can be cancelled (ADR-0050): announced, not over, not drafts. */
+const CANCELLABLE: readonly Lifecycle[] = ['scheduled', 'published', 'live'];
+
+const cancelEventBody = z
+  .object({
+    expectedVersion: z.number().int().min(1),
+    /** Shown on the public page and in the email. */
+    reason: z.string().trim().min(1).max(2000),
+    /** Email everyone registered or waiting (needs communication.send). */
+    notifyAttendees: z.boolean(),
+  })
+  .strict()
+  .meta({ id: 'CancelEventRequest' });
+
 export function eventManagementRoutes(pool: Pool): AnyRoute[] {
   return [
     defineRoute({
@@ -240,6 +256,13 @@ export function eventManagementRoutes(pool: Pool): AnyRoute[] {
                   throw conflict(
                     'event_archived',
                     'Archived events are read-only. Restore the event to edit it.',
+                  );
+                }
+                // ADR-0050: cancellation is final; the page can still be edited to explain.
+                if (row.cancelled_at) {
+                  throw conflict(
+                    'event_cancelled',
+                    'This event is cancelled and can no longer change.',
                   );
                 }
                 assertVersion(row, body.expectedVersion);
@@ -414,6 +437,113 @@ export function eventManagementRoutes(pool: Pool): AnyRoute[] {
               },
             };
           },
+        );
+      },
+    }),
+
+    defineRoute({
+      method: 'POST',
+      path: '/v1/organizations/:organizationId/events/:eventId/cancel',
+      operationId: 'cancelEvent',
+      summary:
+        'Cancel a scheduled, published or live event (ADR-0050). Final: registration closes, the public page and calendar file say it is cancelled, and everyone registered or waiting can be emailed the reason.',
+      tags: ['events'],
+      requires: 'event.publish',
+      idempotent: true,
+      schemas: {
+        params: eventParams,
+        body: cancelEventBody,
+        response: { status: 200, schema: eventSchema },
+      },
+      async handler({ principal, params, body, correlationId, idempotencyKey, idempotencyScope }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'event.publish',
+          (client, access) =>
+            runIdempotentCommand(
+              client,
+              { actorId: principal.userId, scope: idempotencyScope, key: idempotencyKey!, body },
+              async () => {
+                const row = await lockEvent(client, access, params.eventId);
+                if (row.cancelled_at) {
+                  throw conflict('event_cancelled', 'This event is already cancelled.');
+                }
+                if (!CANCELLABLE.includes(row.lifecycle)) {
+                  throw conflict(
+                    'not_cancellable',
+                    row.lifecycle === 'draft'
+                      ? 'Draft events are not public: archive the event instead.'
+                      : `A ${row.lifecycle} event cannot be cancelled.`,
+                  );
+                }
+                assertVersion(row, body.expectedVersion);
+                if (body.notifyAttendees && !roleHasPermission(access.role, 'communication.send')) {
+                  throw new AppError(
+                    'forbidden',
+                    'You do not have permission to email attendees.',
+                    {
+                      details: { reason: 'missing_permission:communication.send' },
+                    },
+                  );
+                }
+                const count = await client.query<{ n: number }>(
+                  `SELECT count(*)::int AS n FROM eventhub.registration
+                    WHERE organization_id = $1 AND event_id = $2
+                      AND status IN ('confirmed', 'waitlisted')`,
+                  [access.organizationId, row.id],
+                );
+                const people = count.rows[0]!.n;
+                if (body.notifyAttendees && people > ANNOUNCEMENT_MAX_RECIPIENTS) {
+                  throw conflict(
+                    'too_many_recipients',
+                    `The cancellation email can reach at most ${ANNOUNCEMENT_MAX_RECIPIENTS.toLocaleString('en')} people for now.`,
+                  );
+                }
+                const reason = body.reason.replace(/\r\n?/g, '\n');
+                const { rows } = await client.query<EventRow>(
+                  `UPDATE eventhub.event
+                      SET cancelled_at = now(), cancelled_by = $3, cancellation_reason = $4
+                    WHERE organization_id = $1 AND id = $2
+                    RETURNING ${EVENT_COLUMNS}`,
+                  [access.organizationId, row.id, access.userId, reason],
+                );
+                // The cancellation email tells waitlisted people too; the waitlist sweep must not
+                // send them a second, different email (ADR-0038).
+                await client.query(
+                  `UPDATE eventhub.registration SET waitlist_closed_at = now()
+                    WHERE organization_id = $1 AND event_id = $2
+                      AND status = 'waitlisted' AND waitlist_closed_at IS NULL`,
+                  [access.organizationId, row.id],
+                );
+                let notified = 0;
+                if (body.notifyAttendees && people > 0) {
+                  // Not counted against the daily announcement limit: people must hear of this.
+                  notified = (
+                    await createAnnouncement(client, {
+                      organizationId: access.organizationId,
+                      eventId: row.id,
+                      userId: access.userId,
+                      correlationId,
+                      subject: 'This event is cancelled',
+                      body: [
+                        reason,
+                        '',
+                        'Your registration needs nothing more from you. Please don’t come to the venue.',
+                      ].join('\n'),
+                      audience: 'registered_and_waitlist',
+                      purpose: 'cancellation',
+                    })
+                  ).recipients;
+                }
+                await record(client, access, correlationId, 'event.cancelled', row.id, {
+                  lifecycle: row.lifecycle,
+                  notified,
+                });
+                return { status: 200, body: toEventDto(rows[0]!) };
+              },
+            ),
         );
       },
     }),

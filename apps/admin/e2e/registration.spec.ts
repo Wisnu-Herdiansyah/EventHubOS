@@ -910,3 +910,63 @@ test('organizers see which attendees email does not reach (ADR-0043)', async ({
   await expect(row.getByText('Email not delivered')).toHaveCount(0);
   await expect(attendees).not.toContainText('is not being delivered');
 });
+
+test('an organizer cancels an event; attendees are told and the site and calendar say so (ADR-0050)', async ({
+  page,
+  browser,
+}) => {
+  const t = await publishedEvent('cancel');
+  const v = await visitor(browser);
+  const attendee = uniqueEmail('cancelled-attendee');
+  await v.page.goto(t.url);
+  const form = v.page.getByRole('region', { name: 'Save your seat' });
+  await form.getByLabel('Name', { exact: true }).fill('Ade Wisnu');
+  await form.getByLabel('Email', { exact: true }).fill(attendee);
+  await form.getByRole('checkbox').check();
+  await form.getByRole('button', { name: 'Save my seat' }).click();
+  await expect(form.getByRole('status')).toContainText('Check your email');
+
+  // The organizer cancels, with a reason, and emails the one person registered.
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}`);
+  await page.getByRole('button', { name: 'Cancel event' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Cancel this event?' });
+  // A reason is required.
+  await dialog.getByRole('button', { name: 'Cancel event' }).click();
+  await expect(dialog.getByText('Say why, in a sentence or two.')).toBeVisible();
+  await dialog.getByLabel('Reason').fill('The venue flooded. We are sorry.');
+  await expect(
+    dialog.getByRole('checkbox', { name: 'Email the 1 person registered or on the waitlist' }),
+  ).toBeChecked();
+  await dialog.getByRole('button', { name: 'Cancel event' }).click();
+  await expect(page.getByText('This event is cancelled', { exact: true })).toBeVisible();
+  await expect(page.getByText('Reason: The venue flooded. We are sorry.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Cancel event' })).toHaveCount(0);
+  await expectAccessible(page);
+
+  const mail = await mailMessage(attendee, 'event_announcement');
+  expect(mail.subject).toMatch(/: This event is cancelled$/);
+  expect(mail.text).toContain('The venue flooded. We are sorry.');
+
+  // The public page says it is cancelled and takes no more sign-ups.
+  await v.page.goto(t.url);
+  await expect(
+    v.page
+      .getByRole('status')
+      .filter({ has: v.page.getByText('This event is cancelled', { exact: true }) }),
+  ).toContainText('The venue flooded. We are sorry.');
+  await expect(v.page.getByRole('button', { name: 'Save my seat' })).toHaveCount(0);
+  await expect(
+    v.page.getByText('This event is cancelled, so registration is closed.'),
+  ).toBeVisible();
+  await axeScan(v.page);
+  // The calendar file keeps its UID and says CANCELLED.
+  const [download] = await Promise.all([
+    v.page.waitForEvent('download'),
+    v.page.getByRole('link', { name: 'Add to calendar' }).click(),
+  ]);
+  const ics = (await readFile(await download.path(), 'utf8')).replace(/\r\n /g, '');
+  expect(ics).toContain('\r\nSTATUS:CANCELLED\r\n');
+  expect(ics).toContain('\r\nSUMMARY:Cancelled: ');
+  await v.context.close();
+});

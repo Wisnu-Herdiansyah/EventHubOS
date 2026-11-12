@@ -133,6 +133,7 @@ describe('public event calendar', () => {
       timezone: row.timezone,
       venueMode: row.venue_mode,
       description: 'Two days.',
+      cancelled: false,
     });
     // The UID is not the event's ID, and nothing else identifies the organization or event.
     expect(res.body).not.toContain(t.eventId);

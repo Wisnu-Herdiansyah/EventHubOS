@@ -16,6 +16,8 @@ export function registrationStateLabel(
       return { label: 'Not open yet', tone: 'neutral' };
     case 'full':
       return { label: 'Full', tone: 'warning' };
+    case 'cancelled':
+      return { label: 'Closed: event cancelled', tone: 'danger' };
     default:
       return { label: 'Closed', tone: 'neutral' };
   }

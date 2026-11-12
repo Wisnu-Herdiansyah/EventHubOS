@@ -102,6 +102,8 @@ export const eventSchema = z
     settings: eventSettingsSchema,
     lifecycleChangedAt: z.iso.datetime().nullable(),
     archivedFrom: z.enum(['draft', 'scheduled', 'ended']).nullable(),
+    /** Set once the event is cancelled (ADR-0050); final. */
+    cancellation: z.object({ cancelledAt: z.iso.datetime(), reason: z.string() }).nullable(),
   })
   .meta({ id: 'Event' });
 
@@ -171,10 +173,13 @@ export interface EventRow {
   settings: EventSettings;
   lifecycle_changed_at: Date | null;
   archived_from: ArchivableFrom | null;
+  cancelled_at: Date | null;
+  cancellation_reason: string | null;
 }
 
 export const EVENT_COLUMNS = `id, organization_id, name, slug, lifecycle, timezone, starts_at, ends_at, venue_mode,
   primary_language, created_at, version, settings, lifecycle_changed_at, archived_from,
+  cancelled_at, cancellation_reason,
   (extract(epoch from created_at) * 1000000)::bigint::text AS created_us`;
 
 export function toEventDto(r: EventRow) {
@@ -194,6 +199,10 @@ export function toEventDto(r: EventRow) {
     settings: r.settings,
     lifecycleChangedAt: r.lifecycle_changed_at?.toISOString() ?? null,
     archivedFrom: r.archived_from,
+    cancellation:
+      r.cancelled_at && r.cancellation_reason !== null
+        ? { cancelledAt: r.cancelled_at.toISOString(), reason: r.cancellation_reason }
+        : null,
   };
 }
 

@@ -27,6 +27,14 @@ export default async function TicketPage({ params }: { params: Params }) {
         <p className="site-ticket__eyebrow">Your ticket</p>
         <h1>{page.name}</h1>
         <p>{eventDateLine(page.startsAt, page.timezone)}</p>
+        {page.cancellation ? (
+          <div className="site-notice" role="status">
+            <p>
+              <strong>This event is cancelled.</strong>
+            </p>
+            <p className="site-banner__text">{page.cancellation.reason}</p>
+          </div>
+        ) : null}
         <p>
           <a className="site-calendar-link" href={`/${eventSlug}/calendar.ics`} download>
             Add to calendar
