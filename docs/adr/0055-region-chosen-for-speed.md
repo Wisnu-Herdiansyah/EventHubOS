@@ -36,6 +36,17 @@ setting. The verification checklist (`docs/operations/hybrid-platform-verificati
 
 The checklist results are copied into this ADR once known.
 
+### Outcome so far (2026-11-12)
+
+- **Region: Singapore (`ap-southeast-1`), chosen by the product owner.** Supabase's API has no
+  "recommended region" option: a region must be named. The recommendation exists only in the
+  dashboard, so the product owner named Singapore.
+- **Project not created yet.** The organization's free plan allows two active projects, and it
+  has two. See `docs/operations/staging-setup.md`.
+- **Postgres 17.** New Supabase projects run PostgreSQL 17; EventHub's CI runs 16. The full
+  integration suite passes on PostgreSQL 17.11 locally (408 of 408), including bootstrap, all
+  migrations, row-level security and tenant isolation.
+
 ## Consequences
 
 - **No data-residency guarantee.** ADR-0052 kept every copy of the data in Singapore. That rule is

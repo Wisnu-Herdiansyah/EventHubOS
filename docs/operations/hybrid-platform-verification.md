@@ -11,6 +11,8 @@ may use production data. Record each step's result in ADR-0054.
 - A Vercel team. Its Functions region is set to the region closest to the Supabase project.
 - A private Storage bucket in that project for the contract test.
 
+Setup steps for the product owner are in `staging-setup.md`.
+
 ## Steps
 
 1. **Roles and RLS.** Run `pnpm db:bootstrap` with the project's admin connection, then
