@@ -6,13 +6,15 @@
     ".": "./src/index.ts",
     "./testing": "./src/testing/index.ts",
     "./object-stores": "./src/adapters/local-directory-object-store.ts",
-    "./gcs-object-store": "./src/adapters/gcs-object-store.ts"
+    "./gcs-object-store": "./src/adapters/gcs-object-store.ts",
+    "./supabase-object-store": "./src/adapters/supabase-object-store.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@google-cloud/storage": "8.4.0",
+    "@supabase/storage-js": "2.118.0",
     "zod": "4.6.7"
   },
   "devDependencies": {

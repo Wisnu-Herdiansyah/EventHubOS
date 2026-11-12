@@ -70,20 +70,24 @@ function assertDatabaseTls(
 /**
  * Object storage for uploaded images (ADR-0042). Optional: without it, image uploads report
  * themselves as unavailable.
- * - `gcs`: a private Cloud Storage bucket (ADR-0051, D1), the only store allowed in
- *   staging/production. Credentials come from Application Default Credentials (the service
- *   account the service runs as), never from configuration.
+ * - `supabase`: a private Supabase Storage bucket (ADR-0054, the chosen platform). The secret
+ *   key comes from the environment (the secret store), never from a file in the repository.
+ * - `gcs`: a private Cloud Storage bucket (ADR-0051), kept for the worker's Google Cloud side.
+ *   Credentials come from Application Default Credentials, never from configuration.
+ * Only these two are allowed in staging/production.
  * - `local_directory` (local development, e2e) and `in_memory` (tests) are refused in
  *   staging/production, so no remote environment silently keeps files on one machine's disk.
  */
-export const OBJECT_STORE_ADAPTERS = ['gcs', 'local_directory', 'in_memory'] as const;
+export const OBJECT_STORE_ADAPTERS = ['supabase', 'gcs', 'local_directory', 'in_memory'] as const;
 export type ObjectStoreAdapter = (typeof OBJECT_STORE_ADAPTERS)[number];
 export interface ObjectStoreConfig {
   adapter: ObjectStoreAdapter;
   /** Present for `local_directory`. */
   directory: string | undefined;
-  /** Present for `gcs`. */
+  /** Present for `gcs` and `supabase`. */
   bucket: string | undefined;
+  /** Present for `supabase`. */
+  supabase: { url: string; secretKey: string } | undefined;
 }
 
 /** Cloud Storage bucket names (no dots: domain-named buckets need verification). */
@@ -93,6 +97,15 @@ const objectStoreFields = {
   OBJECT_STORE: z.enum(OBJECT_STORE_ADAPTERS).optional(),
   OBJECT_STORE_DIR: z.string().min(1).optional(),
   GCS_BUCKET: z.string().regex(GCS_BUCKET_NAME, 'a Cloud Storage bucket name').optional(),
+  SUPABASE_URL: z
+    .string()
+    .regex(/^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)+(:\d+)?$/, 'https://<project>.supabase.co')
+    .optional(),
+  SUPABASE_STORAGE_BUCKET: z
+    .string()
+    .regex(GCS_BUCKET_NAME, 'a bucket name (lowercase letters, digits, - and _)')
+    .optional(),
+  SUPABASE_SECRET_KEY: z.string().min(20).max(1000).optional(),
 };
 
 function objectStoreConfig(
@@ -101,14 +114,28 @@ function objectStoreConfig(
     OBJECT_STORE?: ObjectStoreAdapter | undefined;
     OBJECT_STORE_DIR?: string | undefined;
     GCS_BUCKET?: string | undefined;
+    SUPABASE_URL?: string | undefined;
+    SUPABASE_STORAGE_BUCKET?: string | undefined;
+    SUPABASE_SECRET_KEY?: string | undefined;
   },
 ): ObjectStoreConfig | null {
   if (!c.OBJECT_STORE) return null;
-  if (c.OBJECT_STORE !== 'gcs' && isRemoteEnvironment(environment)) {
+  if (
+    c.OBJECT_STORE !== 'gcs' &&
+    c.OBJECT_STORE !== 'supabase' &&
+    isRemoteEnvironment(environment)
+  ) {
     throw new ConfigError(
       ['OBJECT_STORE'],
-      `local-only object stores are refused in ${environment}; use gcs (ADR-0051)`,
+      `local-only object stores are refused in ${environment}; use supabase (ADR-0054)`,
     );
+  }
+  if (c.OBJECT_STORE === 'supabase') {
+    const missing = (
+      ['SUPABASE_URL', 'SUPABASE_STORAGE_BUCKET', 'SUPABASE_SECRET_KEY'] as const
+    ).filter((k) => !c[k]);
+    if (missing.length > 0)
+      throw new ConfigError([...missing], 'required when OBJECT_STORE=supabase');
   }
   if (c.OBJECT_STORE === 'local_directory' && !c.OBJECT_STORE_DIR) {
     throw new ConfigError(['OBJECT_STORE_DIR'], 'required when OBJECT_STORE=local_directory');
@@ -119,7 +146,16 @@ function objectStoreConfig(
   return {
     adapter: c.OBJECT_STORE,
     directory: c.OBJECT_STORE === 'local_directory' ? c.OBJECT_STORE_DIR : undefined,
-    bucket: c.OBJECT_STORE === 'gcs' ? c.GCS_BUCKET : undefined,
+    bucket:
+      c.OBJECT_STORE === 'gcs'
+        ? c.GCS_BUCKET
+        : c.OBJECT_STORE === 'supabase'
+          ? c.SUPABASE_STORAGE_BUCKET
+          : undefined,
+    supabase:
+      c.OBJECT_STORE === 'supabase'
+        ? { url: c.SUPABASE_URL!, secretKey: c.SUPABASE_SECRET_KEY! }
+        : undefined,
   };
 }
 
