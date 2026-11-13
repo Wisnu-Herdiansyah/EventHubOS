@@ -36,10 +36,52 @@ function isRemoteEnvironment(env: DeployEnvironment): boolean {
   return env === 'staging' || env === 'production';
 }
 
-/** Remote environments must use TLS to the database. */
-function requiresTls(url: string): boolean {
-  const mode = new URL(url).searchParams.get('sslmode');
-  return mode === 'require' || mode === 'verify-ca' || mode === 'verify-full';
+/**
+ * A Cloud SQL socket directory, as Cloud Run mounts it for an attached instance:
+ * /cloudsql/<project>:<region>:<instance> (ADR-0057).
+ */
+const CLOUD_SQL_SOCKET =
+  /^\/cloudsql\/[a-z][a-z0-9-]{4,28}[a-z0-9]:[a-z]+-[a-z]+[0-9]+:[a-z][a-z0-9-]{0,96}[a-z0-9]$/;
+
+export type DatabaseTransport = 'tls' | 'cloud_sql_socket' | 'insecure';
+
+/**
+ * How a database URL reaches its server, judged the way the driver reads it (ADR-0057). The
+ * driver uses a `host` query parameter instead of the URL's own host, so that parameter is what
+ * decides.
+ *
+ * - `tls`: a network address with `sslmode` require, verify-ca or verify-full.
+ * - `cloud_sql_socket`: exactly host `localhost`, no port, and one query parameter
+ *   `host=/cloudsql/<project>:<region>:<instance>`, with no `sslmode`. Cloud Run's Cloud SQL proxy sits behind that socket: it encrypts the connection
+ *   and checks the service's identity. The application opens no network connection itself.
+ * - `insecure`: anything else, including any other socket path, other spellings of a socket,
+ *   and a socket address that also asks for TLS (the driver would attempt TLS on the socket).
+ */
+export function databaseTransport(url: string): DatabaseTransport {
+  const u = new URL(url);
+  const hosts = u.searchParams.getAll('host');
+  const sslmode = u.searchParams.get('sslmode');
+  const tls = sslmode === 'require' || sslmode === 'verify-ca' || sslmode === 'verify-full';
+  let urlHost: string;
+  try {
+    urlHost = decodeURIComponent(u.hostname);
+  } catch {
+    return 'insecure';
+  }
+  // A socket written into the URL's host position: not the accepted spelling.
+  if (urlHost.startsWith('/')) return 'insecure';
+  if (hosts.length === 0) return tls ? 'tls' : 'insecure';
+  if (hosts.length > 1) return 'insecure';
+  const host = hosts[0]!;
+  if (!host.startsWith('/')) return tls ? 'tls' : 'insecure';
+  const canonical =
+    CLOUD_SQL_SOCKET.test(host) &&
+    u.hostname === 'localhost' &&
+    u.port === '' &&
+    !u.searchParams.has('sslmode') &&
+    !u.searchParams.has('ssl') &&
+    !u.searchParams.has('port');
+  return canonical ? 'cloud_sql_socket' : 'insecure';
 }
 
 function parse<T extends z.ZodType>(
@@ -60,10 +102,13 @@ function assertDatabaseTls(
 ): void {
   if (!isRemoteEnvironment(environment)) return;
   const insecure = Object.entries(entries)
-    .filter(([, url]) => !requiresTls(url))
+    .filter(([, url]) => databaseTransport(url) === 'insecure')
     .map(([k]) => k);
   if (insecure.length > 0) {
-    throw new ConfigError(insecure, `sslmode=require or stricter is mandatory in ${environment}`);
+    throw new ConfigError(
+      insecure,
+      `sslmode=require or stricter, or the Cloud SQL socket form (ADR-0057), is mandatory in ${environment}`,
+    );
   }
 }
 

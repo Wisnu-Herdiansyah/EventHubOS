@@ -60,9 +60,9 @@ it.
 
 ## Open points, checked during verification
 
-1. **TLS to Cloud SQL.** Staging refuses a database URL without `sslmode=require` or stricter.
-   Cloud SQL signs its certificates with its own authority, so the connection must be given that
-   certificate. Verification is never switched off.
+1. **TLS to Cloud SQL: closed by ADR-0057.** The API and worker connect through the socket Cloud
+   Run mounts for the instance, and staging accepts exactly that form. To confirm on the real
+   instance during verification.
 2. **Client addresses.** The admin and site call the API from Vercel, which has no fixed
    addresses, so the API cannot use an address list (`TRUST_PROXY`) to decide whose forwarded
    client address to believe. Until this is settled, per-visitor limits at the API fall back to

@@ -11,9 +11,10 @@ Setup steps for the product owner are in `staging-setup.md`.
 1. **Roles and RLS.** Run the bootstrap and migration jobs from the `api` image. Expect all 32
    migrations to apply and the three roles to exist without `BYPASSRLS`. Cloud SQL's `postgres`
    user is not a full superuser, so a permission error here is the first thing to look for.
-2. **Encrypted database connections.** The API and worker connect with the method chosen for
-   ADR-0056 open point 1, and the server certificate is verified. Confirm a connection without
-   verification is refused by EventHub's configuration.
+2. **Database connections (ADR-0057).** The API, worker and jobs connect through the Cloud SQL
+   socket Cloud Run mounts, with the instance attached to each service. Confirm the instance has
+   no public address open to the internet, and that a service without the instance attached
+   cannot connect.
 3. **Integration suite.** Run `pnpm test:integration` against a disposable database on the
    instance. Expect every test to pass, including tenant isolation and idempotency.
 4. **Images.** Run `pnpm test:live` with `GCS_CONTRACT_BUCKET` set to a private test bucket.

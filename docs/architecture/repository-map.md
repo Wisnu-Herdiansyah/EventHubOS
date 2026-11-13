@@ -1,7 +1,7 @@
 # Repository map against the technical architecture
 
 Where each part of `TECHNICAL_ARCHITECTURE.md` lives, and how far it goes. ADRs explain the
-decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0056 (migrations
+decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0057 (migrations
 `0001`–`0032`).
 
 **Status words**

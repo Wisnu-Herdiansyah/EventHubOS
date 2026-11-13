@@ -4,6 +4,9 @@
 #
 #   DATABASE_ADMIN_URL=postgres://postgres:...@127.0.0.1:5432/postgres scripts/container-smoke.sh
 #
+# Optional: PG_SOCKET_VOLUME=<docker volume with that server's socket directory> also checks the
+# Cloud SQL socket path in staging mode (ADR-0057).
+#
 # Needs: docker, a PostgreSQL 16 server reachable from the host network, and the images built
 # with tags ${IMAGE_PREFIX}api, ...worker, ...admin, ...site (default prefix "eventhub-", tag
 # ":test"). Creates a throwaway database with random passwords; prints neither.
@@ -83,6 +86,41 @@ docker stop -t 20 smoke-worker >/dev/null
 code=$(docker inspect -f '{{.State.ExitCode}}' smoke-worker)
 [[ "$code" == "0" ]] || fail "worker did not stop cleanly on SIGTERM (exit $code)"
 echo "ok: worker ran and stopped cleanly on SIGTERM"
+
+# Cloud Run reaches Cloud SQL through a socket it mounts at /cloudsql/<project>:<region>:<instance>
+# (ADR-0057). With PG_SOCKET_VOLUME set to a Docker volume holding the database's socket directory,
+# this runs the images in STAGING mode against that socket only: no network path to the database.
+if [[ -n "${PG_SOCKET_VOLUME:-}" ]]; then
+  echo "== staging mode over a Cloud SQL style socket (ADR-0057)"
+  SOCKET_DIR="/cloudsql/smoke-project:asia-southeast1:smoke-instance"
+  sock_url() { echo "postgres://$1:$2@localhost/${DB}?host=${3:-$SOCKET_DIR}"; }
+  MOUNT=(--mount "type=volume,source=${PG_SOCKET_VOLUME},target=${SOCKET_DIR}")
+  MFA_KEY=$(openssl rand -base64 32)
+
+  out=$(docker run --rm --network none "${MOUNT[@]}" -e EVENTHUB_ENV=staging \
+    -e DATABASE_MIGRATOR_URL="$(sock_url eventhub_migrator "$MIGRATOR_PW")" \
+    "$(img api)" node packages/db/src/cli/migrate.ts)
+  [[ "$out" == *"already applied 32"* ]] || fail "migrations over the socket: $out"
+  echo "ok: migrate job reaches the database through the socket (no network)"
+
+  CONTAINERS+=(smoke-socket-api)
+  docker run -d --name smoke-socket-api -p "127.0.0.1:18089:8080" "${MOUNT[@]}" \
+    -e EVENTHUB_ENV=staging -e MFA_ENCRYPTION_KEY="$MFA_KEY" \
+    -e DATABASE_APP_URL="$(sock_url eventhub_app "$APP_PW")" "$(img api)" >/dev/null
+  wait_http "http://127.0.0.1:18089/health/ready" '^200$' 'api ready in staging mode over the socket'
+
+  # Any other socket path is refused before the service starts, and the error names the setting.
+  OTHER="/var/run/postgresql"
+  if out=$(docker run --rm --network none \
+    --mount "type=volume,source=${PG_SOCKET_VOLUME},target=${OTHER}" \
+    -e EVENTHUB_ENV=staging -e MFA_ENCRYPTION_KEY="$MFA_KEY" \
+    -e DATABASE_APP_URL="$(sock_url eventhub_app "$APP_PW" "$OTHER")" "$(img api)" 2>&1); then
+    fail "staging accepted a socket outside /cloudsql"
+  fi
+  [[ "$out" == *"DATABASE_APP_URL"* ]] || fail "refusal does not name DATABASE_APP_URL"
+  [[ "$out" != *"$APP_PW"* ]] || fail "refusal printed the password"
+  echo "ok: a socket outside /cloudsql is refused in staging, without printing the URL"
+fi
 
 echo "== HTTP images listen on their default port 8080 on all interfaces (as on Cloud Run)"
 for s in api admin site; do

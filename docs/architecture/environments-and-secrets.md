@@ -4,13 +4,13 @@
 
 `EVENTHUB_ENV` ∈ `local | ci | staging | production` (validated at startup).
 
-| Rule                                                            | local     | ci                          | staging             | production          |
-| --------------------------------------------------------------- | --------- | --------------------------- | ------------------- | ------------------- |
-| Data                                                            | synthetic | synthetic, per-run database | synthetic           | customer            |
-| DB TLS (`sslmode=require` or stricter)                          | optional  | optional                    | **required**        | **required**        |
-| Local email adapters (`EMAIL_SENDER=in_memory` or `local_file`) | allowed   | allowed                     | **refused**         | **refused**         |
-| `EMAIL_SENDER=resend`                                           | allowed   | allowed (live tests opt-in) | allowed, HTTPS only | allowed, HTTPS only |
-| Response contract validation                                    | on        | on                          | on                  | off                 |
+| Rule                                                                       | local     | ci                          | staging             | production          |
+| -------------------------------------------------------------------------- | --------- | --------------------------- | ------------------- | ------------------- |
+| Data                                                                       | synthetic | synthetic, per-run database | synthetic           | customer            |
+| DB TLS (`sslmode=require` or stricter), or the Cloud SQL socket (ADR-0057) | optional  | optional                    | **required**        | **required**        |
+| Local email adapters (`EMAIL_SENDER=in_memory` or `local_file`)            | allowed   | allowed                     | **refused**         | **refused**         |
+| `EMAIL_SENDER=resend`                                                      | allowed   | allowed (live tests opt-in) | allowed, HTTPS only | allowed, HTTPS only |
+| Response contract validation                                               | on        | on                          | on                  | off                 |
 
 ## Variables
 
