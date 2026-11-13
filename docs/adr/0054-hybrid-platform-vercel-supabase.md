@@ -1,6 +1,7 @@
 # ADR-0054: Hybrid platform: Vercel, Supabase and Cloud Run (replaces ADR-0051)
 
-- Status: accepted, pending the verification check below
+- Status: replaced by ADR-0056 (Vercel for the web apps, Google Cloud for the backend). The
+  Supabase Storage adapter stays in the code, unused
 - Date: 2026-11-12
 - Decision owner: product owner (D1). Replaces ADR-0051 (Google Cloud for everything)
 - Keeps: ADR-0053 (container images). Region: ADR-0055 (chosen by Supabase for speed; was ADR-0052)

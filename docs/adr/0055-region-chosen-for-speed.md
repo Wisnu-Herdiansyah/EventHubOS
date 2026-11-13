@@ -36,6 +36,19 @@ setting. The verification checklist (`docs/operations/hybrid-platform-verificati
 
 The checklist results are copied into this ADR once known.
 
+### Outcome so far (2026-11-12)
+
+- **Region: Singapore (`ap-southeast-1`), chosen by the product owner.** Supabase's API has no
+  "recommended region" option: a region must be named. The recommendation exists only in the
+  dashboard, so the product owner named Singapore.
+- **Supabase was dropped (ADR-0056).** Its free plan was at the limit of two active projects, and
+  the product owner chose their Firebase (Google Cloud) project instead. The database is Cloud SQL
+  in `asia-southeast1`; the API and worker run next to it, as this ADR requires.
+- **Postgres 17.** Checked while Supabase was the plan (its projects run PostgreSQL 17; CI runs
+  16, and Cloud SQL will run 16). The full
+  integration suite passes on PostgreSQL 17.11 locally (408 of 408), including bootstrap, all
+  migrations, row-level security and tenant isolation.
+
 ## Consequences
 
 - **No data-residency guarantee.** ADR-0052 kept every copy of the data in Singapore. That rule is

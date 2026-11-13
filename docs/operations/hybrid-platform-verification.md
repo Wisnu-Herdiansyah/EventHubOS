@@ -1,35 +1,32 @@
-# Hybrid platform verification (ADR-0054)
+# Platform verification (ADR-0056)
 
-A one-day check before staging, run against real projects the product owner creates. Nothing here
-may use production data. Record each step's result in ADR-0054.
+A check before staging takes real use, run against the product owner's Google Cloud project
+(`event-hub-2b58e`) and Vercel team. Nothing here may use production data. Record each result in
+ADR-0056, and the regions and speed in ADR-0055.
 
-## What the product owner provides
-
-- A Supabase project in **the region Supabase recommends** when it is created (ADR-0055), its
-  database connection strings (direct
-  and pooler) and its server-side secret key, all held in a secret store.
-- A Vercel team. Its Functions region is set to the region closest to the Supabase project.
-- A private Storage bucket in that project for the contract test.
+Setup steps for the product owner are in `staging-setup.md`.
 
 ## Steps
 
-1. **Roles and RLS.** Run `pnpm db:bootstrap` with the project's admin connection, then
-   `pnpm db:migrate`. Expect all migrations to apply and the three roles to exist without
-   `BYPASSRLS`.
-2. **Data API.** In the project's API settings, confirm `eventhub` is not an exposed schema. A
-   request for an `eventhub` table through the Data API must fail.
-3. **Pooler.** Run `pnpm test:integration` with `TEST_DATABASE_ADMIN_URL` pointing at a disposable
-   database on the project, through the pooler in transaction mode. Expect every test to pass,
-   including tenant isolation and the idempotency tests.
-4. **Storage.** Run `pnpm test:live` with `SUPABASE_CONTRACT_URL`, `SUPABASE_CONTRACT_BUCKET` and
-   `SUPABASE_CONTRACT_SECRET_KEY`. Expect the contract and the "bucket is private" test to pass.
-5. **API on Vercel.** Deploy the API to a preview in the matching region and check `/health/ready` against the
-   project's pooler.
-6. **Admin and site on Vercel.** Deploy both to previews pointing at that API. Sign in, publish an
-   event, and open its public page on a wildcard preview domain.
-7. **Regions and speed.** Record the region Supabase picked, the Vercel and Cloud Run regions
-   chosen to match it, and the API-to-database round trip (for example, the median `/health/ready`
-   time over 20 calls from the deployed API). Copy them into ADR-0055.
+1. **Roles and RLS.** Run the bootstrap and migration jobs from the `api` image. Expect all 32
+   migrations to apply and the three roles to exist without `BYPASSRLS`. Cloud SQL's `postgres`
+   user is not a full superuser, so a permission error here is the first thing to look for.
+2. **Encrypted database connections.** The API and worker connect with the method chosen for
+   ADR-0056 open point 1, and the server certificate is verified. Confirm a connection without
+   verification is refused by EventHub's configuration.
+3. **Integration suite.** Run `pnpm test:integration` against a disposable database on the
+   instance. Expect every test to pass, including tenant isolation and idempotency.
+4. **Images.** Run `pnpm test:live` with `GCS_CONTRACT_BUCKET` set to a private test bucket.
+   Expect the contract and the "private and uncached" test to pass.
+5. **API and worker on Cloud Run.** Deploy both from the images CI builds. Check
+   `/health/ready`, and that the worker delivers a verification email.
+6. **Admin and site on Vercel.** Deploy both pointing at the API. Sign in, publish an event, and
+   open its public page on a wildcard preview domain.
+7. **Client addresses (ADR-0056 open point 2).** Decide how the API learns the visitor's address
+   when called from Vercel, and confirm the per-visitor limits behave as intended.
+8. **Regions and speed.** Record the Vercel Functions region chosen for the admin and site, and
+   the API-to-database round trip (for example, the median `/health/ready` time over 20 calls).
+   Copy them into ADR-0055.
 
-If a step fails, stop and record why. Steps 1 to 3 decide whether Supabase can hold the database
+If a step fails, stop and record why. Steps 1 to 3 decide whether Cloud SQL can hold the database
 as designed.
