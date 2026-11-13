@@ -9,11 +9,18 @@ export const LOG_REDACT_PATHS: readonly string[] = [
   'res.headers["set-cookie"]',
   'headers.authorization',
   'headers.cookie',
+  // pino's `*` matches exactly one level, so every sensitive field lists each depth it is hidden
+  // at: one, two and three levels below the logged object. Deeper nesting is NOT covered.
   '*.password',
+  '*.*.password',
+  '*.*.*.password',
   '*.token',
+  '*.*.token',
+  '*.*.*.token',
   '*.secret',
-  // Provider keys held in configuration (ADR-0054) and their request headers. pino's `*` matches
-  // one level, so nested configuration objects need each depth listed.
+  '*.*.secret',
+  '*.*.*.secret',
+  // Provider keys held in configuration (ADR-0054) and their request headers.
   '*.secretKey',
   '*.*.secretKey',
   '*.*.*.secretKey',
@@ -23,8 +30,12 @@ export const LOG_REDACT_PATHS: readonly string[] = [
   'headers.apikey',
   '*.headers.apikey',
   '*.email',
+  '*.*.email',
+  '*.*.*.email',
   // Email feedback (ADR-0043): recipient addresses from the provider.
   '*.recipients',
+  '*.*.recipients',
+  '*.*.*.recipients',
   'body',
   'req.body',
 ];
