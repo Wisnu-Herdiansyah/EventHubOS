@@ -1,105 +1,126 @@
-# Staging setup: Supabase and Vercel (ADR-0054, ADR-0055)
+# Staging setup: Vercel and Google Cloud (ADR-0056)
 
-What the product owner does by hand, in order. Secret values go straight from each provider's
-dashboard into Vercel's settings. They are never pasted into chat, issues, commits or `.env`
-files.
+What the product owner does by hand, in order. Secret values go straight into Secret Manager or
+Vercel's settings. They are never pasted into chat, issues, commits or `.env` files.
+
+The engineer has no credentials for the Google project, so **these commands have not been run by
+the engineer**. Check each with `--help` if it is refused, and share the error text (never a
+password or key).
 
 ## Status (2026-11-12)
 
-| Item                  | State                                                                          |
-| --------------------- | ------------------------------------------------------------------------------ |
-| Vercel team           | Exists                                                                         |
-| Supabase organization | Exists, free plan, two active projects (the free limit)                        |
-| Supabase project      | **Blocked:** creating `eventhub-os-staging` was refused by the free-plan limit |
-| Region                | Singapore (`ap-southeast-1`), chosen by the product owner (see ADR-0055)       |
-| Postgres 17           | Checked locally: 408 of 408 integration tests pass on PostgreSQL 17.11         |
+| Item                       | State                                                                     |
+| -------------------------- | ------------------------------------------------------------------------- |
+| Vercel team                | Exists                                                                    |
+| Google Cloud project       | `event-hub-2b58e` (the Firebase project), created by the product owner    |
+| Billing (Blaze plan)       | **Not confirmed.** Cloud SQL and Cloud Run need it                        |
+| Region                     | Singapore, `asia-southeast1` (ADR-0055)                                   |
+| Database, bucket, registry | Not created yet (steps 2 to 4)                                            |
+| Database connection method | **To decide with the engineer** before the services are deployed (step 5) |
 
-## 1. Make room for the project (Supabase)
+## 1. Billing and tools
 
-Do one of these in the Supabase dashboard, then create the project:
-
-- upgrade the organization to a paid plan; or
-- pause or delete a project you no longer need.
-
-Create a project named `eventhub-os-staging` in **Southeast Asia (Singapore)**. Save the database
-password it shows in a password manager: it is the admin password, used only in steps 2 and 3.
-
-## 2. Create the database roles (once)
-
-Run on your own machine, from the repository, with values from the dashboard's **Connect** panel.
-Use the **direct** connection for this step. Choose three new random passwords, at least 32
-characters each.
+1. In the Firebase console, upgrade the project to the **Blaze** (pay-as-you-go) plan, and set a
+   budget alert.
+2. Install the Google Cloud CLI, then sign in and select the project:
 
 ```bash
-DATABASE_ADMIN_URL='<direct connection string, sslmode=require>' \
-EVENTHUB_MIGRATOR_PASSWORD='<new random>' \
-EVENTHUB_APP_PASSWORD='<new random>' \
-EVENTHUB_WORKER_PASSWORD='<new random>' \
-pnpm db:bootstrap
+gcloud auth login
 ```
 
 ```bash
-EVENTHUB_ENV=staging \
-DATABASE_MIGRATOR_URL='<direct connection string as eventhub_migrator, sslmode=require>' \
-pnpm db:migrate
+gcloud config set project event-hub-2b58e
 ```
 
-If the direct connection cannot be reached from your network, use the pooler string in
-**session** mode for this step (not transaction mode).
+```bash
+gcloud services enable run.googleapis.com sqladmin.googleapis.com secretmanager.googleapis.com artifactregistry.googleapis.com
+```
 
-Expect `bootstrap complete` and `migrations: applied [0001 … 0032]`. If bootstrap fails on a
-permission, stop and share the error text (not the connection string): that is verification step 1
-in `hybrid-platform-verification.md`.
+## 2. Database: Cloud SQL for PostgreSQL 16
 
-## 3. Storage bucket
+A small instance for staging. The tier can be changed later.
 
-In **Storage**, create a **private** bucket named `eventhub-images`. Do not make it public.
+```bash
+gcloud sql instances create eventhub-staging \
+  --database-version=POSTGRES_16 --edition=enterprise --tier=db-custom-1-3840 \
+  --region=asia-southeast1 --storage-auto-increase \
+  --backup-start-time=18:00 --backup-location=asia-southeast1
+```
 
-## 4. Settings in Vercel
+```bash
+gcloud sql databases create eventhub --instance=eventhub-staging
+```
 
-Three Vercel projects: `eventhub-api`, `eventhub-admin` and `eventhub-site`. Mark every row
-labelled **Secret** as **Sensitive** in Vercel. Use the **pooler** connection string, in
-transaction mode, for `DATABASE_APP_URL`.
+Set the admin password. The command asks for it, so it is not stored in your shell history. Save it
+in a password manager: it is used only for the one-time bootstrap.
 
-### `eventhub-api`
+```bash
+gcloud sql users set-password postgres --instance=eventhub-staging --prompt-for-password
+```
 
-| Name                      | Value                                                                      | Secret     |
-| ------------------------- | -------------------------------------------------------------------------- | ---------- |
-| `EVENTHUB_ENV`            | `staging`                                                                  | no         |
-| `DATABASE_APP_URL`        | Pooler string as role `eventhub_app`, with its password, `sslmode=require` | **Secret** |
-| `MFA_ENCRYPTION_KEY`      | A new random 32 bytes, base64 (`openssl rand -base64 32`)                  | **Secret** |
-| `OBJECT_STORE`            | `supabase`                                                                 | no         |
-| `SUPABASE_URL`            | The project URL, `https://<ref>.supabase.co`                               | no         |
-| `SUPABASE_STORAGE_BUCKET` | `eventhub-images`                                                          | no         |
-| `SUPABASE_SECRET_KEY`     | The project's secret (server-side) API key                                 | **Secret** |
-| `PASSKEY_ORIGIN`          | The admin app's https origin                                               | no         |
-| `TRUST_PROXY`             | Set during verification, once Vercel's proxy addresses are known           | no         |
+## 3. Image bucket: Cloud Storage
 
-### `eventhub-admin`
+Private, with public access blocked. Bucket names are global, so this one carries the project ID.
+
+```bash
+gcloud storage buckets create gs://event-hub-2b58e-images-staging \
+  --location=asia-southeast1 --uniform-bucket-level-access --public-access-prevention
+```
+
+## 4. Image registry: Artifact Registry
+
+```bash
+gcloud artifacts repositories create eventhub --repository-format=docker --location=asia-southeast1
+```
+
+## 5. Stop here and tell the engineer
+
+Say that steps 1 to 4 are done. No values are needed.
+
+The next steps depend on one decision that is still open (ADR-0056, open point 1): how the API and
+worker connect to Cloud SQL while keeping EventHub's rule that staging database connections are
+encrypted and verified. After that, the engineer provides the exact commands for:
+
+- the three database roles (bootstrap) and the migrations, as Cloud Run jobs;
+- the secrets below;
+- deploying the API and worker to Cloud Run;
+- the Vercel projects.
+
+## Settings, for reference
+
+### API and worker (Secret Manager for secrets, plain settings on the Cloud Run service)
+
+| Name                              | Used by     | Value                                                     | Secret     |
+| --------------------------------- | ----------- | --------------------------------------------------------- | ---------- |
+| `EVENTHUB_ENV`                    | both        | `staging`                                                 | no         |
+| `DATABASE_APP_URL`                | API         | Connection as role `eventhub_app`                         | **Secret** |
+| `DATABASE_WORKER_URL`             | worker      | Connection as role `eventhub_worker`                      | **Secret** |
+| `DATABASE_MIGRATOR_URL`           | migrate job | Connection as role `eventhub_migrator`                    | **Secret** |
+| `MFA_ENCRYPTION_KEY`              | API         | A new random 32 bytes, base64 (`openssl rand -base64 32`) | **Secret** |
+| `EMAIL_TOKEN_SECRET`              | worker      | A new random string of at least 32 characters             | **Secret** |
+| `RESEND_API_KEY`                  | worker      | From the email provider                                   | **Secret** |
+| `OBJECT_STORE`                    | both        | `gcs`                                                     | no         |
+| `GCS_BUCKET`                      | both        | `event-hub-2b58e-images-staging`                          | no         |
+| `EVENT_PUBLISHER`                 | worker      | `postgres_outbox`                                         | no         |
+| `EMAIL_SENDER`, `EMAIL_FROM`      | worker      | `resend`, and a sender on your verified domain            | no         |
+| `APP_BASE_URL`, `PUBLIC_SITE_URL` | worker      | The admin origin; `https://{handle}.<your site domain>`   | no         |
+| `PASSKEY_ORIGIN`                  | API         | The admin app's https origin                              | no         |
+
+Images need no key: the services use their own service account (ADR-0051).
+
+### Vercel project `eventhub-admin`
 
 | Name                       | Value                                 | Secret |
 | -------------------------- | ------------------------------------- | ------ |
-| `ADMIN_API_URL`            | The API's https URL                   | no     |
+| `ADMIN_API_URL`            | The API's Cloud Run https URL         | no     |
 | `ADMIN_ORIGIN`             | The admin app's https origin          | no     |
 | `ADMIN_TRUSTED_PROXY_HOPS` | `1`                                   | no     |
 | `ADMIN_PUBLIC_SITE_URL`    | `https://{handle}.<your site domain>` | no     |
 
-### `eventhub-site`
+### Vercel project `eventhub-site`
 
-| Name                      | Value               | Secret |
-| ------------------------- | ------------------- | ------ |
-| `SITE_API_URL`            | The API's https URL | no     |
-| `SITE_DOMAIN`             | Your site domain    | no     |
-| `SITE_TRUSTED_PROXY_HOPS` | `1`                 | no     |
-
-### Later, for the worker (its own host's secret store, not Vercel)
-
-`DATABASE_WORKER_URL` (role `eventhub_worker`), `EMAIL_TOKEN_SECRET`, `RESEND_API_KEY`, and
-`SUPABASE_SECRET_KEY` are **Secret**. `EVENTHUB_ENV`, `EVENT_PUBLISHER=postgres_outbox`,
-`EMAIL_SENDER=resend`, `EMAIL_FROM`, `APP_BASE_URL`, `PUBLIC_SITE_URL`, `OBJECT_STORE` and the
-other `SUPABASE_*` names are not.
-
-## 5. Tell the engineer
-
-Say that steps 1 to 4 are done and give the Supabase project's name. No values are needed. The
-remaining verification (Data API exposure, deployment checks, speed) continues from there.
+| Name                      | Value                         | Secret |
+| ------------------------- | ----------------------------- | ------ |
+| `SITE_API_URL`            | The API's Cloud Run https URL | no     |
+| `SITE_DOMAIN`             | Your site domain              | no     |
+| `SITE_TRUSTED_PROXY_HOPS` | `1`                           | no     |

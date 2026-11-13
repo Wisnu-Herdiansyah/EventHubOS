@@ -70,10 +70,10 @@ function assertDatabaseTls(
 /**
  * Object storage for uploaded images (ADR-0042). Optional: without it, image uploads report
  * themselves as unavailable.
- * - `supabase`: a private Supabase Storage bucket (ADR-0054, the chosen platform). The secret
- *   key comes from the environment (the secret store), never from a file in the repository.
- * - `gcs`: a private Cloud Storage bucket (ADR-0051), kept for the worker's Google Cloud side.
- *   Credentials come from Application Default Credentials, never from configuration.
+ * - `gcs`: a private Cloud Storage bucket (ADR-0056, the chosen platform). Credentials come from
+ *   Application Default Credentials (the service account), never from configuration.
+ * - `supabase`: a private Supabase Storage bucket (ADR-0054; built, not in use). The secret key
+ *   comes from the environment (the secret store), never from a file in the repository.
  * Only these two are allowed in staging/production.
  * - `local_directory` (local development, e2e) and `in_memory` (tests) are refused in
  *   staging/production, so no remote environment silently keeps files on one machine's disk.
