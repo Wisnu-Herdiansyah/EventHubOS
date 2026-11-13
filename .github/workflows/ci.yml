@@ -120,14 +120,19 @@ jobs:
         run: |
           PW="$(openssl rand -hex 24)"
           echo "::add-mask::$PW"
-          docker run -d --name pg -e POSTGRES_PASSWORD="$PW" -p 127.0.0.1:5432:5432 postgres:16
+          docker run -d --name pg -e POSTGRES_PASSWORD="$PW" -p 127.0.0.1:5432:5432 \
+            -v pgsock:/var/run/postgresql postgres:16
           for i in $(seq 1 30); do docker exec pg pg_isready -h 127.0.0.1 -U postgres -q && break; sleep 1; done
           docker exec pg pg_isready -h 127.0.0.1 -U postgres
           echo "DATABASE_ADMIN_URL=postgres://postgres:${PW}@127.0.0.1:5432/postgres" >> "$GITHUB_ENV"
       # Runs each image as Cloud Run will: non-root, configuration from the environment,
       # migrations from the api image, health and SIGTERM checks.
+      # PG_SOCKET_VOLUME also runs the images in staging mode against the database's socket
+      # only, the way Cloud Run reaches Cloud SQL (ADR-0057).
       - name: Smoke test
         run: scripts/container-smoke.sh
+        env:
+          PG_SOCKET_VOLUME: pgsock
       # Fails on any HIGH or CRITICAL vulnerability that has a fix available.
       - name: Vulnerability scan (Trivy)
         run: |

@@ -9,14 +9,14 @@ password or key).
 
 ## Status (2026-11-12)
 
-| Item                       | State                                                                     |
-| -------------------------- | ------------------------------------------------------------------------- |
-| Vercel team                | Exists                                                                    |
-| Google Cloud project       | `event-hub-2b58e` (the Firebase project), created by the product owner    |
-| Billing (Blaze plan)       | **Not confirmed.** Cloud SQL and Cloud Run need it                        |
-| Region                     | Singapore, `asia-southeast1` (ADR-0055)                                   |
-| Database, bucket, registry | Not created yet (steps 2 to 4)                                            |
-| Database connection method | **To decide with the engineer** before the services are deployed (step 5) |
+| Item                       | State                                                                  |
+| -------------------------- | ---------------------------------------------------------------------- |
+| Vercel team                | Exists                                                                 |
+| Google Cloud project       | `event-hub-2b58e` (the Firebase project), created by the product owner |
+| Billing (Blaze plan)       | **Not confirmed.** Cloud SQL and Cloud Run need it                     |
+| Region                     | Singapore, `asia-southeast1` (ADR-0055)                                |
+| Database, bucket, registry | Not created yet (steps 2 to 4)                                         |
+| Database connection method | The Cloud SQL socket (ADR-0057); the URL form is under Settings        |
 
 ## 1. Billing and tools
 
@@ -77,9 +77,7 @@ gcloud artifacts repositories create eventhub --repository-format=docker --locat
 
 Say that steps 1 to 4 are done. No values are needed.
 
-The next steps depend on one decision that is still open (ADR-0056, open point 1): how the API and
-worker connect to Cloud SQL while keeping EventHub's rule that staging database connections are
-encrypted and verified. After that, the engineer provides the exact commands for:
+The engineer then provides the exact commands for:
 
 - the three database roles (bootstrap) and the migrations, as Cloud Run jobs;
 - the secrets below;
@@ -87,6 +85,13 @@ encrypted and verified. After that, the engineer provides the exact commands for
 - the Vercel projects.
 
 ## Settings, for reference
+
+Each database URL uses the Cloud SQL socket form (ADR-0057), with the instance attached to the
+Cloud Run service or job:
+
+```
+postgres://<role>:<password>@localhost/eventhub?host=/cloudsql/event-hub-2b58e:asia-southeast1:eventhub-staging
+```
 
 ### API and worker (Secret Manager for secrets, plain settings on the Cloud Run service)
 
