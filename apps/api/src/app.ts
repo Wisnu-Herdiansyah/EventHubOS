@@ -10,7 +10,7 @@ import Fastify, {
 import {
   AppError,
   internalErrorBody,
-  LOG_REDACT_PATHS,
+  redactingLogOptions,
   type EmailFeedbackReceiver,
   type ObjectStore,
 } from '@eventhub/kernel';
@@ -308,8 +308,5 @@ export function undocumentedPaths(actual: unknown, documented: unknown, path = '
 }
 
 export function loggerOptions(level: string): FastifyServerOptions['logger'] {
-  return {
-    level,
-    redact: { paths: [...LOG_REDACT_PATHS], censor: '[REDACTED]' },
-  };
+  return { level, ...redactingLogOptions() };
 }

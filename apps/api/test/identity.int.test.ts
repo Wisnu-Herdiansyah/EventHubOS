@@ -10,7 +10,7 @@ import {
 } from '../src/adapters/argon2id-password-hasher.ts';
 import { buildApp } from '../src/app.ts';
 import { DatabaseSessionAuthenticator } from '../src/modules/identity/authenticator.ts';
-import { LOG_REDACT_PATHS } from '@eventhub/kernel';
+import { redactingLogOptions } from '@eventhub/kernel';
 
 const pools = createTestPools();
 const logLines: string[] = [];
@@ -29,10 +29,7 @@ beforeAll(async () => {
     passwordHasher: new Argon2idPasswordHasher(),
     identity: { sessionTtlSeconds: 3600, loginMaxFailures: 3, loginLockSeconds: 900 },
     logger: false,
-    loggerInstance: pino(
-      { level: 'info', redact: { paths: [...LOG_REDACT_PATHS], censor: '[REDACTED]' } },
-      sink,
-    ),
+    loggerInstance: pino({ level: 'info', ...redactingLogOptions() }, sink),
     validateResponses: true,
     rateLimitPerMinute: 10_000,
   });
