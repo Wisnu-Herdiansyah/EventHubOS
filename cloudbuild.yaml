@@ -1,0 +1,30 @@
+# Builds the four service images (ADR-0053) and pushes them to Artifact Registry.
+# Started by scripts/staging/02-images.sh, which supplies the registry and the commit tag.
+# Not run by CI: CI builds and scans the same Dockerfile targets on every pull request.
+substitutions:
+  _REGISTRY: ''
+  _TAG: ''
+options:
+  env:
+    # The Dockerfile uses BuildKit features (build secrets and cache mounts).
+    - DOCKER_BUILDKIT=1
+  logging: CLOUD_LOGGING_ONLY
+steps:
+  - id: api
+    name: gcr.io/cloud-builders/docker
+    args: [build, --target, api, -t, '${_REGISTRY}/api:${_TAG}', .]
+  - id: worker
+    name: gcr.io/cloud-builders/docker
+    args: [build, --target, worker, -t, '${_REGISTRY}/worker:${_TAG}', .]
+  - id: admin
+    name: gcr.io/cloud-builders/docker
+    args: [build, --target, admin, -t, '${_REGISTRY}/admin:${_TAG}', .]
+  - id: site
+    name: gcr.io/cloud-builders/docker
+    args: [build, --target, site, -t, '${_REGISTRY}/site:${_TAG}', .]
+images:
+  - '${_REGISTRY}/api:${_TAG}'
+  - '${_REGISTRY}/worker:${_TAG}'
+  - '${_REGISTRY}/admin:${_TAG}'
+  - '${_REGISTRY}/site:${_TAG}'
+timeout: 2400s

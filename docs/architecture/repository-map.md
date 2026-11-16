@@ -1,7 +1,7 @@
 # Repository map against the technical architecture
 
 Where each part of `TECHNICAL_ARCHITECTURE.md` lives, and how far it goes. ADRs explain the
-decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0058 (migrations
+decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0059 (migrations
 `0001`–`0032`).
 
 **Status words**
@@ -26,6 +26,7 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0058
 | Worker and outbox relay (§2, §6)                          | `apps/worker`                                                                              | Done (ADR-0009): per-event transactions, dead-lettering, health log, replay CLI, waitlist-closing sweep. Runbook: `docs/operations/outbox-runbook.md`                                                              |
 | CI: format, lint, types, tests, scanning, migrations      | `.github/workflows/ci.yml`                                                                 | Done: unit, integration (PostgreSQL 16), browser e2e, gitleaks and dependency audit. The e2e browser install falls back when the Ubuntu mirror is down                                                             |
 | Container images                                          | `Dockerfile`, `.dockerignore`, `scripts/container-smoke.sh`                                | Done (ADR-0053): api, worker, admin and site images; non-root, no secrets; smoke-tested and scanned in CI. Registry push and deploy wait for the staging project                                                   |
+| Staging deployment                                        | `scripts/staging`, `cloudbuild.yaml`, `docs/operations/staging-deploy.md`                  | Written and tested against a stand-in `gcloud` (ADR-0059): secrets, images, roles and migrations, API and worker. Not yet run against Google or Vercel: waits for the product owner                                |
 | Infrastructure as code                                    | `infra/`                                                                                   | Not started: Vercel plus Google Cloud (ADR-0056) in Singapore (ADR-0055); set-up in `docs/operations/staging-setup.md`                                                                                             |
 
 ## Identity and access

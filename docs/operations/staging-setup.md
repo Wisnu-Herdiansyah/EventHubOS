@@ -73,16 +73,10 @@ gcloud storage buckets create gs://event-hub-2b58e-images-staging \
 gcloud artifacts repositories create eventhub --repository-format=docker --location=asia-southeast1
 ```
 
-## 5. Stop here and tell the engineer
+## 5. Continue with the deployment guide
 
-Say that steps 1 to 4 are done. No values are needed.
-
-The engineer then provides the exact commands for:
-
-- the three database roles (bootstrap) and the migrations, as Cloud Run jobs;
-- the secrets below;
-- deploying the API and worker to Cloud Run;
-- the Vercel projects.
+The next steps are in `staging-deploy.md`: four scripts for Google Cloud, then the two Vercel
+projects.
 
 ## Settings, for reference
 
