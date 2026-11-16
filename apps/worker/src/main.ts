@@ -27,6 +27,7 @@ import { sendSupportAccessEmailConsumer } from './consumers/send-support-access-
 import { sendDataDownloadEmailConsumer } from './consumers/send-data-download-email.ts';
 import { sendAnnouncementConsumer } from './consumers/send-announcement.ts';
 import { closeWaitlistsOnce } from './waitlist-closer.ts';
+import { sendEventRemindersOnce } from './event-reminders.ts';
 import {
   sendRegistrationCancelledConsumer,
   sendRegistrationConfirmationConsumer,
@@ -161,6 +162,22 @@ async function closeWaitlists(): Promise<void> {
   }
 }
 
+/** Reminders for events starting within 24 hours (ADR-0062), checked once a minute. */
+const REMINDER_INTERVAL_MS = 60_000;
+let lastReminderAt = 0;
+async function sendReminders(): Promise<void> {
+  if (Date.now() - lastReminderAt < REMINDER_INTERVAL_MS) return;
+  lastReminderAt = Date.now();
+  try {
+    const reminded = await sendEventRemindersOnce(pool, emailSender, {
+      publicSiteUrl: config.publicSiteUrl,
+    });
+    if (reminded > 0) logger.info({ reminded }, 'event reminders sent');
+  } catch (error) {
+    logger.error({ err: error }, 'sending event reminders failed');
+  }
+}
+
 logger.info(
   {
     adapter: publisher.name,
@@ -179,6 +196,7 @@ while (!controller.signal.aborted) {
   }
   await reportHealth();
   await closeWaitlists();
+  await sendReminders();
   await sleep(config.outbox.pollIntervalMs, undefined, { signal: controller.signal }).catch(
     () => undefined,
   );

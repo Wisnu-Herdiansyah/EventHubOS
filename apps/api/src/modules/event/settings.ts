@@ -31,6 +31,8 @@ const sections = {
       waitlist: z.boolean().optional(),
       /** At most this many people waiting; then the event is full again (ADR-0038). */
       waitlistLimit: z.number().int().min(1).max(10_000).optional(),
+      /** A reminder email the day before the event (ADR-0062). Unset means on. */
+      reminder: z.boolean().optional(),
       /** Extra questions on the sign-up form (ADR-0041). */
       questions: questionsSchema.optional(),
     })

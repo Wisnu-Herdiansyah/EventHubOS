@@ -1624,6 +1624,7 @@ export interface components {
                 capacity?: number;
                 waitlist?: boolean;
                 waitlistLimit?: number;
+                reminder?: boolean;
                 questions?: components["schemas"]["RegistrationQuestion"][];
             };
             sharing?: {
@@ -1671,6 +1672,7 @@ export interface components {
                 capacity?: number;
                 waitlist?: boolean;
                 waitlistLimit?: number;
+                reminder?: boolean;
                 questions?: components["schemas"]["RegistrationQuestion"][];
             } | null;
             sharing?: {

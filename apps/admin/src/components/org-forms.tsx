@@ -218,6 +218,33 @@ export interface SettingsDefaults {
   capacity: string;
   waitlist: boolean;
   waitlistLimit: string;
+  /** Reminder email the day before (ADR-0062). */
+  reminder: boolean;
+}
+
+/** Reminder email on or off (ADR-0062). On unless the organizer switches it off. */
+function ReminderField({ state, defaultChecked }: { state: FormState; defaultChecked: boolean }) {
+  const values = state.values;
+  // After a failed save, show what was submitted rather than the stored value.
+  const checked = values ? values.reminder === 'on' : defaultChecked;
+  return (
+    <div className="field">
+      <label className="checkbox">
+        <input
+          type="checkbox"
+          name="reminder"
+          defaultChecked={checked}
+          aria-describedby="reminder-hint"
+        />
+        <span>Email a reminder the day before</span>
+      </label>
+      <span className="field__hint" id="reminder-hint">
+        Everyone with a confirmed seat gets one email in the 24 hours before the event starts, with
+        the time and a link to the event page. People who sign up in those last 24 hours get only
+        their confirmation.
+      </span>
+    </div>
+  );
 }
 
 /** Waitlist on or off (ADR-0035), with its field error from the form state. */
@@ -419,6 +446,7 @@ export function EventSettingsForm(props: {
             hint="Optional. Once this many people are waiting, the event shows as full. When registration closes, everyone still waiting is emailed that no seat became free."
           />
         </div>
+        <ReminderField state={state} defaultChecked={d.reminder} />
       </fieldset>
       <div className="form__actions">
         <SubmitButton pendingLabel="Saving…">Save settings</SubmitButton>
