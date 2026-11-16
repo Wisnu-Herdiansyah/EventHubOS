@@ -1,7 +1,7 @@
 'use server';
 
 import { headers } from 'next/headers';
-import { clientIpFromForwarded } from '@/lib/client-ip';
+import { visitorHeaders } from '@/lib/client-ip';
 import { siteConfig } from '@/lib/config';
 import { HANDLE, SLUG } from '@/lib/host';
 import type { Question } from '@/lib/public-api';
@@ -18,8 +18,8 @@ export interface RegisterState {
 
 async function forwardedFor(): Promise<Record<string, string>> {
   const h = await headers();
-  const ip = clientIpFromForwarded(h.get('x-forwarded-for'), siteConfig().trustedProxyHops);
-  return ip ? { 'x-forwarded-for': ip } : {};
+  const { trustedProxyHops, visitorAddressKey } = siteConfig();
+  return visitorHeaders(h.get('x-forwarded-for'), trustedProxyHops, visitorAddressKey);
 }
 
 const text = (form: FormData, key: string) => {

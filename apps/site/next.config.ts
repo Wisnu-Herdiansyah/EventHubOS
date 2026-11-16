@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
     : {}),
   poweredByHeader: false,
   reactStrictMode: true,
-  transpilePackages: ['@eventhub/microsite'],
+  transpilePackages: ['@eventhub/kernel', '@eventhub/microsite'],
   headers() {
     return Promise.resolve([
       {

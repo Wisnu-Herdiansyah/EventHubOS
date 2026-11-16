@@ -107,6 +107,27 @@ describe('loadApiConfig', () => {
     ).toEqual(['TRUST_PROXY']);
   });
 
+  it('refuses a bare hop count for TRUST_PROXY: the server could not check the caller', () => {
+    for (const hops of ['1', '2']) {
+      expect(
+        captureError(() =>
+          loadApiConfig({ EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl, TRUST_PROXY: hops }),
+        ).keys,
+      ).toEqual(['TRUST_PROXY']);
+    }
+  });
+
+  it('takes an optional visitor address key of at least 32 characters (ADR-0058)', () => {
+    const base = { EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl };
+    const key = `marker-${'k'.repeat(25)}`;
+    expect(loadApiConfig(base).visitorAddressKey).toBeNull();
+    expect(loadApiConfig({ ...base, VISITOR_ADDRESS_KEY: key }).visitorAddressKey).toBe(key);
+    const short = `marker-${'k'.repeat(24)}`;
+    const error = captureError(() => loadApiConfig({ ...base, VISITOR_ADDRESS_KEY: short }));
+    expect(error.keys).toEqual(['VISITOR_ADDRESS_KEY']);
+    expect(error.message).not.toContain(short);
+  });
+
   it('bounds authentication settings', () => {
     const e = captureError(() =>
       loadApiConfig({ EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl, LOGIN_MAX_FAILURES: '1' }),

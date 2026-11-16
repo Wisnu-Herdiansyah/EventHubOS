@@ -105,6 +105,8 @@ const mailDir = await mkdtemp(join(tmpdir(), 'eventhub-e2e-mail-'));
 const objectDir = await mkdtemp(join(tmpdir(), 'eventhub-e2e-objects-'));
 // The email provider's webhook secret (ADR-0043): random per run; tests sign deliveries with it.
 const emailWebhookSecret = `whsec_${randomBytes(24).toString('base64')}`;
+// Shared by the API, both web apps and the fixtures for this run only (ADR-0058).
+const visitorAddressKey = randomBytes(32).toString('hex');
 let exitCode = 1;
 let created = false;
 try {
@@ -163,8 +165,10 @@ try {
     HTTP_HOST: '127.0.0.1',
     HTTP_PORT: String(apiPort),
     DATABASE_APP_URL: withCredentials(ROLE_NAMES.app, passwords.app, database),
-    // Only the admin app (same host here) may supply X-Forwarded-For.
-    TRUST_PROXY: '127.0.0.1,::1',
+    // No proxy is trusted by address, as on a platform without fixed addresses: the apps (and the
+    // test fixtures) sign each visitor's address instead (ADR-0058).
+    TRUST_PROXY: 'false',
+    VISITOR_ADDRESS_KEY: visitorAddressKey,
     RATE_LIMIT_PER_MINUTE: '2000',
     // Seals authenticator secrets (ADR-0022); random per run.
     MFA_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
@@ -198,6 +202,7 @@ try {
       ADMIN_API_URL: apiUrl,
       // Tests send X-Forwarded-For the way a load balancer would (see e2e/support.ts).
       ADMIN_TRUSTED_PROXY_HOPS: '1',
+      ADMIN_VISITOR_ADDRESS_KEY: visitorAddressKey,
       // The design-system spec checks every component in the gallery (ADR-0019).
       ADMIN_DESIGN_GALLERY: '1',
       ADMIN_PUBLIC_SITE_URL: siteTemplate,
@@ -217,6 +222,7 @@ try {
       SITE_PUBLIC_PORT: String(sitePort),
       // Tests send X-Forwarded-For like a load balancer; the site passes the visitor IP on.
       SITE_TRUSTED_PROXY_HOPS: '1',
+      SITE_VISITOR_ADDRESS_KEY: visitorAddressKey,
     },
     siteDir,
   );
@@ -233,6 +239,7 @@ try {
       E2E_API_URL: apiUrl,
       E2E_MAIL_DIR: mailDir,
       E2E_EMAIL_WEBHOOK_SECRET: emailWebhookSecret,
+      E2E_VISITOR_ADDRESS_KEY: visitorAddressKey,
       E2E_SITE_URL_TEMPLATE: siteTemplate,
       // Disposable test database, for fixtures that cannot wait in real time (e.g. idle timeout).
       E2E_FIXTURE_DATABASE_URL: withCredentials(ROLE_NAMES.migrator, passwords.migrator, database),
