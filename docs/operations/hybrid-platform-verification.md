@@ -23,8 +23,13 @@ Setup steps for the product owner are in `staging-setup.md`.
    `/health/ready`, and that the worker delivers a verification email.
 6. **Admin and site on Vercel.** Deploy both pointing at the API. Sign in, publish an event, and
    open its public page on a wildcard preview domain.
-7. **Client addresses (ADR-0056 open point 2).** Decide how the API learns the visitor's address
-   when called from Vercel, and confirm the per-visitor limits behave as intended.
+7. **Visitor addresses (ADR-0058).** With the shared key set on the API and both apps:
+   - sign in wrongly from one browser until it is limited, and confirm another network can still
+     sign in;
+   - confirm the Vercel proxy hop settings (`ADMIN_TRUSTED_PROXY_HOPS`, `SITE_TRUSTED_PROXY_HOPS`)
+     give the visitor's real address, not Vercel's;
+   - call the API directly, without the apps, and record which address it is limited by. If that
+     is Google's front end rather than the caller, record it in ADR-0058 as the next thing to fix.
 8. **Regions and speed.** Record the Vercel Functions region chosen for the admin and site, and
    the API-to-database round trip (for example, the median `/health/ready` time over 20 calls).
    Copy them into ADR-0055.

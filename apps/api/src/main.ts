@@ -50,6 +50,7 @@ const app = await buildApp({
   invitationTtlSeconds: config.invitations.ttlSeconds,
   logger: loggerOptions(config.logLevel),
   trustProxy: config.http.trustProxy,
+  visitorAddressKey: config.visitorAddressKey,
   rateLimitPerMinute: config.rateLimitPerMinute,
   validateResponses: config.environment !== 'production',
 });

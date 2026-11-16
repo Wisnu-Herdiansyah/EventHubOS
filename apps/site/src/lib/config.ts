@@ -10,10 +10,20 @@ const schema = z.object({
   SITE_HTTPS: z.enum(['0', '1']).default('1'),
   /** Proxies in front of this app; their X-Forwarded-For gives the visitor IP for rate limits. */
   SITE_TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
+  /**
+   * The key shared with the API for vouching for visitor addresses (ADR-0058): the same value as
+   * the API's VISITOR_ADDRESS_KEY. Secret. Optional: without it, addresses are not signed.
+   */
+  SITE_VISITOR_ADDRESS_KEY: z.string().min(32).max(200).optional(),
 });
 
-let cached: { apiUrl: string; domain: string; https: boolean; trustedProxyHops: number } | null =
-  null;
+let cached: {
+  apiUrl: string;
+  domain: string;
+  https: boolean;
+  trustedProxyHops: number;
+  visitorAddressKey: string | null;
+} | null = null;
 
 export function siteConfig() {
   if (cached) return cached;
@@ -27,6 +37,7 @@ export function siteConfig() {
     domain: parsed.data.SITE_DOMAIN.toLowerCase(),
     https: parsed.data.SITE_HTTPS === '1',
     trustedProxyHops: parsed.data.SITE_TRUSTED_PROXY_HOPS,
+    visitorAddressKey: parsed.data.SITE_VISITOR_ADDRESS_KEY ?? null,
   };
   return cached;
 }

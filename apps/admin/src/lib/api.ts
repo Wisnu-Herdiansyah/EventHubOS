@@ -4,7 +4,7 @@ import createClient from 'openapi-fetch';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { paths } from './api-types';
-import { clientIpFromForwarded } from './client-ip';
+import { visitorHeaders } from './client-ip';
 import { adminConfig } from './config';
 import { ApiError, isTwoStepRequired, twoStepRequiredPath } from './errors';
 import { readSessionToken } from './session';
@@ -12,13 +12,17 @@ import { readSessionToken } from './session';
 /**
  * Typed API client generated from the OpenAPI contract. Runs only on the server: it attaches the
  * session token from the HttpOnly cookie and, behind a configured proxy, forwards the client IP so
- * the API's per-IP limits apply to the real client (the API must trust this app via TRUST_PROXY).
+ * the API's per-IP limits apply to the real client (see visitorHeaders).
  */
 export async function api() {
   const config = adminConfig();
   const token = await readSessionToken();
   const incoming = await headers();
-  const forwarded = clientIpFromForwarded(incoming.get('x-forwarded-for'), config.trustedProxyHops);
+  const visitor = visitorHeaders(
+    incoming.get('x-forwarded-for'),
+    config.trustedProxyHops,
+    config.visitorAddressKey,
+  );
   // The browser's own user-agent, so sessions can be named "Firefox on Windows" (ADR-0017).
   // Self-reported and informational only; never used for security decisions.
   const userAgent = incoming.get('user-agent')?.slice(0, 256);
@@ -27,7 +31,7 @@ export async function api() {
     headers: {
       'x-correlation-id': `admin-${randomUUID()}`,
       ...(token ? { authorization: `Bearer ${token}` } : {}),
-      ...(forwarded ? { 'x-forwarded-for': forwarded } : {}),
+      ...visitor,
       ...(userAgent ? { 'user-agent': userAgent } : {}),
     },
   });

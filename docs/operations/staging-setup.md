@@ -95,37 +95,40 @@ postgres://<role>:<password>@localhost/eventhub?host=/cloudsql/event-hub-2b58e:a
 
 ### API and worker (Secret Manager for secrets, plain settings on the Cloud Run service)
 
-| Name                              | Used by     | Value                                                     | Secret     |
-| --------------------------------- | ----------- | --------------------------------------------------------- | ---------- |
-| `EVENTHUB_ENV`                    | both        | `staging`                                                 | no         |
-| `DATABASE_APP_URL`                | API         | Connection as role `eventhub_app`                         | **Secret** |
-| `DATABASE_WORKER_URL`             | worker      | Connection as role `eventhub_worker`                      | **Secret** |
-| `DATABASE_MIGRATOR_URL`           | migrate job | Connection as role `eventhub_migrator`                    | **Secret** |
-| `MFA_ENCRYPTION_KEY`              | API         | A new random 32 bytes, base64 (`openssl rand -base64 32`) | **Secret** |
-| `EMAIL_TOKEN_SECRET`              | worker      | A new random string of at least 32 characters             | **Secret** |
-| `RESEND_API_KEY`                  | worker      | From the email provider                                   | **Secret** |
-| `OBJECT_STORE`                    | both        | `gcs`                                                     | no         |
-| `GCS_BUCKET`                      | both        | `event-hub-2b58e-images-staging`                          | no         |
-| `EVENT_PUBLISHER`                 | worker      | `postgres_outbox`                                         | no         |
-| `EMAIL_SENDER`, `EMAIL_FROM`      | worker      | `resend`, and a sender on your verified domain            | no         |
-| `APP_BASE_URL`, `PUBLIC_SITE_URL` | worker      | The admin origin; `https://{handle}.<your site domain>`   | no         |
-| `PASSKEY_ORIGIN`                  | API         | The admin app's https origin                              | no         |
+| Name                              | Used by     | Value                                                                                | Secret     |
+| --------------------------------- | ----------- | ------------------------------------------------------------------------------------ | ---------- |
+| `EVENTHUB_ENV`                    | both        | `staging`                                                                            | no         |
+| `DATABASE_APP_URL`                | API         | Connection as role `eventhub_app`                                                    | **Secret** |
+| `DATABASE_WORKER_URL`             | worker      | Connection as role `eventhub_worker`                                                 | **Secret** |
+| `DATABASE_MIGRATOR_URL`           | migrate job | Connection as role `eventhub_migrator`                                               | **Secret** |
+| `MFA_ENCRYPTION_KEY`              | API         | A new random 32 bytes, base64 (`openssl rand -base64 32`)                            | **Secret** |
+| `EMAIL_TOKEN_SECRET`              | worker      | A new random string of at least 32 characters                                        | **Secret** |
+| `RESEND_API_KEY`                  | worker      | From the email provider                                                              | **Secret** |
+| `VISITOR_ADDRESS_KEY`             | API         | A new random string (`openssl rand -hex 32`); the same value in both Vercel projects | **Secret** |
+| `OBJECT_STORE`                    | both        | `gcs`                                                                                | no         |
+| `GCS_BUCKET`                      | both        | `event-hub-2b58e-images-staging`                                                     | no         |
+| `EVENT_PUBLISHER`                 | worker      | `postgres_outbox`                                                                    | no         |
+| `EMAIL_SENDER`, `EMAIL_FROM`      | worker      | `resend`, and a sender on your verified domain                                       | no         |
+| `APP_BASE_URL`, `PUBLIC_SITE_URL` | worker      | The admin origin; `https://{handle}.<your site domain>`                              | no         |
+| `PASSKEY_ORIGIN`                  | API         | The admin app's https origin                                                         | no         |
 
 Images need no key: the services use their own service account (ADR-0051).
 
 ### Vercel project `eventhub-admin`
 
-| Name                       | Value                                 | Secret |
-| -------------------------- | ------------------------------------- | ------ |
-| `ADMIN_API_URL`            | The API's Cloud Run https URL         | no     |
-| `ADMIN_ORIGIN`             | The admin app's https origin          | no     |
-| `ADMIN_TRUSTED_PROXY_HOPS` | `1`                                   | no     |
-| `ADMIN_PUBLIC_SITE_URL`    | `https://{handle}.<your site domain>` | no     |
+| Name                        | Value                                                        | Secret     |
+| --------------------------- | ------------------------------------------------------------ | ---------- |
+| `ADMIN_API_URL`             | The API's Cloud Run https URL                                | no         |
+| `ADMIN_ORIGIN`              | The admin app's https origin                                 | no         |
+| `ADMIN_TRUSTED_PROXY_HOPS`  | `1`                                                          | no         |
+| `ADMIN_VISITOR_ADDRESS_KEY` | The same value as the API's `VISITOR_ADDRESS_KEY` (ADR-0058) | **Secret** |
+| `ADMIN_PUBLIC_SITE_URL`     | `https://{handle}.<your site domain>`                        | no         |
 
 ### Vercel project `eventhub-site`
 
-| Name                      | Value                         | Secret |
-| ------------------------- | ----------------------------- | ------ |
-| `SITE_API_URL`            | The API's Cloud Run https URL | no     |
-| `SITE_DOMAIN`             | Your site domain              | no     |
-| `SITE_TRUSTED_PROXY_HOPS` | `1`                           | no     |
+| Name                       | Value                                                        | Secret     |
+| -------------------------- | ------------------------------------------------------------ | ---------- |
+| `SITE_API_URL`             | The API's Cloud Run https URL                                | no         |
+| `SITE_DOMAIN`              | Your site domain                                             | no         |
+| `SITE_TRUSTED_PROXY_HOPS`  | `1`                                                          | no         |
+| `SITE_VISITOR_ADDRESS_KEY` | The same value as the API's `VISITOR_ADDRESS_KEY` (ADR-0058) | **Secret** |

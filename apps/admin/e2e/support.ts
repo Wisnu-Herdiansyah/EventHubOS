@@ -2,6 +2,7 @@ import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import AxeBuilder from '@axe-core/playwright';
+import { VISITOR_ADDRESS_HEADER, signVisitorAddress } from '@eventhub/kernel/visitor-address';
 import { test as base, expect, type Page } from '@playwright/test';
 
 export const API_URL = process.env.E2E_API_URL ?? '';
@@ -12,6 +13,13 @@ export const PASSWORD = 'Systematic elegance 2027!'; // pragma: allowlist secret
 export function testClientIp(): string {
   const b = randomBytes(3);
   return `198.${18 + (b[0]! % 2)}.${b[1]}.${b[2]}`;
+}
+
+/** Headers for a direct API call from its own simulated visitor, signed as the web apps sign. */
+export function asVisitor(ip: string = testClientIp()): Record<string, string> {
+  const signed = signVisitorAddress(process.env.E2E_VISITOR_ADDRESS_KEY ?? '', ip);
+  if (!signed) throw new Error('could not sign a test visitor address');
+  return { [VISITOR_ADDRESS_HEADER]: signed };
 }
 
 /**
@@ -91,8 +99,8 @@ export async function apiCall<T>(
     headers: {
       'content-type': 'application/json',
       'idempotency-key': `e2e-${randomUUID()}`,
-      // The API trusts the harness host as a proxy, so fixtures act as separate clients.
-      'x-forwarded-for': testClientIp(),
+      // Fixtures act as separate visitors, vouched for the way the web apps do (ADR-0058).
+      ...asVisitor(),
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify(body),
@@ -246,7 +254,7 @@ export async function patchOrgViaApi(
   changes: Record<string, unknown>,
 ): Promise<void> {
   const res = await fetch(`${API_URL}/v1/organizations/${orgId}`, {
-    headers: { authorization: `Bearer ${token}`, 'x-forwarded-for': testClientIp() },
+    headers: { authorization: `Bearer ${token}`, ...asVisitor() },
   });
   const { version } = (await res.json()) as { version: number };
   await apiCall(

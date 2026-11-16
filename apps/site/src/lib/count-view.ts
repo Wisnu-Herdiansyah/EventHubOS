@@ -1,5 +1,5 @@
 import 'server-only';
-import { clientIpFromForwarded } from './client-ip';
+import { visitorHeaders } from './client-ip';
 import { siteConfig } from './config';
 
 /**
@@ -12,15 +12,14 @@ export async function countView(
   eventSlug: string,
   forwardedFor: string | null,
 ): Promise<void> {
-  const { apiUrl, trustedProxyHops } = siteConfig();
-  const ip = clientIpFromForwarded(forwardedFor, trustedProxyHops);
+  const { apiUrl, trustedProxyHops, visitorAddressKey } = siteConfig();
   try {
     await fetch(
       `${apiUrl}/v1/public/sites/${encodeURIComponent(handle)}/events/${encodeURIComponent(eventSlug)}/views`,
       {
         method: 'POST',
         cache: 'no-store',
-        headers: ip ? { 'x-forwarded-for': ip } : {},
+        headers: visitorHeaders(forwardedFor, trustedProxyHops, visitorAddressKey),
         signal: AbortSignal.timeout(3000),
       },
     );

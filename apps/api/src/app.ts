@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import rateLimit from '@fastify/rate-limit';
+import { VISITOR_ADDRESS_HEADER, verifyVisitorAddress } from '@eventhub/kernel/visitor-address';
 import Fastify, {
   LogController,
   type FastifyError,
@@ -47,6 +48,8 @@ export interface AppDependencies {
   /** Custom logger instance (tests capture output to assert redaction). */
   loggerInstance?: FastifyServerOptions['loggerInstance'];
   trustProxy?: boolean | string[];
+  /** Key for visitor addresses signed by the admin and site apps (ADR-0058). */
+  visitorAddressKey?: string | null;
   rateLimitPerMinute?: number;
   /** Validate responses against their contract (enable outside production). */
   validateResponses?: boolean;
@@ -108,9 +111,16 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
     },
   });
 
+  const visitorAddressKey = deps.visitorAddressKey ?? null;
   await app.register(rateLimit, {
     max: deps.rateLimitPerMinute ?? 300,
     timeWindow: '1 minute',
+    // Limits are per visitor. An address signed by one of our own web apps is believed
+    // (ADR-0058); anything else falls back to the caller's own address.
+    keyGenerator: (request) =>
+      (visitorAddressKey &&
+        verifyVisitorAddress(visitorAddressKey, request.headers[VISITOR_ADDRESS_HEADER])) ||
+      request.ip,
     // TODO(platform): move to a shared Redis store once the cache provider is approved (D11).
     errorResponseBuilder: () => new AppError('rate_limited', 'Too many requests. Retry later.'),
   });

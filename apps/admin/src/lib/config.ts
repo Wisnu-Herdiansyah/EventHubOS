@@ -15,6 +15,11 @@ const schema = z.object({
    */
   ADMIN_TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0),
   /**
+   * The key shared with the API for vouching for visitor addresses (ADR-0058): the same value as
+   * the API's VISITOR_ADDRESS_KEY. Secret. Optional: without it, addresses are not signed.
+   */
+  ADMIN_VISITOR_ADDRESS_KEY: z.string().min(32).max(200).optional(),
+  /**
    * Serves the component gallery at /design-system. On by default outside production builds;
    * set to 1 to show it in a production build (e.g. the e2e harness), 0 to hide it anywhere.
    */
@@ -32,6 +37,7 @@ const schema = z.object({
 export interface AdminConfig {
   apiUrl: string;
   trustedProxyHops: number;
+  visitorAddressKey: string | null;
   designGallery: boolean;
   publicSiteUrl: string | null;
 }
@@ -53,6 +59,7 @@ export function adminConfig(): AdminConfig {
   cached = {
     apiUrl: parsed.data.ADMIN_API_URL.replace(/\/+$/, ''),
     trustedProxyHops: parsed.data.ADMIN_TRUSTED_PROXY_HOPS,
+    visitorAddressKey: parsed.data.ADMIN_VISITOR_ADDRESS_KEY ?? null,
     designGallery: galleryEnabled(parsed.data.ADMIN_DESIGN_GALLERY, process.env.NODE_ENV),
     publicSiteUrl: parsed.data.ADMIN_PUBLIC_SITE_URL ?? null,
   };

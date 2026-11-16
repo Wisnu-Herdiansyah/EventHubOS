@@ -32,4 +32,16 @@ describe('log redaction of provider keys (ADR-0054)', () => {
       expect(line).toContain('[REDACTED]');
     }
   });
+
+  it('hides signed visitor addresses (ADR-0058)', () => {
+    const signed = `v1,1700000000,203.0.113.9,${'s'.repeat(43)}`;
+    for (const obj of [
+      { req: { headers: { 'x-eventhub-visitor': signed } } },
+      { headers: { 'x-eventhub-visitor': signed } },
+    ]) {
+      const line = logged(obj);
+      expect(line).not.toContain(signed);
+      expect(line).toContain('[REDACTED]');
+    }
+  });
 });

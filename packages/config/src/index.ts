@@ -214,7 +214,8 @@ const apiSchema = baseSchema.extend({
   HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   DATABASE_APP_URL: postgresUrl,
   // 'false' (default), 'true' (local/ci only), or a comma-separated list of trusted proxy IPs/CIDRs
-  // (e.g. the admin web app's address) whose X-Forwarded-For is believed for client IPs.
+  // (e.g. the admin web app's address) whose X-Forwarded-For is believed for client IPs. Apps
+  // without a fixed address sign the visitor's address instead (VISITOR_ADDRESS_KEY, ADR-0058).
   TRUST_PROXY: z
     .string()
     .default('false')
@@ -229,11 +230,19 @@ const apiSchema = baseSchema.extend({
         list.length > 0 &&
         list.every((s) => /^[0-9a-fA-F:.]+(\/\d{1,3})?$/.test(s) && /[.:]/.test(s));
       if (!ok) {
-        ctx.addIssue({ code: 'custom', message: 'Use false, true, or a list of IPs/CIDRs' });
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Use false, true, or a list of IPs/CIDRs',
+        });
         return z.NEVER;
       }
       return list;
     }),
+  /**
+   * The key shared with the admin and site apps, which sign each visitor's address with it
+   * (ADR-0058). Secret. Optional: without it, signed addresses are ignored.
+   */
+  VISITOR_ADDRESS_KEY: z.string().min(32).max(200).optional(),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(1).max(100_000).default(300),
   SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(12),
   // Idle timeout (ADR-0018). Activity is recorded every 5 minutes, hence the 15-minute floor.
@@ -277,6 +286,7 @@ export interface ApiConfig {
   environment: DeployEnvironment;
   logLevel: (typeof LOG_LEVELS)[number];
   http: { host: string; port: number; trustProxy: boolean | string[] };
+  visitorAddressKey: string | null;
   database: { appUrl: string };
   rateLimitPerMinute: number;
   auth: {
@@ -341,6 +351,7 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
       : null,
     objectStore: objectStoreConfig(c.EVENTHUB_ENV, c),
     emailWebhookSecret: c.RESEND_WEBHOOK_SECRET ?? null,
+    visitorAddressKey: c.VISITOR_ADDRESS_KEY ?? null,
   };
 }
 

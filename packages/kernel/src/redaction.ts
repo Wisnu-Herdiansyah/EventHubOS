@@ -8,6 +8,9 @@ export const LOG_REDACT_PATHS: readonly string[] = [
   'req.headers["x-api-key"]',
   'res.headers["set-cookie"]',
   'headers.authorization',
+  // Signed visitor addresses (ADR-0058): replayable for two minutes, so never logged.
+  'req.headers["x-eventhub-visitor"]',
+  'headers["x-eventhub-visitor"]',
   'headers.cookie',
   '*.password',
   '*.token',

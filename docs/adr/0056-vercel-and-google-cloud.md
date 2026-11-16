@@ -63,10 +63,9 @@ it.
 1. **TLS to Cloud SQL: closed by ADR-0057.** The API and worker connect through the socket Cloud
    Run mounts for the instance, and staging accepts exactly that form. To confirm on the real
    instance during verification.
-2. **Client addresses.** The admin and site call the API from Vercel, which has no fixed
-   addresses, so the API cannot use an address list (`TRUST_PROXY`) to decide whose forwarded
-   client address to believe. Until this is settled, per-visitor limits at the API fall back to
-   the caller's address.
+2. **Client addresses: closed by ADR-0058.** The admin and site sign each visitor's address with
+   a shared key, and the API believes the signature instead of the caller's address. What the API
+   sees for direct callers on Cloud Run is still to be measured during verification.
 3. **Cost.** Cloud SQL and Cloud Run need billing enabled on the project (the Blaze plan).
    Cloud SQL has no permanent free tier.
 
