@@ -12,7 +12,7 @@
   "dependencies": {
     "@eventhub/kernel": "workspace:*",
     "@eventhub/microsite": "workspace:*",
-    "next": "16.4.2",
+    "next": "16.4.6",
     "qrcode": "1.5.4",
     "react": "19.1.10",
     "react-dom": "19.1.10",
