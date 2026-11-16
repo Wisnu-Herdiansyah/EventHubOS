@@ -4,7 +4,8 @@ A check before staging takes real use, run against the product owner's Google Cl
 (`event-hub-2b58e`) and Vercel team. Nothing here may use production data. Record each result in
 ADR-0056, and the regions and speed in ADR-0055.
 
-Setup steps for the product owner are in `staging-setup.md`.
+Setup steps for the product owner are in `staging-setup.md`, and the deployment commands in
+`staging-deploy.md`.
 
 ## Steps
 
