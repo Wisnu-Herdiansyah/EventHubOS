@@ -50,7 +50,8 @@ export type DatabaseTransport = 'tls' | 'cloud_sql_socket' | 'insecure';
  * driver uses a `host` query parameter instead of the URL's own host, so that parameter is what
  * decides.
  *
- * - `tls`: a network address with `sslmode` require, verify-ca or verify-full.
+ * - `tls`: a network address with exactly `sslmode=verify-full`: the server's certificate and
+ *   name are both checked.
  * - `cloud_sql_socket`: exactly host `localhost`, no port, and one query parameter
  *   `host=/cloudsql/<project>:<region>:<instance>`, with no `sslmode`. Cloud Run's Cloud SQL proxy sits behind that socket: it encrypts the connection
  *   and checks the service's identity. The application opens no network connection itself.
@@ -60,8 +61,15 @@ export type DatabaseTransport = 'tls' | 'cloud_sql_socket' | 'insecure';
 export function databaseTransport(url: string): DatabaseTransport {
   const u = new URL(url);
   const hosts = u.searchParams.getAll('host');
-  const sslmode = u.searchParams.get('sslmode');
-  const tls = sslmode === 'require' || sslmode === 'verify-ca' || sslmode === 'verify-full';
+  // Verified TLS means exactly one `sslmode=verify-full` and nothing that changes what it means
+  // (ADR-0061). The driver takes the LAST `sslmode` when it is repeated, treats `require` as
+  // unverified once `uselibpqcompat` is set, and will weaken `require` in its next major version.
+  const sslmodes = u.searchParams.getAll('sslmode');
+  const tls =
+    sslmodes.length === 1 &&
+    sslmodes[0] === 'verify-full' &&
+    !u.searchParams.has('uselibpqcompat') &&
+    !u.searchParams.has('ssl');
   let urlHost: string;
   try {
     urlHost = decodeURIComponent(u.hostname);
@@ -107,7 +115,7 @@ function assertDatabaseTls(
   if (insecure.length > 0) {
     throw new ConfigError(
       insecure,
-      `sslmode=require or stricter, or the Cloud SQL socket form (ADR-0057), is mandatory in ${environment}`,
+      `sslmode=verify-full (given once), or the Cloud SQL socket form (ADR-0057), is mandatory in ${environment}`,
     );
   }
 }
