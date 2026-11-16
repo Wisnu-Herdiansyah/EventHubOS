@@ -5,7 +5,7 @@ import { createPool, outboxHealth } from '@eventhub/db';
 import {
   InMemoryEmailSender,
   InMemoryObjectStore,
-  LOG_REDACT_PATHS,
+  redactingLogOptions,
   type EmailSender,
   type ObjectStore,
 } from '@eventhub/kernel';
@@ -42,7 +42,7 @@ import { relayOnce } from './outbox-relay.ts';
 const config = loadWorkerConfig(process.env);
 const logger = pino({
   level: config.logLevel,
-  redact: { paths: [...LOG_REDACT_PATHS], censor: '[REDACTED]' },
+  ...redactingLogOptions(),
 });
 
 function selectEmailSender(): EmailSender {
@@ -162,7 +162,12 @@ async function closeWaitlists(): Promise<void> {
 }
 
 logger.info(
-  { adapter: publisher.name, email: config.email.sender, consumers: consumers.map((c) => c.name) },
+  {
+    adapter: publisher.name,
+    // Not `email`: that name is always redacted (ADR-0060).
+    emailSender: config.email.sender,
+    consumers: consumers.map((c) => c.name),
+  },
   'outbox relay started',
 );
 while (!controller.signal.aborted) {
