@@ -34,6 +34,8 @@ describe('internalPath', () => {
     expect(internalPath('acme', '/jakarta-summit')).toBe('/s/acme/jakarta-summit');
     expect(internalPath('acme', '/jakarta-summit/')).toBe('/s/acme/jakarta-summit');
     expect(internalPath('acme', '/cancel-registration')).toBe('/c/acme');
+    expect(internalPath('acme', '/feedback')).toBe('/f/acme');
+    expect(internalPath('acme', '/feedback/extra')).toBeNull();
     expect(internalPath('acme', '/s/other/x')).toBeNull();
     expect(internalPath('acme', '/Bad_Slug')).toBeNull();
     expect(internalPath('acme', '/a/b')).toBeNull();

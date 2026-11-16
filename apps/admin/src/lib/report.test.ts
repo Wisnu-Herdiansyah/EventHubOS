@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { attendanceRate, checkInRows, monthLabel, signUpRows, viewRows } from './report';
+import {
+  attendanceRate,
+  checkInRows,
+  monthLabel,
+  ratingRows,
+  responseRate,
+  signUpRows,
+  viewRows,
+} from './report';
 
 const day = (i: number, registered = 1) => {
   const d = new Date(Date.UTC(2027, 1, 1 + i));
@@ -54,5 +62,25 @@ describe('event report shaping (ADR-0030)', () => {
   it('gives the attendance rate, or nothing without registrations', () => {
     expect(attendanceRate(3, 2)).toBe(67);
     expect(attendanceRate(0, 0)).toBeNull();
+  });
+});
+
+describe('feedback figures (ADR-0063)', () => {
+  it('lists ratings best first, with a row for each of the five', () => {
+    expect(ratingRows([0, 1, 0, 2, 1])).toEqual([
+      { label: '5 – Excellent', value: 1 },
+      { label: '4 – Good', value: 2 },
+      { label: '3 – OK', value: 0 },
+      { label: '2 – Poor', value: 1 },
+      { label: '1 – Very poor', value: 0 },
+    ]);
+    expect(ratingRows([]).map((r) => r.value)).toEqual([0, 0, 0, 0, 0]);
+  });
+
+  it('says how many answered, and does not divide by zero', () => {
+    expect(responseRate(12, 3)).toBe('3 of 12 answered (25%)');
+    expect(responseRate(3, 3)).toBe('3 of 3 answered (100%)');
+    expect(responseRate(3, 1)).toBe('1 of 3 answered (33%)');
+    expect(responseRate(0, 0)).toBe('Nobody has been asked yet');
   });
 });

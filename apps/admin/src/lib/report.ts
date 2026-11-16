@@ -59,3 +59,15 @@ export function monthLabel(month: string): string {
 export function attendanceRate(registered: number, checkedIn: number): number | null {
   return registered > 0 ? Math.round((checkedIn / registered) * 100) : null;
 }
+
+/** Bars for the feedback ratings (ADR-0063), best first: "5 – Excellent" down to "1 – Very poor". */
+const RATING_LABELS = ['1 – Very poor', '2 – Poor', '3 – OK', '4 – Good', '5 – Excellent'];
+export function ratingRows(ratings: readonly number[]): { label: string; value: number }[] {
+  return RATING_LABELS.map((label, i) => ({ label, value: ratings[i] ?? 0 })).reverse();
+}
+
+/** "3 of 12 answered (25%)", or a plain sentence when nobody was asked yet. */
+export function responseRate(asked: number, responses: number): string {
+  if (asked <= 0) return 'Nobody has been asked yet';
+  return `${responses} of ${asked} answered (${Math.round((responses / asked) * 100)}%)`;
+}

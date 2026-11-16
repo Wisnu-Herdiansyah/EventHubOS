@@ -9,7 +9,7 @@ Setup steps for the product owner are in `staging-setup.md`, and the deployment 
 
 ## Steps
 
-1. **Roles and RLS.** Run the bootstrap and migration jobs from the `api` image. Expect all 33
+1. **Roles and RLS.** Run the bootstrap and migration jobs from the `api` image. Expect all 34
    migrations to apply and the three roles to exist without `BYPASSRLS`. Cloud SQL's `postgres`
    user is not a full superuser, so a permission error here is the first thing to look for.
 2. **Database connections (ADR-0057).** The API, worker and jobs connect through the Cloud SQL

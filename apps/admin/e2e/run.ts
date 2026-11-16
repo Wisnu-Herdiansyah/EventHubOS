@@ -184,6 +184,8 @@ try {
     DATABASE_WORKER_URL: withCredentials(ROLE_NAMES.worker, passwords.worker, database),
     EVENT_PUBLISHER: 'postgres_outbox',
     OUTBOX_POLL_INTERVAL_MS: '200',
+    // Timed jobs (waitlist closing, reminders, feedback requests) every second, not minute.
+    SWEEP_INTERVAL_MS: '1000',
     EMAIL_SENDER: 'local_file',
     EMAIL_LOCAL_DIR: mailDir,
     APP_BASE_URL: baseUrl,

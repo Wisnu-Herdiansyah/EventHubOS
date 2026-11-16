@@ -383,6 +383,8 @@ const workerSchema = baseSchema.extend({
   DATABASE_WORKER_URL: postgresUrl,
   EVENT_PUBLISHER: z.enum(EVENT_PUBLISHER_ADAPTERS),
   OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().min(50).max(60_000).default(1000),
+  // How often the timed jobs look for work: waitlist closing, reminders, feedback requests.
+  SWEEP_INTERVAL_MS: z.coerce.number().int().min(1000).max(3_600_000).default(60_000),
   OUTBOX_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(50),
   OUTBOX_MAX_ATTEMPTS: z.coerce.number().int().min(1).max(100).default(12),
   OUTBOX_HEALTH_INTERVAL_MS: z.coerce.number().int().min(5_000).max(3_600_000).default(60_000),
@@ -416,6 +418,8 @@ export interface WorkerConfig {
   logLevel: (typeof LOG_LEVELS)[number];
   database: { workerUrl: string };
   eventPublisher: (typeof EVENT_PUBLISHER_ADAPTERS)[number];
+  /** How often the timed jobs look for work (ADR-0038, ADR-0062, ADR-0063). */
+  sweepIntervalMs: number;
   outbox: {
     pollIntervalMs: number;
     batchSize: number;
@@ -478,6 +482,7 @@ export function loadWorkerConfig(env: Readonly<Record<string, string | undefined
     logLevel: c.LOG_LEVEL,
     database: { workerUrl: c.DATABASE_WORKER_URL },
     eventPublisher: c.EVENT_PUBLISHER,
+    sweepIntervalMs: c.SWEEP_INTERVAL_MS,
     outbox: {
       pollIntervalMs: c.OUTBOX_POLL_INTERVAL_MS,
       batchSize: c.OUTBOX_BATCH_SIZE,

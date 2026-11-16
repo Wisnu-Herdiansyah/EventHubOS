@@ -8,6 +8,7 @@ import {
   axeScan,
   createEventViaApi,
   createOrgViaApi,
+  endEventMinutesAgo,
   expectAccessible,
   joinAs,
   mailLink,
@@ -1008,4 +1009,111 @@ test('an organizer can switch the reminder email off and on again (ADR-0062)', a
   await page.reload();
   await page.getByRole('tab', { name: 'Settings' }).click();
   await expect(box).toBeChecked();
+});
+
+test('after the event, an attendee gives feedback from their email and the organizer reads it (ADR-0063)', async ({
+  page,
+  browser,
+}) => {
+  const t = await publishedEvent('feedback');
+  const attendee = uniqueEmail('fb-attendee');
+
+  // Off unless the organizer switches it on.
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}`);
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  const box = page.getByRole('checkbox', { name: 'Ask for feedback after the event' });
+  await expect(box).not.toBeChecked();
+  await box.check();
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(page.getByText('Settings saved.')).toBeVisible();
+  await page.reload();
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  await expect(box).toBeChecked();
+  // The reminder switch next to it is untouched.
+  await expect(
+    page.getByRole('checkbox', { name: 'Email a reminder the day before' }),
+  ).toBeChecked();
+
+  // Someone registers; nobody has been asked for feedback while the event is still ahead.
+  const v = await visitor(browser);
+  await v.page.goto(t.url);
+  const form = v.page.getByRole('region', { name: 'Save your seat' });
+  await form.getByLabel('Name', { exact: true }).fill('Fiona Feedback');
+  await form.getByLabel('Email', { exact: true }).fill(attendee);
+  await form.getByRole('checkbox').check();
+  await form.getByRole('button', { name: 'Save my seat' }).click();
+  await expect(form.getByRole('status').last()).toContainText('Check your email');
+  await mailMessage(attendee, 'registration_confirmed');
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/report`);
+  await expect(page.getByRole('heading', { name: 'Feedback', exact: true })).toBeVisible();
+  await expect(page.getByText('No feedback yet')).toBeVisible();
+
+  // The event ends: the worker emails the personal link.
+  await endEventMinutesAgo(t.eventId, 5);
+  const link = await mailLink(attendee, 'event_feedback_request');
+  const mail = await mailMessage(attendee, 'event_feedback_request');
+  expect(mail.subject).toBe('How was Private Summit?');
+  expect(mail.text).toContain('without your name');
+  expect(new URL(link).pathname).toBe('/feedback');
+
+  // The attendee answers. The token leaves the address bar at once.
+  await v.page.goto(link);
+  await expect(v.page.getByText('How was Private Summit?')).toBeVisible();
+  expect(v.page.url()).not.toContain('token');
+  await axeScan(v.page);
+  await v.page.getByRole('button', { name: 'Send feedback' }).click();
+  await expect(v.page.locator('p[role="alert"]')).toHaveText('Choose a rating.');
+  await v.page.getByRole('radio', { name: '4 – Good' }).check();
+  await v.page.getByLabel('Anything to add?').fill('Great talks, but the hall was cold.');
+  await axeScan(v.page);
+  await v.page.getByRole('button', { name: 'Send feedback' }).click();
+  await expect(v.page.getByRole('status')).toHaveText(
+    'Thank you. Your feedback on Private Summit has been sent.',
+  );
+
+  // Opening the link again says so, and a new answer replaces the old one. (Leave the page
+  // first: a link that differs only after # would not load it again.)
+  await v.page.goto('about:blank');
+  await v.page.goto(link);
+  await expect(v.page.getByText('You have already answered.')).toBeVisible();
+  await v.page.getByRole('radio', { name: '5 – Excellent' }).check();
+  await v.page.getByLabel('Anything to add?').fill('On reflection: excellent.');
+  await v.page.getByRole('button', { name: 'Send feedback' }).click();
+  await expect(v.page.getByRole('status')).toContainText('Thank you.');
+
+  // A link without a token, or with a made-up one, explains itself.
+  await v.page.goto(new URL('/feedback', link).toString());
+  await expect(v.page.locator('p[role="alert"]')).toHaveText(
+    'This link is incomplete. Open it from your email again.',
+  );
+  await v.page.goto('about:blank');
+  await v.page.goto(`${new URL('/feedback', link).toString()}#token=${'A'.repeat(43)}`);
+  await expect(v.page.locator('p[role="alert"]')).toHaveText('This link is no longer valid.');
+  await axeScan(v.page);
+  await v.context.close();
+
+  // The organizer sees one answer, the latest, and not who gave it.
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/report`);
+  const card = page.getByRole('region', { name: 'Feedback' });
+  await expect(card.getByText('5.0 / 5')).toBeVisible();
+  await expect(card.getByText('1 of 1 answered (100%)')).toBeVisible();
+  await expect(card.getByText('On reflection: excellent.')).toBeVisible();
+  await expect(card.getByText('Great talks, but the hall was cold.')).toHaveCount(0);
+  await expect(card.getByText('Rated 5 of 5')).toBeVisible();
+  await expect(card).not.toContainText('Fiona');
+  await expect(card).not.toContainText(attendee);
+  await expectAccessible(page);
+
+  // An analyst sees the figures, not the comment.
+  const analyst = await joinAs(t.owner.token, t.orgId, 'fb-analyst', 'analyst');
+  await signOut(page);
+  await signIn(page, analyst.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/report`);
+  const theirs = page.getByRole('region', { name: 'Feedback' });
+  await expect(theirs.getByText('5.0 / 5')).toBeVisible();
+  await expect(theirs.getByText('On reflection: excellent.')).toHaveCount(0);
+  await expect(
+    theirs.getByText('Comments are shown to people who can manage registrations.'),
+  ).toBeVisible();
 });

@@ -8,7 +8,15 @@ import { PageHeader } from '@/components/ui/page-header';
 import { api, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
 import { can } from '@/lib/permissions';
-import { attendanceRate, checkInRows, signUpRows, viewRows } from '@/lib/report';
+import {
+  attendanceRate,
+  checkInRows,
+  ratingRows,
+  responseRate,
+  signUpRows,
+  viewRows,
+} from '@/lib/report';
+import { formatInZone } from '@/lib/time';
 
 export const metadata: Metadata = { title: 'Report' };
 
@@ -23,7 +31,7 @@ export default async function EventReportPage({
   const { orgId, eventId } = await params;
   if (!UUID.test(orgId) || !UUID.test(eventId)) notFound();
   const path = { organizationId: orgId, eventId };
-  let org, evt, report;
+  let org, evt, report, feedback, comments;
   try {
     const client = await api();
     org = unwrap(
@@ -40,6 +48,20 @@ export default async function EventReportPage({
           params: { path },
         }),
       );
+      feedback = unwrap(
+        await client.GET('/v1/organizations/{organizationId}/events/{eventId}/feedback', {
+          params: { path },
+        }),
+      );
+      // What people wrote is for those who may see attendees (ADR-0063).
+      if (feedback.responses > 0 && can(org.role, 'registration.manage')) {
+        comments = unwrap(
+          await client.GET(
+            '/v1/organizations/{organizationId}/events/{eventId}/feedback/comments',
+            { params: { path } },
+          ),
+        );
+      }
     }
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();
@@ -77,6 +99,7 @@ export default async function EventReportPage({
   const views = viewRows(report.pageViewsByDay);
   const viewsByWeek = report.pageViewsByDay.length > 31;
   const zone = `Times in ${report.timezone}.`;
+  const timezone = report.timezone;
 
   return (
     <div className="stack">
@@ -163,6 +186,61 @@ export default async function EventReportPage({
           />
         )}
       </Card>
+
+      {feedback && (feedback.enabled || feedback.asked > 0 || feedback.responses > 0) ? (
+        <Card title="Feedback" titleId="feedback-heading">
+          {feedback.responses === 0 ? (
+            <EmptyState
+              icon="users"
+              title="No feedback yet"
+              description={
+                feedback.asked > 0
+                  ? `${feedback.asked} ${feedback.asked === 1 ? 'person has' : 'people have'} been asked. Answers appear here as they come in.`
+                  : 'People who attended are asked by email when the event ends.'
+              }
+            />
+          ) : (
+            <div className="stack">
+              <div className="grid">
+                <Stat
+                  label="Average rating"
+                  value={`${feedback.average?.toFixed(1) ?? '–'} / 5`}
+                  hint={responseRate(feedback.asked, feedback.responses)}
+                />
+              </div>
+              <BarChart
+                caption="Feedback ratings"
+                valueHeader="Answers"
+                data={ratingRows(feedback.ratings).map((r) => ({ ...r, series: 1 as const }))}
+                footnote="Answers are anonymous: you see what was said, not who said it."
+              />
+              {comments && comments.items.length > 0 ? (
+                <section aria-labelledby="feedback-comments-heading" className="stack">
+                  <h3 id="feedback-comments-heading">Comments</h3>
+                  <div>
+                    {comments.items.map((c, i) => (
+                      <article key={`${c.submittedAt}-${i}`} className="announcement">
+                        <p className="announcement__body">{c.comment}</p>
+                        <p className="text-secondary">
+                          Rated {c.rating} of 5 · {formatInZone(c.submittedAt, timezone)}
+                        </p>
+                      </article>
+                    ))}
+                  </div>
+                  {comments.truncated ? (
+                    <p className="text-secondary">Only the newest comments are shown.</p>
+                  ) : null}
+                </section>
+              ) : null}
+              {!comments && feedback.responses > 0 ? (
+                <p className="text-secondary">
+                  Comments are shown to people who can manage registrations.
+                </p>
+              ) : null}
+            </div>
+          )}
+        </Card>
+      ) : null}
     </div>
   );
 }

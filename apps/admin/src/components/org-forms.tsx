@@ -220,6 +220,8 @@ export interface SettingsDefaults {
   waitlistLimit: string;
   /** Reminder email the day before (ADR-0062). */
   reminder: boolean;
+  /** Ask for feedback after the event (ADR-0063). */
+  feedback: boolean;
 }
 
 /** Reminder email on or off (ADR-0062). On unless the organizer switches it off. */
@@ -242,6 +244,31 @@ function ReminderField({ state, defaultChecked }: { state: FormState; defaultChe
         Everyone with a confirmed seat gets one email in the 24 hours before the event starts, with
         the time and a link to the event page. People who sign up in those last 24 hours get only
         their confirmation.
+      </span>
+    </div>
+  );
+}
+
+/** Feedback request on or off (ADR-0063). Off unless the organizer switches it on. */
+function FeedbackField({ state, defaultChecked }: { state: FormState; defaultChecked: boolean }) {
+  const values = state.values;
+  // After a failed save, show what was submitted rather than the stored value.
+  const checked = values ? values.feedback === 'on' : defaultChecked;
+  return (
+    <div className="field">
+      <label className="checkbox">
+        <input
+          type="checkbox"
+          name="feedback"
+          defaultChecked={checked}
+          aria-describedby="feedback-hint"
+        />
+        <span>Ask for feedback after the event</span>
+      </label>
+      <span className="field__hint" id="feedback-hint">
+        When the event ends, people who checked in get one email asking for a rating from 1 to 5 and
+        an optional comment. If nobody was checked in, everyone with a confirmed seat is asked. You
+        see the answers in the report, without names.
       </span>
     </div>
   );
@@ -447,6 +474,7 @@ export function EventSettingsForm(props: {
           />
         </div>
         <ReminderField state={state} defaultChecked={d.reminder} />
+        <FeedbackField state={state} defaultChecked={d.feedback} />
       </fieldset>
       <div className="form__actions">
         <SubmitButton pendingLabel="Saving…">Save settings</SubmitButton>

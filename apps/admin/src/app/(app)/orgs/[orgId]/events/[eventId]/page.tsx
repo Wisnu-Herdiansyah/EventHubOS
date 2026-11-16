@@ -140,6 +140,7 @@ export default async function EventPage({
     waitlist: s.registration?.waitlist === true,
     waitlistLimit: s.registration?.waitlistLimit ? String(s.registration.waitlistLimit) : '',
     reminder: s.registration?.reminder !== false,
+    feedback: s.feedback?.enabled === true,
   };
   const warnings = checklist.items
     .filter((i) => i.severity === 'recommended' && !i.complete)

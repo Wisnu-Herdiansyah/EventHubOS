@@ -128,6 +128,25 @@ describe('loadApiConfig', () => {
     expect(error.message).not.toContain(short);
   });
 
+  it('runs the worker’s timed jobs once a minute unless told otherwise', () => {
+    const base = {
+      EVENTHUB_ENV: 'local',
+      DATABASE_WORKER_URL: localUrl,
+      EVENT_PUBLISHER: 'postgres_outbox',
+      EMAIL_SENDER: 'in_memory',
+      APP_BASE_URL: 'http://localhost:3001',
+      EMAIL_TOKEN_SECRET: 'x'.repeat(40),
+    };
+    expect(loadWorkerConfig(base).sweepIntervalMs).toBe(60_000);
+    expect(loadWorkerConfig({ ...base, SWEEP_INTERVAL_MS: '1000' }).sweepIntervalMs).toBe(1000);
+    for (const bad of ['999', '0', 'soon', '3600001']) {
+      expect(
+        captureError(() => loadWorkerConfig({ ...base, SWEEP_INTERVAL_MS: bad })).keys,
+        bad,
+      ).toEqual(['SWEEP_INTERVAL_MS']);
+    }
+  });
+
   it('bounds authentication settings', () => {
     const e = captureError(() =>
       loadApiConfig({ EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl, LOGIN_MAX_FAILURES: '1' }),

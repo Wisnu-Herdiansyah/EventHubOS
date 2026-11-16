@@ -28,6 +28,7 @@ const CLASSES: Readonly<Record<string, EmailClass>> = {
   registration_waitlist_closed: 'transactional',
   event_announcement: 'organizer',
   event_reminder: 'organizer',
+  event_feedback_request: 'organizer',
   organization_invitation: 'organizer',
   two_step_reminder: 'organizer',
 };

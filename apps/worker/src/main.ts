@@ -28,6 +28,7 @@ import { sendDataDownloadEmailConsumer } from './consumers/send-data-download-em
 import { sendAnnouncementConsumer } from './consumers/send-announcement.ts';
 import { closeWaitlistsOnce } from './waitlist-closer.ts';
 import { sendEventRemindersOnce } from './event-reminders.ts';
+import { sendFeedbackRequestsOnce } from './event-feedback.ts';
 import {
   sendRegistrationCancelledConsumer,
   sendRegistrationConfirmationConsumer,
@@ -146,8 +147,8 @@ async function reportHealth(): Promise<void> {
   }
 }
 
-/** Waitlists of events whose registration has closed (ADR-0038), checked once a minute. */
-const WAITLIST_CLOSE_INTERVAL_MS = 60_000;
+/** Waitlists of events whose registration has closed (ADR-0038), checked every sweep interval. */
+const WAITLIST_CLOSE_INTERVAL_MS = config.sweepIntervalMs;
 let lastWaitlistCloseAt = 0;
 async function closeWaitlists(): Promise<void> {
   if (Date.now() - lastWaitlistCloseAt < WAITLIST_CLOSE_INTERVAL_MS) return;
@@ -162,8 +163,8 @@ async function closeWaitlists(): Promise<void> {
   }
 }
 
-/** Reminders for events starting within 24 hours (ADR-0062), checked once a minute. */
-const REMINDER_INTERVAL_MS = 60_000;
+/** Reminders for events starting within 24 hours (ADR-0062), checked every sweep interval. */
+const REMINDER_INTERVAL_MS = config.sweepIntervalMs;
 let lastReminderAt = 0;
 async function sendReminders(): Promise<void> {
   if (Date.now() - lastReminderAt < REMINDER_INTERVAL_MS) return;
@@ -175,6 +176,23 @@ async function sendReminders(): Promise<void> {
     if (reminded > 0) logger.info({ reminded }, 'event reminders sent');
   } catch (error) {
     logger.error({ err: error }, 'sending event reminders failed');
+  }
+}
+
+/** Feedback requests for events that have ended (ADR-0063), checked every sweep interval. */
+const FEEDBACK_INTERVAL_MS = config.sweepIntervalMs;
+let lastFeedbackAt = 0;
+async function sendFeedbackRequests(): Promise<void> {
+  if (Date.now() - lastFeedbackAt < FEEDBACK_INTERVAL_MS) return;
+  lastFeedbackAt = Date.now();
+  try {
+    const asked = await sendFeedbackRequestsOnce(pool, emailSender, {
+      publicSiteUrl: config.publicSiteUrl,
+      tokenSecret: config.emailTokenSecret,
+    });
+    if (asked > 0) logger.info({ asked }, 'feedback requests sent');
+  } catch (error) {
+    logger.error({ err: error }, 'sending feedback requests failed');
   }
 }
 
@@ -197,6 +215,7 @@ while (!controller.signal.aborted) {
   await reportHealth();
   await closeWaitlists();
   await sendReminders();
+  await sendFeedbackRequests();
   await sleep(config.outbox.pollIntervalMs, undefined, { signal: controller.signal }).catch(
     () => undefined,
   );

@@ -29,6 +29,7 @@ import { organizationRoutes } from './modules/organization/routes.ts';
 import { pageRoutes } from './modules/page/routes.ts';
 import { publicSiteRoutes } from './modules/public-site/routes.ts';
 import { registrationRoutes } from './modules/registration/routes.ts';
+import { feedbackRoutes } from './modules/feedback/routes.ts';
 import { reportRoutes } from './modules/report/routes.ts';
 import { announcementRoutes } from './modules/announcement/routes.ts';
 import { assetRoutes } from './modules/asset/routes.ts';
@@ -84,6 +85,7 @@ export function allRoutes(deps: RouteFactoryDeps): AnyRoute[] {
     ...publicSiteRoutes(deps.pool),
     ...registrationRoutes(deps.pool),
     ...reportRoutes(deps.pool),
+    ...feedbackRoutes(deps.pool),
     ...announcementRoutes(deps.pool),
     ...assetRoutes(deps.pool, deps.objectStore ?? null),
     ...emailFeedbackRoutes(deps.pool, deps.emailFeedback ?? null),

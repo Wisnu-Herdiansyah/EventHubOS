@@ -146,3 +146,76 @@ export async function cancelRegistrationAction(
     return { ok: false, message: 'Something went wrong. Please try again.' };
   }
 }
+
+/** What a feedback link is for (ADR-0063). */
+export interface FeedbackLink {
+  eventName: string;
+  organizationName: string;
+  answered: boolean;
+}
+const FEEDBACK_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+
+export async function feedbackLinkAction(token: string): Promise<FeedbackLink | { error: string }> {
+  if (!FEEDBACK_TOKEN.test(token)) {
+    return { error: 'This link is incomplete. Open it from your email again.' };
+  }
+  try {
+    const res = await fetch(`${siteConfig().apiUrl}/v1/public/feedback/lookup`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'content-type': 'application/json', ...(await forwardedFor()) },
+      body: JSON.stringify({ token }),
+    });
+    const body = (await res.json().catch(() => ({}))) as Partial<FeedbackLink> & {
+      error?: { message?: string };
+    };
+    if (res.ok && body.eventName && body.organizationName) {
+      return {
+        eventName: body.eventName,
+        organizationName: body.organizationName,
+        answered: body.answered === true,
+      };
+    }
+    if (res.status === 429) return { error: 'Too many attempts. Please wait a minute.' };
+    return { error: body.error?.message ?? 'This link is no longer valid.' };
+  } catch {
+    return { error: 'Something went wrong. Please try again.' };
+  }
+}
+
+export async function submitFeedbackAction(
+  token: string,
+  rating: number,
+  comment: string,
+): Promise<{ ok: boolean; message: string }> {
+  if (!FEEDBACK_TOKEN.test(token)) {
+    return { ok: false, message: 'This link is incomplete. Open it from your email again.' };
+  }
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return { ok: false, message: 'Choose a rating.' };
+  }
+  const text = typeof comment === 'string' ? comment.slice(0, 2000) : '';
+  try {
+    const res = await fetch(`${siteConfig().apiUrl}/v1/public/feedback`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'content-type': 'application/json', ...(await forwardedFor()) },
+      body: JSON.stringify({ token, rating, ...(text.trim() ? { comment: text } : {}) }),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      eventName?: string;
+      error?: { message?: string };
+    };
+    if (res.ok) {
+      return {
+        ok: true,
+        message: `Thank you. Your feedback on ${body.eventName ?? 'the event'} has been sent.`,
+      };
+    }
+    if (res.status === 429)
+      return { ok: false, message: 'Too many attempts. Please wait a minute.' };
+    return { ok: false, message: body.error?.message ?? 'This link is no longer valid.' };
+  } catch {
+    return { ok: false, message: 'Something went wrong. Please try again.' };
+  }
+}
