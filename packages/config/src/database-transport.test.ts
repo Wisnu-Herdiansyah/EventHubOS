@@ -13,16 +13,45 @@ const SOCKET = '/cloudsql/event-hub-2b58e:asia-southeast1:eventhub-staging';
 const socketUrl = (role: string) => `postgres://${role}:${PW}@localhost/eventhub?host=${SOCKET}`;
 
 describe('databaseTransport (ADR-0057)', () => {
-  it('accepts verified TLS to a network address', () => {
-    for (const mode of ['require', 'verify-ca', 'verify-full']) {
-      expect(databaseTransport(`postgres://u:${PW}@db.internal:5432/e?sslmode=${mode}`)).toBe(
-        'tls',
-      );
-    }
+  it('accepts fully verified TLS to a network address (ADR-0061)', () => {
+    expect(databaseTransport(`postgres://u:${PW}@db.internal:5432/e?sslmode=verify-full`)).toBe(
+      'tls',
+    );
     // A `host` parameter naming another network host is still TLS.
     expect(
       databaseTransport(`postgres://u:${PW}@10.0.0.5/e?host=db.internal&sslmode=verify-full`),
     ).toBe('tls');
+    // A private CA file and client certificates do not weaken verification.
+    expect(
+      databaseTransport(
+        `postgres://u:${PW}@db.internal/e?sslmode=verify-full&sslrootcert=/etc/ca.pem&application_name=x`,
+      ),
+    ).toBe('tls');
+  });
+
+  it('refuses every weaker or ambiguous way of asking for TLS (ADR-0061)', () => {
+    const net = `postgres://u:${PW}@db.internal/e`;
+    const cases: Record<string, string> = {
+      // The driver's next major version stops verifying the certificate for these two.
+      'sslmode=require': `${net}?sslmode=require`,
+      'sslmode=verify-ca': `${net}?sslmode=verify-ca`,
+      'sslmode=no-verify': `${net}?sslmode=no-verify`,
+      'another spelling': `${net}?sslmode=VERIFY-FULL`,
+      'an unknown mode': `${net}?sslmode=verify`,
+      // The driver uses the last `sslmode`, so a repeated one could switch TLS off.
+      'verify-full then disable': `${net}?sslmode=verify-full&sslmode=disable`,
+      'disable then verify-full': `${net}?sslmode=disable&sslmode=verify-full`,
+      'verify-full twice': `${net}?sslmode=verify-full&sslmode=verify-full`,
+      // This switch makes the driver treat `require` as "do not verify".
+      'libpq compatibility on': `${net}?sslmode=verify-full&uselibpqcompat=true`,
+      'libpq compatibility named at all': `${net}?sslmode=verify-full&uselibpqcompat=false`,
+      'require with libpq compatibility': `${net}?sslmode=require&uselibpqcompat=true`,
+      'an ssl switch beside it': `${net}?sslmode=verify-full&ssl=0`,
+      'only an ssl switch': `${net}?ssl=true`,
+    };
+    for (const [name, url] of Object.entries(cases)) {
+      expect(databaseTransport(url), name).toBe('insecure');
+    }
   });
 
   it('accepts exactly the canonical Cloud SQL socket form', () => {

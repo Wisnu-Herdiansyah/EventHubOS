@@ -40,7 +40,7 @@ describe('loadApiConfig: MFA key (ADR-0022)', () => {
   });
 
   it('is required in staging and production', () => {
-    const remoteUrl = `postgres://eventhub_app:${SECRET}@db.internal:5432/eventhub?sslmode=require`;
+    const remoteUrl = `postgres://eventhub_app:${SECRET}@db.internal:5432/eventhub?sslmode=verify-full`;
     for (const env of ['staging', 'production']) {
       const e = captureError(() =>
         loadApiConfig({ EVENTHUB_ENV: env, DATABASE_APP_URL: remoteUrl, TRUST_PROXY: '10.0.0.1' }),
@@ -78,7 +78,7 @@ describe('loadApiConfig', () => {
   });
 
   it('trusts only listed proxies remotely', () => {
-    const tls = `${localUrl}?sslmode=require`;
+    const tls = `${localUrl}?sslmode=verify-full`;
     expect(
       loadApiConfig({
         EVENTHUB_ENV: 'production',
@@ -221,7 +221,7 @@ describe('loadWorkerConfig', () => {
       loadWorkerConfig({
         ...base,
         EVENTHUB_ENV: 'production',
-        DATABASE_WORKER_URL: `${localUrl}?sslmode=require`,
+        DATABASE_WORKER_URL: `${localUrl}?sslmode=verify-full`,
         PUBLIC_SITE_URL: 'http://{handle}.eventhub.example',
       }),
     );
@@ -242,7 +242,7 @@ describe('loadWorkerConfig', () => {
         loadWorkerConfig({
           ...base,
           EVENTHUB_ENV: env,
-          DATABASE_WORKER_URL: `${localUrl}?sslmode=require`,
+          DATABASE_WORKER_URL: `${localUrl}?sslmode=verify-full`,
         }),
       );
       expect(e.keys).toEqual(['EMAIL_SENDER', 'APP_BASE_URL']);
@@ -315,7 +315,7 @@ describe('loadWorkerConfig', () => {
         loadWorkerConfig({
           ...resend,
           EVENTHUB_ENV: 'staging',
-          DATABASE_WORKER_URL: `${localUrl}?sslmode=require`,
+          DATABASE_WORKER_URL: `${localUrl}?sslmode=verify-full`,
           APP_BASE_URL: 'https://app.eventhub.example',
           RESEND_BASE_URL: 'http://insecure.example',
         }),
@@ -412,7 +412,7 @@ describe('object storage (ADR-0042)', () => {
 
   it('accepts Cloud Storage everywhere, with a valid bucket name (ADR-0051)', () => {
     const remote = {
-      DATABASE_APP_URL: `${localUrl}?sslmode=require`,
+      DATABASE_APP_URL: `${localUrl}?sslmode=verify-full`,
       MFA_ENCRYPTION_KEY: MFA_KEY,
       OBJECT_STORE: 'gcs',
       GCS_BUCKET: 'eventhub-images-prod',
@@ -453,7 +453,7 @@ describe('object storage (ADR-0042)', () => {
       expect(
         loadApiConfig({
           EVENTHUB_ENV: env,
-          DATABASE_APP_URL: `${localUrl}?sslmode=require`,
+          DATABASE_APP_URL: `${localUrl}?sslmode=verify-full`,
           MFA_ENCRYPTION_KEY: MFA_KEY,
           ...supa,
         }).objectStore,
@@ -489,7 +489,7 @@ describe('object storage (ADR-0042)', () => {
       const e = captureError(() =>
         loadApiConfig({
           EVENTHUB_ENV: env,
-          DATABASE_APP_URL: `${localUrl}?sslmode=require`,
+          DATABASE_APP_URL: `${localUrl}?sslmode=verify-full`,
           MFA_ENCRYPTION_KEY: MFA_KEY,
           OBJECT_STORE: 'local_directory',
           OBJECT_STORE_DIR: '/srv/objects',

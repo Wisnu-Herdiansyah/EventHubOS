@@ -83,6 +83,5 @@ confirms them on the real instance (step 2).
 
 ## Follow-up
 
-The driver warns that its next major version will weaken what `sslmode=require` means, to match
-libpq. Before upgrading the driver, the TLS rule should demand `verify-full`. Not part of this
-change.
+Done in ADR-0061: the TLS rule now demands `sslmode=verify-full`, stated once. Where this document
+says "`sslmode=require` or stricter", read `verify-full`.

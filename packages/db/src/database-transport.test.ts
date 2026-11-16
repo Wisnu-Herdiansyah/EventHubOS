@@ -33,16 +33,44 @@ describe('database transport: configuration and driver agree', () => {
     expect(c.database).toBe('eventhub');
   });
 
-  it('whatever the configuration calls TLS, the driver connects over the network with TLS', () => {
+  /** True when the driver would connect over the network and check the server's certificate. */
+  const verified = (c: Resolved) =>
+    !c.isDomainSocket &&
+    (c.ssl === true ||
+      (typeof c.ssl === 'object' &&
+        c.ssl !== null &&
+        (c.ssl as { rejectUnauthorized?: boolean }).rejectUnauthorized !== false));
+
+  it('whatever the configuration calls TLS, the driver verifies the server (ADR-0061)', () => {
+    const net = `postgres://u:${PW}@db.internal/e`;
+    const modes = ['disable', 'prefer', 'require', 'verify-ca', 'verify-full', 'no-verify'];
+    const extras = ['', '&uselibpqcompat=true', '&ssl=0', '&ssl=true', '&host=db2.internal'];
+    const urls = [net, `${net}?ssl=true`, `${net}?uselibpqcompat=true&sslmode=prefer`];
+    for (const first of modes) {
+      for (const extra of extras) urls.push(`${net}?sslmode=${first}${extra}`);
+      for (const second of modes) urls.push(`${net}?sslmode=${first}&sslmode=${second}`);
+    }
+    let accepted = 0;
+    for (const url of urls) {
+      if (databaseTransport(url) !== 'tls') continue;
+      accepted += 1;
+      // The driver refuses some combinations outright; an accepted URL must not be one of them.
+      expect(verified(driver(url)), url.replace(PW, '***')).toBe(true);
+    }
+    // Only plain verify-full, with or without another network host.
+    expect(accepted).toBe(2);
+  });
+
+  it('the refused spellings include ones the driver really would not verify', () => {
+    const net = `postgres://u:${PW}@db.internal/e`;
+    // Each of these was accepted by the rule before ADR-0061, or looks safe at a glance.
     for (const url of [
-      `postgres://u:${PW}@db.internal:5432/e?sslmode=require`,
-      `postgres://u:${PW}@db.internal/e?sslmode=verify-full`,
-      `postgres://u:${PW}@10.0.0.5/e?host=db.internal&sslmode=verify-full`,
+      `${net}?sslmode=require&uselibpqcompat=true`,
+      `${net}?sslmode=verify-full&sslmode=disable`,
+      `${net}?sslmode=verify-full&sslmode=no-verify`,
     ]) {
-      expect(databaseTransport(url), url.replace(PW, '***')).toBe('tls');
-      const c = driver(url);
-      expect(c.isDomainSocket).toBe(false);
-      expect(c.ssl).toBeTruthy();
+      expect(verified(driver(url)), url.replace(PW, '***')).toBe(false);
+      expect(databaseTransport(url), url.replace(PW, '***')).toBe('insecure');
     }
   });
 
