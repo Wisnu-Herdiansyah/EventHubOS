@@ -37,6 +37,7 @@ describe('email suppression policy (ADR-0043)', () => {
   it('sends organizer mail to neither, and treats unknown templates the same way', () => {
     for (const t of [
       'event_announcement',
+      'event_reminder',
       'organization_invitation',
       'two_step_reminder',
       'new_thing',

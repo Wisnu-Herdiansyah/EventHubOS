@@ -14,6 +14,25 @@ const schedule = {
 };
 
 describe('event settings', () => {
+  it('takes the reminder switch as a boolean only (ADR-0062)', () => {
+    for (const reminder of [true, false]) {
+      const parsed = eventSettingsSchema.safeParse({ registration: { reminder } });
+      expect(parsed.success).toBe(true);
+      expect(parsed.data?.registration?.reminder).toBe(reminder);
+    }
+    expect(eventSettingsSchema.safeParse({ registration: {} }).data?.registration?.reminder).toBe(
+      undefined,
+    );
+    for (const bad of ['false', 0, null, { enabled: false }]) {
+      expect(
+        eventSettingsSchema.safeParse({ registration: { reminder: bad } }).success,
+        JSON.stringify(bad),
+      ).toBe(false);
+    }
+    // Not a setting of the event as a whole.
+    expect(eventSettingsSchema.safeParse({ reminder: false }).success).toBe(false);
+  });
+
   it('accepts a complete, valid configuration', () => {
     expect(
       eventSettingsSchema.safeParse({

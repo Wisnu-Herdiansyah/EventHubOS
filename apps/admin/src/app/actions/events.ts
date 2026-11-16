@@ -134,6 +134,8 @@ function settingsFromForm(
   const waitlistLimit = waitlist && limitRaw ? Number(limitRaw) : undefined;
   if (waitlist && limitRaw && (!Number.isInteger(waitlistLimit) || waitlistLimit! < 1))
     fields.waitlistLimit = 'Enter a whole number of at least 1, or leave it empty.';
+  // Reminders are on unless switched off (ADR-0062): only "off" is stored.
+  const reminder = form.get('reminder') === 'on' ? undefined : false;
   return {
     visibility: (str(form, 'visibility') || 'public') as SettingsPatch['visibility'],
     // The standard colours are the absence of a theme (ADR-0046).
@@ -154,6 +156,7 @@ function settingsFromForm(
       capacity,
       waitlist,
       waitlistLimit,
+      reminder,
     }),
   };
 }

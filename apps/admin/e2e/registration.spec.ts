@@ -4,6 +4,7 @@ import { expect, type Browser } from '@playwright/test';
 import {
   API_URL,
   apiCall,
+  asVisitor,
   axeScan,
   createEventViaApi,
   createOrgViaApi,
@@ -969,4 +970,42 @@ test('an organizer cancels an event; attendees are told and the site and calenda
   expect(ics).toContain('\r\nSTATUS:CANCELLED\r\n');
   expect(ics).toContain('\r\nSUMMARY:Cancelled: ');
   await v.context.close();
+});
+
+test('an organizer can switch the reminder email off and on again (ADR-0062)', async ({ page }) => {
+  const t = await publishedEvent('reminder', { capacity: 20 });
+  const stored = async () => {
+    const res = await fetch(`${API_URL}/v1/organizations/${t.orgId}/events/${t.eventId}`, {
+      headers: { authorization: `Bearer ${t.owner.token}`, ...asVisitor() },
+    });
+    const body = (await res.json()) as { settings: { registration?: Record<string, unknown> } };
+    return body.settings.registration ?? {};
+  };
+
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}`);
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  const box = page.getByRole('checkbox', { name: 'Email a reminder the day before' });
+  // On unless switched off.
+  await expect(box).toBeChecked();
+  await expect(page.getByText('one email in the 24 hours before the event starts')).toBeVisible();
+  await expectAccessible(page);
+
+  await box.uncheck();
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(page.getByText('Settings saved.')).toBeVisible();
+  expect((await stored()).reminder).toBe(false);
+  // The other registration settings are kept.
+  expect((await stored()).capacity).toBe(20);
+  await page.reload();
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  await expect(box).not.toBeChecked();
+
+  await box.check();
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(page.getByText('Settings saved.')).toBeVisible();
+  expect('reminder' in (await stored())).toBe(false);
+  await page.reload();
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  await expect(box).toBeChecked();
 });
