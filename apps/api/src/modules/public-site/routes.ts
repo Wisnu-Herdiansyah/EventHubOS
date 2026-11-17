@@ -59,6 +59,8 @@ const publicEventPageSchema = z
       closesAt: z.string(),
       /** Extra questions on the sign-up form (ADR-0041). */
       questions: z.array(questionSchema),
+      /** Sign-ups wait for the organizer's approval (ADR-0064). */
+      approval: z.boolean(),
     }),
   })
   .meta({ id: 'PublicEventPage' });
@@ -148,16 +150,21 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
             'SELECT eventhub.public_registration_questions($1, $2) AS questions',
             [p.handle, p.eventSlug],
           );
+          const approval = await client.query<{ approval: boolean | null }>(
+            'SELECT eventhub.public_registration_requires_approval($1, $2) AS approval',
+            [p.handle, p.eventSlug],
+          );
           return {
             row: rows[0],
             reg: reg.rows[0]!,
             look: look.rows[0],
             cancellation: cancellationDto(cancel.rows[0]),
             questions: storedQuestions(q.rows[0]?.questions),
+            approval: approval.rows[0]?.approval === true,
           };
         });
         if (!found) throw notFound('Page');
-        const { row, reg, look, cancellation, questions } = found;
+        const { row, reg, look, cancellation, questions, approval } = found;
         return {
           status: 200,
           body: {
@@ -189,6 +196,7 @@ export function publicSiteRoutes(pool: Pool): AnyRoute[] {
               opensAt: reg.out_opens_at?.toISOString() ?? null,
               closesAt: reg.out_closes_at.toISOString(),
               questions,
+              approval,
             },
           },
         };

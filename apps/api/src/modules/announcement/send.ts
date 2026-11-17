@@ -24,8 +24,14 @@ export async function createAnnouncement(
   client: Queryable,
   a: NewAnnouncement,
 ): Promise<{ id: string; recipients: number }> {
+  // A cancellation also reaches requests still waiting for approval (ADR-0064): they asked to
+  // come. Ordinary announcements go only to people with a seat or on the waitlist.
   const statuses =
-    a.audience === 'registered_and_waitlist' ? ['confirmed', 'waitlisted'] : ['confirmed'];
+    a.audience !== 'registered_and_waitlist'
+      ? ['confirmed']
+      : a.purpose === 'cancellation'
+        ? ['confirmed', 'waitlisted', 'pending']
+        : ['confirmed', 'waitlisted'];
   const ins = await client.query<{ id: string }>(
     `INSERT INTO eventhub.announcement
        (organization_id, event_id, subject, body, audience, created_by)

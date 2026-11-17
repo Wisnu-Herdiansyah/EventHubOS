@@ -55,6 +55,7 @@ describe('attendee export (ADR-0027)', () => {
         promotedAt: null,
         promotedBy: null,
         waitlistClosedAt: null,
+        decidedAt: null,
         answers: { company: 'Acme, Inc.', photos: true },
       },
       {
@@ -69,6 +70,7 @@ describe('attendee export (ADR-0027)', () => {
         promotedAt: null,
         promotedBy: null,
         waitlistClosedAt: null,
+        decidedAt: null,
         answers: { company: '=HYPERLINK("http://evil.example")' },
       },
     ],

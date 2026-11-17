@@ -1,7 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { CancelRegistrationForm, PromoteRegistrationForm } from '@/components/registration-forms';
+import {
+  CancelRegistrationForm,
+  DecideRegistrationForm,
+  PromoteRegistrationForm,
+} from '@/components/registration-forms';
 import { Badge } from '@/components/ui/badge';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Card, Stat } from '@/components/ui/card';
@@ -27,12 +31,16 @@ const NOTICES: Record<string, string> = {
   registration_cancelled: 'Registration cancelled. The attendee has been emailed.',
   waitlist_removed: 'Removed from the waitlist. They have been emailed.',
   registration_promoted: 'They have a seat now and have been emailed their ticket.',
+  request_approved: 'Request approved. They are registered and have been emailed their ticket.',
+  request_declined: 'Request declined. They have been told by email.',
   export_denied: 'You don’t have permission to download attendee lists.',
 };
 const FILTERS = [
   { value: undefined, label: 'All' },
   { value: 'confirmed', label: 'Registered' },
+  { value: 'pending', label: 'Requests' },
   { value: 'waitlisted', label: 'Waitlist' },
+  { value: 'declined', label: 'Declined' },
   { value: 'cancelled', label: 'Cancelled' },
 ] as const;
 
@@ -48,7 +56,11 @@ export default async function RegistrationsPage({
   const sp = await searchParams;
   if (!UUID.test(orgId) || !UUID.test(eventId)) notFound();
   const status =
-    sp.status === 'confirmed' || sp.status === 'cancelled' || sp.status === 'waitlisted'
+    sp.status === 'confirmed' ||
+    sp.status === 'cancelled' ||
+    sp.status === 'waitlisted' ||
+    sp.status === 'pending' ||
+    sp.status === 'declined'
       ? sp.status
       : undefined;
   const notice = typeof sp.notice === 'string' ? NOTICES[sp.notice] : undefined;
@@ -123,6 +135,13 @@ export default async function RegistrationsPage({
           value={seatsLabel(summary.confirmed, summary.capacity)}
           hint={summary.capacity ? 'Seats taken' : 'No capacity limit set'}
         />
+        {summary.approval || summary.pending > 0 ? (
+          <Stat
+            label="Requests"
+            value={summary.pending}
+            hint={summary.approval ? 'Waiting for your decision' : 'Approval is off'}
+          />
+        ) : null}
         {summary.waitlist || summary.waitlisted > 0 ? (
           <Stat
             label="Waitlist"
@@ -191,16 +210,22 @@ export default async function RegistrationsPage({
               title={
                 status === 'waitlisted'
                   ? 'Nobody is waiting'
-                  : status
-                    ? 'No registrations here'
-                    : 'No registrations yet'
+                  : status === 'pending'
+                    ? 'No requests to decide'
+                    : status
+                      ? 'No registrations here'
+                      : 'No registrations yet'
               }
               description={
-                status === 'waitlisted'
-                  ? summary.waitlist
-                    ? 'When the event is full, new sign-ups wait here and get freed seats in order.'
-                    : 'Turn on the waitlist in the event settings to let people wait for a seat.'
-                  : 'People register on the event’s public page once it is published.'
+                status === 'pending'
+                  ? summary.approval
+                    ? 'New sign-ups wait here until you approve or decline them.'
+                    : 'Turn on approval in the event settings to review each sign-up first.'
+                  : status === 'waitlisted'
+                    ? summary.waitlist
+                      ? 'When the event is full, new sign-ups wait here and get freed seats in order.'
+                      : 'Turn on the waitlist in the event settings to let people wait for a seat.'
+                    : 'People register on the event’s public page once it is published.'
               }
             />
           ) : (
@@ -283,6 +308,12 @@ export default async function RegistrationsPage({
                           Waiting
                         </Badge>
                       )
+                    ) : r.status === 'pending' ? (
+                      <Badge tone="warning" dot>
+                        Waiting for approval
+                      </Badge>
+                    ) : r.status === 'declined' ? (
+                      <Badge>Declined</Badge>
                     ) : (
                       <Badge>
                         {r.cancelledBy === 'organizer' ? 'Cancelled by you' : 'Cancelled'}
@@ -303,6 +334,22 @@ export default async function RegistrationsPage({
                         name={r.name}
                         idempotencyKey={newIdempotencyKey()}
                       />
+                    ) : r.status === 'pending' ? (
+                      <span className="cluster row-actions">
+                        {(['approve', 'decline'] as const).map((decision) => (
+                          <DecideRegistrationForm
+                            key={decision}
+                            organizationId={orgId}
+                            eventId={eventId}
+                            registrationId={r.id}
+                            name={r.name}
+                            decision={decision}
+                            idempotencyKey={newIdempotencyKey()}
+                            confirmed={summary.confirmed}
+                            capacity={summary.capacity}
+                          />
+                        ))}
+                      </span>
                     ) : r.status === 'waitlisted' ? (
                       <span className="cluster row-actions">
                         <PromoteRegistrationForm

@@ -1,7 +1,11 @@
 'use client';
 
 import { useActionState } from 'react';
-import { cancelRegistrationAction, promoteRegistrationAction } from '@/app/actions/registrations';
+import {
+  cancelRegistrationAction,
+  promoteRegistrationAction,
+  decideRegistrationAction,
+} from '@/app/actions/registrations';
 import { initialFormState } from '@/lib/errors';
 import { FormMessage, SubmitButton } from './form';
 import { Dialog, DialogCancel } from './ui/dialog';
@@ -98,6 +102,63 @@ export function PromoteRegistrationForm(props: {
           <DialogCancel>Not now</DialogCancel>
           <SubmitButton pendingLabel="Giving a seat…">
             {over ? 'Give a seat over capacity' : 'Give a seat'}
+          </SubmitButton>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** Approves or declines a request waiting for a decision (ADR-0064). */
+export function DecideRegistrationForm(props: {
+  organizationId: string;
+  eventId: string;
+  registrationId: string;
+  name: string;
+  decision: 'approve' | 'decline';
+  idempotencyKey: string;
+  /** Seats taken and capacity, to warn when approving goes over. */
+  confirmed: number;
+  capacity: number | null;
+}) {
+  const [state, action] = useActionState(decideRegistrationAction, initialFormState);
+  const approve = props.decision === 'approve';
+  const over = approve && props.capacity !== null && props.confirmed >= props.capacity;
+  return (
+    <Dialog
+      trigger={{
+        label: (
+          <>
+            {approve ? 'Approve' : 'Decline'}
+            <span className="visually-hidden"> {props.name}</span>…
+          </>
+        ),
+        variant: approve ? 'secondary' : 'danger-secondary',
+        size: 'sm',
+      }}
+      title={approve ? `Approve ${props.name}?` : `Decline ${props.name}?`}
+      description={
+        approve
+          ? over
+            ? `All ${props.capacity} seats are taken, so this goes over capacity. They get a confirmation email with their ticket.`
+            : 'They are registered and get a confirmation email with their ticket.'
+          : 'They get an email saying you can’t offer them a place, with no reason given. They can’t ask again for this event.'
+      }
+    >
+      <form action={action} className="form">
+        <FormMessage state={state} />
+        <input type="hidden" name="organizationId" value={props.organizationId} />
+        <input type="hidden" name="eventId" value={props.eventId} />
+        <input type="hidden" name="registrationId" value={props.registrationId} />
+        <input type="hidden" name="decision" value={props.decision} />
+        <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
+        <div className="form__actions form__actions--end">
+          <DialogCancel>Not now</DialogCancel>
+          <SubmitButton
+            pendingLabel={approve ? 'Approving…' : 'Declining…'}
+            variant={approve ? undefined : 'danger'}
+          >
+            {approve ? (over ? 'Approve over capacity' : 'Approve') : 'Decline request'}
           </SubmitButton>
         </div>
       </form>

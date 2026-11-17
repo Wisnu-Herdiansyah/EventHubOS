@@ -36,7 +36,10 @@ export function CancelRegistration() {
   }
   return (
     <div className="site-form">
-      <p>Cancel your registration, or leave the waitlist? Your place goes to the next person.</p>
+      <p>
+        Cancel your registration, leave the waitlist or withdraw your request? Your place goes to
+        the next person.
+      </p>
       <div>
         <button
           type="button"

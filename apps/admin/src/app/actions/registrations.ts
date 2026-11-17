@@ -73,3 +73,48 @@ export async function promoteRegistrationAction(
     `/orgs/${organizationId}/events/${eventId}/registrations?status=waitlisted&notice=registration_promoted`,
   );
 }
+
+/**
+ * Organizer approves or declines a request (ADR-0064). Approved: they are registered and emailed
+ * their ticket. Declined: they are told, with no reason given.
+ */
+export async function decideRegistrationAction(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const organizationId = formText(form, 'organizationId');
+  const eventId = formText(form, 'eventId');
+  const registrationId = formText(form, 'registrationId');
+  const decision = formText(form, 'decision');
+  if (
+    ![organizationId, eventId, registrationId].every((id) => UUID.test(id)) ||
+    (decision !== 'approve' && decision !== 'decline')
+  ) {
+    return { ok: false, message: 'Something went wrong. Please try again.' };
+  }
+  try {
+    const client = await api();
+    const options = {
+      params: {
+        path: { organizationId, eventId, registrationId },
+        header: { 'Idempotency-Key': formText(form, 'idempotencyKey') },
+      },
+    };
+    unwrap(
+      decision === 'approve'
+        ? await client.POST(
+            '/v1/organizations/{organizationId}/events/{eventId}/registrations/{registrationId}/approve',
+            options,
+          )
+        : await client.POST(
+            '/v1/organizations/{organizationId}/events/{eventId}/registrations/{registrationId}/decline',
+            options,
+          ),
+    );
+  } catch (error) {
+    return errorToFormState(error);
+  }
+  redirect(
+    `/orgs/${organizationId}/events/${eventId}/registrations?status=pending&notice=request_${decision === 'approve' ? 'approved' : 'declined'}`,
+  );
+}

@@ -139,6 +139,7 @@ export default async function EventPage({
     capacity: s.registration?.capacity ? String(s.registration.capacity) : '',
     waitlist: s.registration?.waitlist === true,
     waitlistLimit: s.registration?.waitlistLimit ? String(s.registration.waitlistLimit) : '',
+    approval: s.registration?.approval === true,
     reminder: s.registration?.reminder !== false,
     feedback: s.feedback?.enabled === true,
   };
@@ -296,6 +297,15 @@ export default async function EventPage({
             </p>
             {regSummary.waitlisted > 0 ? (
               <p className="text-secondary">{regSummary.waitlisted} on the waitlist</p>
+            ) : null}
+            {regSummary.pending > 0 ? (
+              <p>
+                <Link href={`/orgs/${orgId}/events/${eventId}/registrations?status=pending`}>
+                  {regSummary.pending === 1
+                    ? '1 request waiting for your decision'
+                    : `${regSummary.pending} requests waiting for your decision`}
+                </Link>
+              </p>
             ) : null}
             {regSummary.checkedIn > 0 ? (
               <p className="text-secondary">{regSummary.checkedIn} checked in</p>
