@@ -534,7 +534,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       path: '/v1/public/registrations/details/update',
       operationId: 'updateRegistrationDetailsByLink',
       summary:
-        "Correct your own name and answers with the link from your email (ADR-0065). Answers are checked against the event's current questions and replace the earlier ones. Until the event ends.",
+        "Correct your own name and answers with the link from your email (ADR-0065). Sent answers are checked against the event's current questions and replace the earlier ones; without answers, only the name changes. Until the event ends.",
       tags: ['public'],
       idempotent: false,
       idempotencyExempt: 'Sets the details to the values sent: repeating it changes nothing.',
@@ -554,20 +554,27 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       async handler({ body, correlationId }) {
         const hash = hashToken(body.token);
         const result = await withTransaction(pool, {}, async (client) => {
-          const current = await client.query<{ out_questions: unknown }>(
-            'SELECT out_questions FROM eventhub.public_registration_details($1)',
-            [hash],
-          );
+          const current = await client.query<{
+            out_questions: unknown;
+            out_answers: Record<string, string | boolean>;
+          }>('SELECT out_questions, out_answers FROM eventhub.public_registration_details($1)', [
+            hash,
+          ]);
           if (!current.rows[0]) return null;
-          // The event's questions now decide which answers are valid (ADR-0041).
-          const { answers, issues } = checkAnswers(
-            storedQuestions(current.rows[0].out_questions),
-            body.answers ?? {},
-          );
-          if (issues.length > 0) {
-            throw new AppError('validation_failed', 'Check your answers.', {
-              details: { fields: issues },
-            });
+          // No answers sent: keep the stored ones and change only the name. Sent answers replace
+          // them, checked against the event's current questions (ADR-0041).
+          let answers = current.rows[0].out_answers;
+          if (body.answers !== undefined) {
+            const checked = checkAnswers(
+              storedQuestions(current.rows[0].out_questions),
+              body.answers,
+            );
+            if (checked.issues.length > 0) {
+              throw new AppError('validation_failed', 'Check your answers.', {
+                details: { fields: checked.issues },
+              });
+            }
+            answers = checked.answers;
           }
           const { rows } = await client.query<{
             out_registration_id: string;

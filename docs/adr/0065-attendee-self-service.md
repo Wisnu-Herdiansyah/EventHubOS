@@ -24,8 +24,14 @@ page of the event site, `/manage-registration`.
 | Their name                             | Their **email address**: it is who they are to the organizer, and moving it would bypass the one-registration-per-address rule |
 | Their answers to the event's questions | Their status, seat, ticket or check-in                                                                                         |
 
-Answers are checked against the event's **current** questions, exactly as at sign-up, and replace
-the earlier answers. An answer to a question the organizer has since removed is dropped.
+Sent answers are checked against the event's **current** questions, exactly as at sign-up, and
+replace the earlier answers. An answer to a question the organizer has since removed is dropped.
+A save **without** answers changes only the name and keeps the stored answers (found in review:
+treating a missing field as "no answers" would have erased them).
+
+The questions are read and the answers saved in two steps, as at sign-up (ADR-0041). If an
+organizer edits the questions in between, the answers are checked against the questions from a
+moment earlier. That window is accepted, as it is for sign-up.
 
 ### When the link works
 
@@ -55,7 +61,7 @@ Saving the same details again changes nothing and records nothing.
 
 ## Tests
 
-- **Integration (10):** the email link and its position; details shown without the email;
+- **Integration (11):** a save without answers keeps them; the email link and its position; details shown without the email;
   saving with trimming, emptied answers, the change time and the audit; saving unchanged details;
   validation of answers and names, and the email refused; waitlisted and pending entries;
   unknown, cancelled, declined, ended and cancelled-event links; one entry changed and not its

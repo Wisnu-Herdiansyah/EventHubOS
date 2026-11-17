@@ -282,6 +282,17 @@ describe('attendee self-service', () => {
     expect((await audits(t.orgId)).map((x) => x.metadata.fields)).toEqual([['name']]);
   });
 
+  it('a save without answers changes only the name and keeps the answers', async () => {
+    const t = await withQuestions();
+    const p = await registered(t);
+    const res = await save({ token: p.token, name: 'Ada Renamed' });
+    expect(res.statusCode, res.body).toBe(200);
+    const row = await stored(t.eventId, p.addr);
+    expect(row.name).toBe('Ada Renamed');
+    expect(row.answers).toEqual({ diet: 'None', company: 'Analytical Engines', photo: true });
+    expect((await audits(t.orgId)).map((x) => x.metadata.fields)).toEqual([['name']]);
+  });
+
   it('checks answers against the event’s current questions', async () => {
     const t = await withQuestions();
     const p = await registered(t);

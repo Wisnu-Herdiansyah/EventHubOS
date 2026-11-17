@@ -834,7 +834,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Correct your own name and answers with the link from your email (ADR-0065). Answers are checked against the event's current questions and replace the earlier ones. Until the event ends. */
+        /** Correct your own name and answers with the link from your email (ADR-0065). Sent answers are checked against the event's current questions and replace the earlier ones; without answers, only the name changes. Until the event ends. */
         post: operations["updateRegistrationDetailsByLink"];
         delete?: never;
         options?: never;
