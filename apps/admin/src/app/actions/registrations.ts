@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { api, unwrap } from '@/lib/api';
 import { errorToFormState, type FormState } from '@/lib/errors';
 import { formText } from '@/lib/form-data';
+import { batchKey } from '@/lib/batch-key';
 import { BULK_DECIDE_MAX } from '@/lib/registrations';
 
 const UUID = /^[0-9a-f-]{36}$/i;
@@ -155,7 +156,13 @@ export async function bulkDecideRegistrationsAction(
         {
           params: {
             path: { organizationId, eventId },
-            header: { 'Idempotency-Key': formText(form, 'idempotencyKey') },
+            header: {
+              'Idempotency-Key': batchKey(
+                formText(form, 'idempotencyKey'),
+                decision,
+                registrationIds,
+              ),
+            },
           },
           body: { decision, registrationIds },
         },
