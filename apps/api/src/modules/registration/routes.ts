@@ -25,8 +25,10 @@ import { enqueueDataDownload } from '../notifications/data-download.ts';
  */
 export const REGISTRATION_CONFIRMATION_REQUESTED = 'registration.confirmation_requested';
 export const REGISTRATION_CANCELLED = 'registration.cancelled';
+export const REGISTRATION_DECLINED = 'registration.declined';
 
-const STATUSES = ['confirmed', 'cancelled', 'waitlisted'] as const;
+/** pending: waiting for an organizer's decision; declined: refused by one (ADR-0064). */
+const STATUSES = ['confirmed', 'cancelled', 'waitlisted', 'pending', 'declined'] as const;
 type Status = (typeof STATUSES)[number];
 
 const PUBLIC_REGISTER_LIMIT = { max: 5, timeWindow: '1 minute' };
@@ -82,6 +84,8 @@ const registrationSchema = z
     promotedBy: z.enum(['waitlist', 'organizer']).nullable(),
     /** When a waiting person was told the waitlist closed (ADR-0038), or null. */
     waitlistClosedAt: z.iso.datetime().nullable(),
+    /** When staff approved or declined the request (ADR-0064), or null. */
+    decidedAt: z.iso.datetime().nullable(),
     /**
      * Answers to the registration questions (ADR-0041). Personal data: only in the attendee list
      * and export (registration.manage), never at the door.
@@ -101,11 +105,15 @@ const summarySchema = z
     cancelled: z.number().int(),
     /** People waiting for a seat (ADR-0035); not those told the waitlist closed (ADR-0038). */
     waitlisted: z.number().int(),
+    /** Requests waiting for an organizer's decision (ADR-0064). */
+    pending: z.number().int(),
     /** Confirmed attendees who have been checked in (ADR-0028). */
     checkedIn: z.number().int(),
     capacity: z.number().int().nullable(),
     /** Whether sign-ups join a waitlist once the event is full. */
     waitlist: z.boolean(),
+    /** Whether each sign-up waits for an organizer's approval (ADR-0064). */
+    approval: z.boolean(),
     /** cancelled: the event was cancelled (ADR-0050); final. */
     state: z.enum(['open', 'not_open_yet', 'closed', 'full', 'cancelled']),
     opensAt: z.iso.datetime().nullable(),
@@ -127,6 +135,7 @@ interface RegistrationRow {
   promoted_at: Date | null;
   promoted_by: 'waitlist' | 'organizer' | null;
   waitlist_closed_at: Date | null;
+  decided_at: Date | null;
   answers: Record<string, string | boolean>;
 }
 
@@ -142,6 +151,7 @@ const toDto = (r: RegistrationRow) => ({
   promotedAt: r.promoted_at?.toISOString() ?? null,
   promotedBy: r.promoted_by,
   waitlistClosedAt: r.waitlist_closed_at?.toISOString() ?? null,
+  decidedAt: r.decided_at?.toISOString() ?? null,
   answers: r.answers,
 });
 
@@ -152,7 +162,7 @@ const toDoorDto = (r: RegistrationRow) => {
 };
 
 const REGISTRATION_COLUMNS =
-  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at, promoted_at, promoted_by, waitlist_closed_at, answers';
+  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at, promoted_at, promoted_by, waitlist_closed_at, decided_at, answers';
 
 /** For the door: no email confirmation, just who and when (ADR-0028). */
 const checkInResultSchema = z
@@ -239,7 +249,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       path: '/v1/public/sites/:handle/events/:eventSlug/registrations',
       operationId: 'registerForEvent',
       summary:
-        'Register for a published event, or join its waitlist when it is full and takes one (ADR-0035). Answers the same whether or not the address was already registered or waiting (no enumeration); 409 when registration is not open or the event is full without a waitlist.',
+        'Register for a published event, join its waitlist when it is full and takes one (ADR-0035), or ask for a place when the organizer approves each one (ADR-0064). Answers the same whether or not the address was already registered or waiting (no enumeration); 409 when registration is not open or the event is full without a waitlist.',
       tags: ['public'],
       idempotent: false,
       idempotencyExempt:
@@ -311,6 +321,20 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                   payload: { eventId: r.out_event_id, kind: 'waitlisted' },
                 },
               );
+            } else if (r.out_outcome === 'requested') {
+              await record(
+                client,
+                r.out_organization_id,
+                SYSTEM,
+                'registration.requested',
+                r.out_registration_id,
+                correlationId,
+                { eventId: r.out_event_id, source: 'public_site' },
+                {
+                  eventType: REGISTRATION_CONFIRMATION_REQUESTED,
+                  payload: { eventId: r.out_event_id, kind: 'requested' },
+                },
+              );
             } else if (r.out_outcome === 'already_registered') {
               // Re-send the confirmation (with a fresh cancel link) to the address itself.
               await enqueueEvent(
@@ -337,6 +361,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
         switch (outcome) {
           case 'registered':
           case 'waitlisted':
+          case 'requested':
           case 'already_registered':
           case 'already_registered_quiet':
             return { status: 202, body: ACCEPTED };
@@ -367,7 +392,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       path: '/v1/public/registrations/cancel',
       operationId: 'cancelRegistrationByLink',
       summary:
-        'Cancel a registration, or leave the waitlist, with the link from its email. Invalid, used and stale links all answer the same. A freed seat goes to the waitlist.',
+        'Cancel a registration, leave the waitlist or withdraw a request, with the link from its email. Invalid, used and stale links all answer the same. A freed seat goes to the waitlist.',
       tags: ['public'],
       idempotent: false,
       idempotencyExempt: 'Single-use link: a repeat finds nothing to cancel.',
@@ -385,6 +410,8 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
               eventName: z.string(),
               /** The link was for a place on the waitlist, not a seat. */
               wasWaitlisted: z.boolean(),
+              /** The link was for a request still waiting for approval (ADR-0064). */
+              wasPending: z.boolean(),
             })
             .meta({ id: 'RegistrationCancelled' }),
         },
@@ -397,7 +424,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
             out_organization_id: string;
             out_event_id: string;
             out_event_name: string;
-            out_previous_status: 'confirmed' | 'waitlisted';
+            out_previous_status: 'confirmed' | 'waitlisted' | 'pending';
           }>('SELECT * FROM eventhub.public_leave_registration($1)', [hash]);
           const r = rows[0];
           if (!r) return null;
@@ -421,6 +448,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
           return {
             eventName: r.out_event_name,
             wasWaitlisted: r.out_previous_status === 'waitlisted',
+            wasPending: r.out_previous_status === 'pending',
           };
         });
         if (result === null) {
@@ -454,17 +482,21 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
               confirmed: number;
               cancelled: number;
               waitlisted: number;
+              pending: number;
               checked_in: number;
               capacity: number | null;
               waitlist: boolean;
+              approval: boolean;
               state: 'open' | 'not_open_yet' | 'closed' | 'full' | 'cancelled';
               opens_at: Date | null;
               closes_at: Date;
             }>(
-              `SELECT c.confirmed, c.cancelled, c.waitlisted, c.checked_in,
+              `SELECT c.confirmed, c.cancelled, c.waitlisted, c.pending, c.checked_in,
                       (e.settings->'registration'->>'capacity')::int AS capacity,
                       coalesce((e.settings->'registration'->>'waitlist')::boolean, false)
                         AS waitlist,
+                      coalesce((e.settings->'registration'->>'approval')::boolean, false)
+                        AS approval,
                       eventhub.registration_state(e, c.confirmed, now()) AS state,
                       (e.settings->'registration'->>'opensAt')::timestamptz AS opens_at,
                       coalesce((e.settings->'registration'->>'closesAt')::timestamptz, e.ends_at)
@@ -475,6 +507,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                           count(*) FILTER (WHERE r.status = 'cancelled')::int AS cancelled,
                           count(*) FILTER (WHERE r.status = 'waitlisted'
                                              AND r.waitlist_closed_at IS NULL)::int AS waitlisted,
+                          count(*) FILTER (WHERE r.status = 'pending')::int AS pending,
                           count(*) FILTER (WHERE r.status = 'confirmed'
                                              AND r.checked_in_at IS NOT NULL)::int AS checked_in
                      FROM eventhub.registration r WHERE r.event_id = e.id
@@ -490,9 +523,11 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                 confirmed: r.confirmed,
                 cancelled: r.cancelled,
                 waitlisted: r.waitlisted,
+                pending: r.pending,
                 checkedIn: r.checked_in,
                 capacity: r.capacity,
                 waitlist: r.waitlist,
+                approval: r.approval,
                 state: r.state,
                 opensAt: r.opens_at?.toISOString() ?? null,
                 closesAt: r.closes_at.toISOString(),
@@ -508,7 +543,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       path: '/v1/organizations/:organizationId/events/:eventId/registrations',
       operationId: 'listRegistrations',
       summary:
-        'Attendees of an event, newest first (up to 1,000); the waitlist in joining order. Personal data: registration.manage.',
+        'Attendees of an event, newest first (up to 1,000); the waitlist and requests awaiting approval in joining order. Personal data: registration.manage.',
       tags: ['registrations'],
       requires: 'registration.manage',
       idempotent: false,
@@ -537,8 +572,8 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                  FROM eventhub.registration
                 WHERE organization_id = $1 AND event_id = $2
                   AND ($3::text IS NULL OR status = $3)
-                ORDER BY CASE WHEN $3 = 'waitlisted' THEN created_at END,
-                         CASE WHEN $3 = 'waitlisted' THEN id END,
+                ORDER BY CASE WHEN $3 IN ('waitlisted', 'pending') THEN created_at END,
+                         CASE WHEN $3 IN ('waitlisted', 'pending') THEN id END,
                          created_at DESC, id DESC
                 LIMIT 1000`,
               [access.organizationId, params.eventId, query.status ?? null],
@@ -715,6 +750,17 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                     details: { reason: 'already_cancelled' },
                   });
                 }
+                // A request is decided, not cancelled (ADR-0064).
+                if (previous === 'pending') {
+                  throw new AppError('conflict', 'Approve or decline this request instead.', {
+                    details: { reason: 'registration_pending' },
+                  });
+                }
+                if (previous === 'declined') {
+                  throw new AppError('conflict', 'This request was declined.', {
+                    details: { reason: 'registration_declined' },
+                  });
+                }
                 const { rows } = await client.query<RegistrationRow>(
                   `UPDATE eventhub.registration
                       SET status = 'cancelled', cancelled_at = now(), cancelled_by = 'organizer'
@@ -829,6 +875,124 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
         );
       },
     }),
+
+    ...(['approve', 'decline'] as const).map((action) =>
+      defineRoute({
+        method: 'POST',
+        path: `/v1/organizations/:organizationId/events/:eventId/registrations/:registrationId/${action}`,
+        operationId: action === 'approve' ? 'approveRegistration' : 'declineRegistration',
+        summary:
+          action === 'approve'
+            ? 'Approve a request (ADR-0064): it becomes a registration and the person is emailed their confirmation and ticket. Allowed beyond capacity, as a choice the organizer makes.'
+            : 'Decline a request (ADR-0064). The person is told by email; the same address cannot ask again for this event.',
+        tags: ['registrations'],
+        requires: 'registration.manage',
+        idempotent: true,
+        schemas: {
+          params: z.object({ organizationId: uuid, eventId: uuid, registrationId: uuid }).strict(),
+          response: { status: 200, schema: registrationSchema },
+        },
+        async handler({ principal, params, correlationId, idempotencyKey, idempotencyScope }) {
+          return withOrganization(
+            pool,
+            principal,
+            params.organizationId,
+            'registration.manage',
+            (client, access: OrganizationAccess) =>
+              runIdempotentCommand(
+                client,
+                {
+                  actorId: principal.userId,
+                  scope: idempotencyScope,
+                  key: idempotencyKey!,
+                  body: {},
+                },
+                async () => {
+                  // Event first, then the entry: the lock order of every path that changes seats.
+                  const ev = await client.query<{
+                    capacity: number | null;
+                    cancelled: boolean;
+                  }>(
+                    `SELECT (settings->'registration'->>'capacity')::int AS capacity,
+                            cancelled_at IS NOT NULL AS cancelled
+                       FROM eventhub.event WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
+                    [access.organizationId, params.eventId],
+                  );
+                  const event = ev.rows[0];
+                  if (!event) throw notFound('Registration');
+                  const current = await client.query<{ status: Status }>(
+                    `SELECT status FROM eventhub.registration
+                      WHERE organization_id = $1 AND event_id = $2 AND id = $3 FOR UPDATE`,
+                    [access.organizationId, params.eventId, params.registrationId],
+                  );
+                  const previous = current.rows[0]?.status;
+                  if (!previous) throw notFound('Registration');
+                  if (previous !== 'pending') {
+                    throw new AppError('conflict', 'This request has already been dealt with.', {
+                      details: { reason: 'not_pending' },
+                    });
+                  }
+                  // Everyone who asked was told by the cancellation email (ADR-0050).
+                  if (event.cancelled) {
+                    throw new AppError('conflict', 'This event is cancelled.', {
+                      details: { reason: 'event_cancelled' },
+                    });
+                  }
+                  const { rows } = await client.query<RegistrationRow>(
+                    `UPDATE eventhub.registration
+                        SET status = $4, decided_at = now(), decided_by = $5
+                      WHERE organization_id = $1 AND event_id = $2 AND id = $3
+                  RETURNING ${REGISTRATION_COLUMNS}`,
+                    [
+                      access.organizationId,
+                      params.eventId,
+                      params.registrationId,
+                      action === 'approve' ? 'confirmed' : 'declined',
+                      access.userId,
+                    ],
+                  );
+                  const row = rows[0]!;
+                  const actor = { type: 'user' as const, id: access.userId };
+                  if (action === 'approve') {
+                    const confirmed = await client.query<{ n: number }>(
+                      `SELECT count(*)::int AS n FROM eventhub.registration
+                        WHERE organization_id = $1 AND event_id = $2 AND status = 'confirmed'`,
+                      [access.organizationId, params.eventId],
+                    );
+                    const overCapacity =
+                      event.capacity !== null && confirmed.rows[0]!.n > event.capacity;
+                    await record(
+                      client,
+                      access.organizationId,
+                      actor,
+                      'registration.approved',
+                      row.id,
+                      correlationId,
+                      { eventId: params.eventId, overCapacity },
+                      {
+                        eventType: REGISTRATION_CONFIRMATION_REQUESTED,
+                        payload: { eventId: params.eventId, kind: 'approved' },
+                      },
+                    );
+                  } else {
+                    await record(
+                      client,
+                      access.organizationId,
+                      actor,
+                      'registration.declined',
+                      row.id,
+                      correlationId,
+                      { eventId: params.eventId },
+                      { eventType: REGISTRATION_DECLINED, payload: { eventId: params.eventId } },
+                    );
+                  }
+                  return { status: 200, body: toDto(row) };
+                },
+              ),
+          );
+        },
+      }),
+    ),
 
     defineRoute({
       method: 'GET',
@@ -968,6 +1132,18 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                     if (reg.status === 'waitlisted') {
                       throw new AppError('conflict', 'This person is on the waitlist.', {
                         details: { reason: 'registration_waitlisted' },
+                      });
+                    }
+                    if (reg.status === 'pending') {
+                      throw new AppError(
+                        'conflict',
+                        'This person’s request has not been approved yet.',
+                        { details: { reason: 'registration_pending' } },
+                      );
+                    }
+                    if (reg.status === 'declined') {
+                      throw new AppError('conflict', 'This person’s request was declined.', {
+                        details: { reason: 'registration_declined' },
                       });
                     }
                     if (reg.status !== 'confirmed') {

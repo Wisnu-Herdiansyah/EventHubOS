@@ -127,15 +127,18 @@ export async function cancelRegistrationAction(
     const body = (await res.json().catch(() => ({}))) as {
       eventName?: string;
       wasWaitlisted?: boolean;
+      wasPending?: boolean;
       error?: { message?: string };
     };
     if (res.ok) {
       const event = body.eventName ?? 'the event';
       return {
         ok: true,
-        message: body.wasWaitlisted
-          ? `You’ve left the waitlist for ${event}.`
-          : `Your registration for ${event} is cancelled.`,
+        message: body.wasPending
+          ? `You’ve withdrawn your request for ${event}.`
+          : body.wasWaitlisted
+            ? `You’ve left the waitlist for ${event}.`
+            : `Your registration for ${event} is cancelled.`,
       };
     }
     return {

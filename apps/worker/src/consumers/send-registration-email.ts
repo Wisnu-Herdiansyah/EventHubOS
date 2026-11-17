@@ -6,21 +6,23 @@ import { deriveEmailToken } from './verification-token.ts';
 
 export const REGISTRATION_CONFIRMATION_REQUESTED = 'registration.confirmation_requested';
 export const REGISTRATION_CANCELLED = 'registration.cancelled';
+export const REGISTRATION_DECLINED = 'registration.declined';
 
 const confirmationPayload = z.object({
   registrationId: z.uuid(),
   eventId: z.uuid(),
   /**
    * new: registered; repeat: signed up again; waitlisted: joined the waitlist; promoted: got a
-   * seat from the waitlist (ADR-0035).
+   * seat from the waitlist (ADR-0035); requested: asked for a place; approved: the organizer
+   * approved the request (ADR-0064).
    */
-  kind: z.enum(['new', 'repeat', 'waitlisted', 'promoted']),
+  kind: z.enum(['new', 'repeat', 'waitlisted', 'promoted', 'requested', 'approved']),
 });
 const cancelledPayload = z.object({
   registrationId: z.uuid(),
   by: z.enum(['attendee', 'organizer']),
   /** What was cancelled; absent on events from before the waitlist. */
-  from: z.enum(['confirmed', 'waitlisted']).optional(),
+  from: z.enum(['confirmed', 'waitlisted', 'pending']).optional(),
 });
 
 /** Each kind is sent only while the entry is still in the state it announces. */
@@ -28,7 +30,9 @@ const SENDABLE: Record<z.infer<typeof confirmationPayload>['kind'], string[]> = 
   new: ['confirmed'],
   promoted: ['confirmed'],
   waitlisted: ['waitlisted'],
-  repeat: ['confirmed', 'waitlisted'],
+  repeat: ['confirmed', 'waitlisted', 'pending'],
+  requested: ['pending'],
+  approved: ['confirmed'],
 };
 
 export interface RegistrationEmailOptions {
@@ -78,7 +82,7 @@ export function sendRegistrationConfirmationConsumer(
         out_timezone: string;
         out_handle: string | null;
         out_event_slug: string;
-        out_status: 'confirmed' | 'waitlisted';
+        out_status: 'confirmed' | 'waitlisted' | 'pending';
       }>('SELECT * FROM eventhub.registration_issue_link_token($1, $2, $3)', [
         payload.registrationId,
         event.organizationId,
@@ -94,6 +98,30 @@ export function sendRegistrationConfirmationConsumer(
           : null;
       const eventPage = site ? [`Event page: ${site}/${r.out_event_slug}`] : [];
       const link = site ? `${site}/cancel-registration#token=${token}` : null;
+      if (r.out_status === 'pending') {
+        // ADR-0064: no ticket until the organizer approves; the link withdraws the request.
+        await sender.send({
+          messageId: event.eventId,
+          to: r.out_email,
+          template: 'registration_requested',
+          subject: `Request received: ${r.out_event_name}`,
+          text: [
+            `Hello ${r.out_name},`,
+            '',
+            payload.kind === 'repeat'
+              ? `You've already asked for a place at ${r.out_event_name}. It is still waiting for the organizer.`
+              : `Thank you for asking for a place at ${r.out_event_name}. The organizer reviews each request.`,
+            "We'll email you when they decide. You're not registered until then, and you don't have a ticket yet.",
+            `When: ${when(r.out_starts_at, r.out_timezone)}`,
+            ...eventPage,
+            '',
+            link
+              ? `Changed your mind? Withdraw your request: ${link}`
+              : 'Changed your mind? Reply to the organizer.',
+          ].join('\n'),
+        });
+        return;
+      }
       if (r.out_status === 'waitlisted') {
         await sender.send({
           messageId: event.eventId,
@@ -125,11 +153,15 @@ export function sendRegistrationConfirmationConsumer(
             ? 'registration_confirmed'
             : payload.kind === 'promoted'
               ? 'registration_promoted'
-              : 'registration_reminder',
+              : payload.kind === 'approved'
+                ? 'registration_approved'
+                : 'registration_reminder',
         subject:
           payload.kind === 'promoted'
             ? `A seat opened up: you're registered for ${r.out_event_name}`
-            : `You're registered: ${r.out_event_name}`,
+            : payload.kind === 'approved'
+              ? `Your request is approved: ${r.out_event_name}`
+              : `You're registered: ${r.out_event_name}`,
         text: [
           `Hello ${r.out_name},`,
           '',
@@ -137,7 +169,9 @@ export function sendRegistrationConfirmationConsumer(
             ? `You're registered for ${r.out_event_name}.`
             : payload.kind === 'promoted'
               ? `Good news: a seat opened up, and you're now registered for ${r.out_event_name}.`
-              : `You're already registered for ${r.out_event_name}; here are your details again.`,
+              : payload.kind === 'approved'
+                ? `Good news: the organizer approved your request, and you're now registered for ${r.out_event_name}.`
+                : `You're already registered for ${r.out_event_name}; here are your details again.`,
           `When: ${when(r.out_starts_at, r.out_timezone)}`,
           ...eventPage,
           // ADR-0029: the QR code is drawn from the fragment, which browsers never send.
@@ -176,6 +210,20 @@ export function sendRegistrationCancelledConsumer(sender: EmailSender): EventCon
       ]);
       const r = rows[0];
       if (!r) return;
+      if (payload.from === 'pending') {
+        await sender.send({
+          messageId: event.eventId,
+          to: r.out_email,
+          template: 'registration_request_withdrawn',
+          subject: `Request withdrawn: ${r.out_event_name}`,
+          text: [
+            `Hello ${r.out_name},`,
+            '',
+            `You've withdrawn your request for a place at ${r.out_event_name}, as you asked.`,
+          ].join('\n'),
+        });
+        return;
+      }
       const waiting = payload.from === 'waitlisted';
       await sender.send({
         messageId: event.eventId,
@@ -194,6 +242,44 @@ export function sendRegistrationCancelledConsumer(sender: EmailSender): EventCon
             : payload.by === 'attendee'
               ? `Your registration for ${r.out_event_name} is cancelled, as you asked.`
               : `The organizer cancelled your registration for ${r.out_event_name}.`,
+        ].join('\n'),
+      });
+    },
+  };
+}
+
+const declinedPayload = z.object({ registrationId: z.uuid(), eventId: z.uuid() });
+
+/** The organizer declined a request (ADR-0064). The email gives no reason. */
+export function sendRegistrationDeclinedConsumer(sender: EmailSender): EventConsumer {
+  return {
+    name: 'registration.send_declined_email',
+    eventTypes: [REGISTRATION_DECLINED],
+    async handle(event, client) {
+      const payload = declinedPayload.parse(event.payload);
+      if (!event.organizationId) return;
+      const { rows } = await client.query<{
+        out_email: string;
+        out_name: string;
+        out_event_name: string;
+      }>('SELECT * FROM eventhub.registration_notice_details($1, $2)', [
+        payload.registrationId,
+        event.organizationId,
+      ]);
+      const r = rows[0];
+      // A declined request is final (ADR-0064), so there is no later state to check for.
+      if (!r) return;
+      await sender.send({
+        messageId: event.eventId,
+        to: r.out_email,
+        template: 'registration_declined',
+        subject: `About your request: ${r.out_event_name}`,
+        text: [
+          `Hello ${r.out_name},`,
+          '',
+          `Thank you for your interest in ${r.out_event_name}.`,
+          "The organizer isn't able to offer you a place this time.",
+          "You don't need to do anything.",
         ].join('\n'),
       });
     },

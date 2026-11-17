@@ -31,6 +31,8 @@ const sections = {
       waitlist: z.boolean().optional(),
       /** At most this many people waiting; then the event is full again (ADR-0038). */
       waitlistLimit: z.number().int().min(1).max(10_000).optional(),
+      /** Each sign-up waits for an organizer's approval (ADR-0064). Unset means off. */
+      approval: z.boolean().optional(),
       /** A reminder email the day before the event (ADR-0062). Unset means on. */
       reminder: z.boolean().optional(),
       /** Extra questions on the sign-up form (ADR-0041). */
@@ -150,6 +152,12 @@ export function settingsIssues(
     issues.push({
       path: 'body.settings.registration.waitlistLimit',
       message: 'A waitlist limit needs the waitlist turned on.',
+    });
+  }
+  if (reg?.approval && reg.waitlist) {
+    issues.push({
+      path: 'body.settings.registration.approval',
+      message: 'An event cannot both approve each sign-up and take a waitlist.',
     });
   }
   if (reg?.waitlist && reg.capacity === undefined) {

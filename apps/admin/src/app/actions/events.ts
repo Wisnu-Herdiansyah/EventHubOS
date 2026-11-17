@@ -130,6 +130,11 @@ function settingsFromForm(
     fields.capacity = 'Enter a whole number of at least 1.';
   const waitlist = form.get('waitlist') === 'on' ? true : undefined;
   if (waitlist && !capacityRaw) fields.waitlist = 'Set a capacity to use a waitlist.';
+  // ADR-0064: on or off; only "on" is stored. It cannot be combined with a waitlist.
+  const approval = form.get('approval') === 'on' ? true : undefined;
+  if (approval && waitlist) {
+    fields.approval = 'Turn off the waitlist to approve each sign-up, or the other way round.';
+  }
   const limitRaw = str(form, 'waitlistLimit');
   const waitlistLimit = waitlist && limitRaw ? Number(limitRaw) : undefined;
   if (waitlist && limitRaw && (!Number.isInteger(waitlistLimit) || waitlistLimit! < 1))
@@ -158,6 +163,7 @@ function settingsFromForm(
       capacity,
       waitlist,
       waitlistLimit,
+      approval,
       reminder,
     }),
   };

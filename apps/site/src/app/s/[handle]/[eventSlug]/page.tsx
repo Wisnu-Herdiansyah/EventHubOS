@@ -24,6 +24,7 @@ function registerSlot(page: PublicEventPageData, handle: string, eventSlug: stri
         privacyPolicyUrl={page.privacyPolicyUrl}
         ctaLabel={(register?.type === 'register' && register.ctaLabel) || 'Register'}
         waitlist={r.state === 'waitlist'}
+        approval={r.approval}
         questions={r.questions}
       />
     );

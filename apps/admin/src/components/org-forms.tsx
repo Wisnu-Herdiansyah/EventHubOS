@@ -218,6 +218,8 @@ export interface SettingsDefaults {
   capacity: string;
   waitlist: boolean;
   waitlistLimit: string;
+  /** Each sign-up waits for approval (ADR-0064). */
+  approval: boolean;
   /** Reminder email the day before (ADR-0062). */
   reminder: boolean;
   /** Ask for feedback after the event (ADR-0063). */
@@ -245,6 +247,38 @@ function ReminderField({ state, defaultChecked }: { state: FormState; defaultChe
         the time and a link to the event page. People who sign up in those last 24 hours get only
         their confirmation.
       </span>
+    </div>
+  );
+}
+
+/** Approval on or off (ADR-0064), with its field error from the form state. */
+function ApprovalField({ state, defaultChecked }: { state: FormState; defaultChecked: boolean }) {
+  const error = state.fields?.approval;
+  const values = state.values;
+  // After a failed save, show what was submitted rather than the stored value.
+  const checked = values ? values.approval === 'on' : defaultChecked;
+  return (
+    <div className="field">
+      <label className="checkbox">
+        <input
+          type="checkbox"
+          name="approval"
+          defaultChecked={checked}
+          aria-describedby={error ? 'approval-error approval-hint' : 'approval-hint'}
+          aria-invalid={error ? true : undefined}
+        />
+        <span>Approve each sign-up before confirming it</span>
+      </label>
+      <span className="field__hint" id="approval-hint">
+        Sign-ups wait as requests under Registrations until you approve or decline them. Requests
+        hold no seat; people get their ticket only once approved. Can’t be combined with a waitlist.
+      </span>
+      {error ? (
+        <div className="field__error" id="approval-error">
+          <Icon name="error" size={16} />
+          <span>{error}</span>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -473,6 +507,7 @@ export function EventSettingsForm(props: {
             hint="Optional. Once this many people are waiting, the event shows as full. When registration closes, everyone still waiting is emailed that no seat became free."
           />
         </div>
+        <ApprovalField state={state} defaultChecked={d.approval} />
         <ReminderField state={state} defaultChecked={d.reminder} />
         <FeedbackField state={state} defaultChecked={d.feedback} />
       </fieldset>

@@ -21,6 +21,8 @@ const STATUS: Record<string, string> = {
   confirmed: 'Registered',
   cancelled: 'Cancelled',
   waitlisted: 'On the waitlist',
+  pending: 'Waiting for approval',
+  declined: 'Declined',
 };
 const BY: Record<string, string> = { attendee: 'Attendee', organizer: 'Organizer' };
 

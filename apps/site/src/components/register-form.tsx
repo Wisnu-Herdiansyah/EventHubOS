@@ -25,6 +25,7 @@ export function RegisterForm({
   privacyPolicyUrl,
   ctaLabel,
   waitlist = false,
+  approval = false,
   questions = [],
 }: {
   handle: string;
@@ -32,6 +33,8 @@ export function RegisterForm({
   privacyPolicyUrl: string | null;
   ctaLabel: string;
   waitlist?: boolean;
+  /** Sign-ups wait for the organizer's approval (ADR-0064). */
+  approval?: boolean;
   /** The event's extra questions (ADR-0041). */
   questions?: Question[];
 }) {
@@ -53,6 +56,11 @@ export function RegisterForm({
       {waitlist ? (
         <p className="site-notice" role="status">
           This event is full. Join the waitlist and we’ll email you if a seat opens up.
+        </p>
+      ) : approval ? (
+        <p className="site-notice" role="status">
+          The organizer reviews each request. We’ll email you when they decide; you’re registered
+          only once they approve.
         </p>
       ) : null}
       {state.status === 'error' && state.message ? (

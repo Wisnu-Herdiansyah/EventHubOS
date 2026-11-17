@@ -32,6 +32,7 @@ import { sendFeedbackRequestsOnce } from './event-feedback.ts';
 import {
   sendRegistrationCancelledConsumer,
   sendRegistrationConfirmationConsumer,
+  sendRegistrationDeclinedConsumer,
 } from './consumers/send-registration-email.ts';
 import {
   sendPasswordChangedEmailConsumer,
@@ -119,6 +120,7 @@ const consumers = [
     tokenSecret: config.emailTokenSecret,
   }),
   sendRegistrationCancelledConsumer(emailSender),
+  sendRegistrationDeclinedConsumer(emailSender),
   ...(objectStore ? [deleteAssetObjectsConsumer(objectStore)] : []),
 ];
 // PostgreSQL outbox broker (ADR-0009): the outbox table is the durable queue.

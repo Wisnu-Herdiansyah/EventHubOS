@@ -491,7 +491,7 @@ export function eventManagementRoutes(pool: Pool): AnyRoute[] {
                 const count = await client.query<{ n: number }>(
                   `SELECT count(*)::int AS n FROM eventhub.registration
                     WHERE organization_id = $1 AND event_id = $2
-                      AND status IN ('confirmed', 'waitlisted')`,
+                      AND status IN ('confirmed', 'waitlisted', 'pending')`,
                   [access.organizationId, row.id],
                 );
                 const people = count.rows[0]!.n;

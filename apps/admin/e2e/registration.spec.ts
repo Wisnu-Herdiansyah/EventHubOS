@@ -1117,3 +1117,115 @@ test('after the event, an attendee gives feedback from their email and the organ
     theirs.getByText('Comments are shown to people who can manage registrations.'),
   ).toBeVisible();
 });
+
+test('an organizer approves one request and declines another (ADR-0064)', async ({
+  page,
+  browser,
+}) => {
+  const t = await publishedEvent('approval', { capacity: 10 });
+  const people = { kept: uniqueEmail('ap-kept'), refused: uniqueEmail('ap-refused') };
+
+  // Approval and a waitlist cannot be combined; approval alone saves.
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}`);
+  await page.getByRole('tab', { name: 'Settings' }).click();
+  const approval = page.getByRole('checkbox', {
+    name: 'Approve each sign-up before confirming it',
+  });
+  const waitlist = page.getByRole('checkbox', { name: 'Take a waitlist when the event is full' });
+  await expect(approval).not.toBeChecked();
+  await approval.check();
+  await waitlist.check();
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(
+    page.getByText('Turn off the waitlist to approve each sign-up, or the other way round.'),
+  ).toBeVisible();
+  await waitlist.uncheck();
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(page.getByText('Settings saved.')).toBeVisible();
+
+  // Two people ask for a place; the form says requests are reviewed.
+  const v = await visitor(browser);
+  const askFor = async (name: string, email: string) => {
+    await v.page.goto(t.url);
+    const form = v.page.getByRole('region', { name: 'Save your seat' });
+    await expect(form.getByText('The organizer reviews each request.')).toBeVisible();
+    await form.getByLabel('Name', { exact: true }).fill(name);
+    await form.getByLabel('Email', { exact: true }).fill(email);
+    await form.getByRole('checkbox').check();
+    await form.getByRole('button', { name: 'Save my seat' }).click();
+    await expect(form.getByRole('status').last()).toContainText('Check your email');
+  };
+  await askFor('Kim Kept', people.kept);
+  await axeScan(v.page);
+  await askFor('Ray Refused', people.refused);
+  const requested = await mailMessage(people.kept, 'registration_requested');
+  expect(requested.text).toContain("you don't have a ticket yet");
+
+  // The organizer sees both waiting.
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}`);
+  await page.getByRole('link', { name: '2 requests waiting for your decision' }).click();
+  await expect(page).toHaveURL(/status=pending/);
+  const table = page.getByRole('table', { name: 'Attendees' });
+  await expect(table.getByText('Waiting for approval')).toHaveCount(2);
+  await expectAccessible(page);
+
+  // Approve one.
+  await page.getByRole('button', { name: 'Approve Kim Kept' }).click();
+  const approveDialog = page.getByRole('dialog', { name: 'Approve Kim Kept?' });
+  await expect(approveDialog).toContainText('confirmation email with their ticket');
+  await approveDialog.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(page.getByText('Request approved.')).toBeVisible();
+  const approved = await mailMessage(people.kept, 'registration_approved');
+  expect(approved.text).toContain('/ticket#id=');
+
+  // Decline the other.
+  await page.getByRole('button', { name: 'Decline Ray Refused' }).click();
+  const declineDialog = page.getByRole('dialog', { name: 'Decline Ray Refused?' });
+  await expect(declineDialog).toContainText('no reason given');
+  await declineDialog.getByRole('button', { name: 'Decline request' }).click();
+  await expect(page.getByText('Request declined.')).toBeVisible();
+  await expect(page.getByText('No requests to decide')).toBeVisible();
+  const declined = await mailMessage(people.refused, 'registration_declined');
+  expect(declined.text).toContain("isn't able to offer you a place");
+
+  // The lists and counts follow.
+  await page.getByRole('link', { name: 'Registered' }).click();
+  await expect(
+    page
+      .getByRole('table', { name: 'Attendees' })
+      .locator('.table__primary', { hasText: 'Kim Kept' }),
+  ).toBeVisible();
+  await page.getByRole('link', { name: 'Declined' }).click();
+  await expect(
+    page
+      .getByRole('table', { name: 'Attendees' })
+      .locator('.table__primary', { hasText: 'Ray Refused' }),
+  ).toBeVisible();
+  await expectAccessible(page);
+  await v.context.close();
+});
+
+test('a person withdraws their request with the link in their email (ADR-0064)', async ({
+  browser,
+}) => {
+  const t = await publishedEvent('withdraw', { capacity: 10, approval: true });
+  const person = uniqueEmail('ap-withdraw');
+  const v = await visitor(browser);
+  await v.page.goto(t.url);
+  const form = v.page.getByRole('region', { name: 'Save your seat' });
+  await form.getByLabel('Name', { exact: true }).fill('Wes Withdraw');
+  await form.getByLabel('Email', { exact: true }).fill(person);
+  await form.getByRole('checkbox').check();
+  await form.getByRole('button', { name: 'Save my seat' }).click();
+  await expect(form.getByRole('status').last()).toContainText('Check your email');
+  const link = await mailLink(person, 'registration_requested');
+  await v.page.goto(link);
+  await v.page.getByRole('button', { name: 'Yes, cancel my place' }).click();
+  await expect(v.page.getByRole('status')).toHaveText(
+    'You’ve withdrawn your request for Private Summit.',
+  );
+  await axeScan(v.page);
+  await mailMessage(person, 'registration_request_withdrawn');
+  await v.context.close();
+});
