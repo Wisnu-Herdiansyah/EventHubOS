@@ -58,6 +58,8 @@ export const RESERVED_EVENT_SLUGS = new Set([
   'cancel-registration',
   // Public site path for giving feedback (ADR-0063).
   'feedback',
+  // Public site path for changing your own registration details (ADR-0065).
+  'manage-registration',
 ]);
 
 export const slugSchema = z

@@ -26,6 +26,8 @@ export function internalPath(handle: string, pathname: string): string | null {
   if (parts.length === 1 && parts[0] === 'cancel-registration') return `/c/${handle}`;
   // Feedback link from the email after an event (ADR-0063); this slug is reserved too.
   if (parts.length === 1 && parts[0] === 'feedback') return `/f/${handle}`;
+  // Change your own details, from the registration email (ADR-0065); reserved too.
+  if (parts.length === 1 && parts[0] === 'manage-registration') return `/m/${handle}`;
   if (parts.length === 1 && SLUG.test(parts[0]!)) return `/s/${handle}/${parts[0]}`;
   // An attendee's ticket (ADR-0029); the registration ID stays in the fragment.
   if (parts.length === 2 && SLUG.test(parts[0]!) && parts[1] === 'ticket') {

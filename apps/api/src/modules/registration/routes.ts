@@ -35,20 +35,32 @@ const PUBLIC_REGISTER_LIMIT = { max: 5, timeWindow: '1 minute' };
 const PUBLIC_CANCEL_LIMIT = { max: 10, timeWindow: '1 minute' };
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 const SYSTEM: Actor = { type: 'system', id: null };
+const linkToken = z.string().regex(TOKEN_RE, 'Malformed link.');
+const hashToken = (token: string) => createHash('sha256').update(token).digest();
+/** Unknown, used, cancelled and closed links all answer the same (ADR-0065). */
+const closedLink = () =>
+  new AppError(
+    'validation_failed',
+    'This link can no longer be used to change your details. The event may have ended, or the registration was cancelled.',
+    { details: { reason: 'invalid_or_closed_link' } },
+  );
 /** Rows in one export (ADR-0027). Larger events need a background export. */
 export const EXPORT_LIMIT = 10_000;
 
 const handle = z.string().regex(/^[a-z0-9]([a-z0-9-]{1,38}[a-z0-9])$/);
 
+/** A person's name as they give it: one line of plain text. */
+const personName = z
+  .string()
+  .trim()
+  .min(1, 'Enter your name.')
+  .max(120)
+  // eslint-disable-next-line no-control-regex
+  .regex(/^[^\u0000-\u001f\u007f]*$/, 'Use plain text.');
+
 const registerBody = z
   .object({
-    name: z
-      .string()
-      .trim()
-      .min(1, 'Enter your name.')
-      .max(120)
-      // eslint-disable-next-line no-control-regex
-      .regex(/^[^\u0000-\u001f\u007f]*$/, 'Use plain text.'),
+    name: personName,
     email: emailSchema,
     privacyConsent: z.literal(true, 'Agree to the privacy policy to register.'),
     /** Honeypot: hidden from people, filled in by naive bots. Must be empty. */
@@ -86,6 +98,8 @@ const registrationSchema = z
     waitlistClosedAt: z.iso.datetime().nullable(),
     /** When staff approved or declined the request (ADR-0064), or null. */
     decidedAt: z.iso.datetime().nullable(),
+    /** When the person last changed their own name or answers (ADR-0065), or null. */
+    detailsUpdatedAt: z.iso.datetime().nullable(),
     /**
      * Answers to the registration questions (ADR-0041). Personal data: only in the attendee list
      * and export (registration.manage), never at the door.
@@ -123,6 +137,18 @@ const summarySchema = z
 
 const eventParams = z.object({ organizationId: uuid, eventId: uuid }).strict();
 
+/** What a person sees of their own entry (ADR-0065): not their email, not staff notes. */
+const ownDetailsSchema = z
+  .object({
+    eventName: z.string(),
+    organizationName: z.string(),
+    status: z.enum(['confirmed', 'waitlisted', 'pending']),
+    name: z.string(),
+    answers: z.record(z.string(), z.union([z.string(), z.boolean()])),
+    questions: z.array(questionSchema),
+  })
+  .meta({ id: 'OwnRegistrationDetails' });
+
 interface RegistrationRow {
   id: string;
   name: string;
@@ -136,6 +162,7 @@ interface RegistrationRow {
   promoted_by: 'waitlist' | 'organizer' | null;
   waitlist_closed_at: Date | null;
   decided_at: Date | null;
+  details_updated_at: Date | null;
   answers: Record<string, string | boolean>;
 }
 
@@ -152,6 +179,7 @@ const toDto = (r: RegistrationRow) => ({
   promotedBy: r.promoted_by,
   waitlistClosedAt: r.waitlist_closed_at?.toISOString() ?? null,
   decidedAt: r.decided_at?.toISOString() ?? null,
+  detailsUpdatedAt: r.details_updated_at?.toISOString() ?? null,
   answers: r.answers,
 });
 
@@ -162,7 +190,7 @@ const toDoorDto = (r: RegistrationRow) => {
 };
 
 const REGISTRATION_COLUMNS =
-  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at, promoted_at, promoted_by, waitlist_closed_at, decided_at, answers';
+  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at, promoted_at, promoted_by, waitlist_closed_at, decided_at, details_updated_at, answers';
 
 /** For the door: no email confirmation, just who and when (ADR-0028). */
 const checkInResultSchema = z
@@ -459,6 +487,130 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
           );
         }
         return { status: 200, body: { status: 'cancelled', ...result } };
+      },
+    }),
+
+    definePublicRoute({
+      method: 'POST',
+      path: '/v1/public/registrations/details',
+      operationId: 'getRegistrationDetailsByLink',
+      summary:
+        "A person's own name and answers, with the link from their email (ADR-0065), so they can correct them. Invalid, used and closed links all answer the same. The email address is not returned.",
+      tags: ['public'],
+      idempotent: false,
+      idempotencyExempt: 'Reads only: it is a POST so the token stays out of URLs and logs.',
+      rateLimit: PUBLIC_CANCEL_LIMIT,
+      schemas: {
+        body: z.object({ token: linkToken }).strict().meta({ id: 'RegistrationLinkRequest' }),
+        response: { status: 200, schema: ownDetailsSchema },
+      },
+      async handler({ body }) {
+        const { rows } = await pool.query<{
+          out_event_name: string;
+          out_org_name: string;
+          out_status: 'confirmed' | 'waitlisted' | 'pending';
+          out_name: string;
+          out_answers: Record<string, string | boolean>;
+          out_questions: unknown;
+        }>('SELECT * FROM eventhub.public_registration_details($1)', [hashToken(body.token)]);
+        const r = rows[0];
+        if (!r) throw closedLink();
+        return {
+          status: 200,
+          body: {
+            eventName: r.out_event_name,
+            organizationName: r.out_org_name,
+            status: r.out_status,
+            name: r.out_name,
+            answers: r.out_answers,
+            questions: storedQuestions(r.out_questions),
+          },
+        };
+      },
+    }),
+
+    definePublicRoute({
+      method: 'POST',
+      path: '/v1/public/registrations/details/update',
+      operationId: 'updateRegistrationDetailsByLink',
+      summary:
+        "Correct your own name and answers with the link from your email (ADR-0065). Sent answers are checked against the event's current questions and replace the earlier ones; without answers, only the name changes. Until the event ends.",
+      tags: ['public'],
+      idempotent: false,
+      idempotencyExempt: 'Sets the details to the values sent: repeating it changes nothing.',
+      rateLimit: PUBLIC_CANCEL_LIMIT,
+      schemas: {
+        body: z
+          .object({ token: linkToken, name: personName, answers: answersInput.optional() })
+          .strict()
+          .meta({ id: 'UpdateRegistrationDetailsRequest' }),
+        response: {
+          status: 200,
+          schema: z
+            .object({ status: z.literal('saved'), eventName: z.string(), changed: z.boolean() })
+            .meta({ id: 'RegistrationDetailsSaved' }),
+        },
+      },
+      async handler({ body, correlationId }) {
+        const hash = hashToken(body.token);
+        const result = await withTransaction(pool, {}, async (client) => {
+          const current = await client.query<{
+            out_questions: unknown;
+            out_answers: Record<string, string | boolean>;
+          }>('SELECT out_questions, out_answers FROM eventhub.public_registration_details($1)', [
+            hash,
+          ]);
+          if (!current.rows[0]) return null;
+          // No answers sent: keep the stored ones and change only the name. Sent answers replace
+          // them, checked against the event's current questions (ADR-0041).
+          let answers = current.rows[0].out_answers;
+          if (body.answers !== undefined) {
+            const checked = checkAnswers(
+              storedQuestions(current.rows[0].out_questions),
+              body.answers,
+            );
+            if (checked.issues.length > 0) {
+              throw new AppError('validation_failed', 'Check your answers.', {
+                details: { fields: checked.issues },
+              });
+            }
+            answers = checked.answers;
+          }
+          const { rows } = await client.query<{
+            out_registration_id: string;
+            out_organization_id: string;
+            out_event_id: string;
+            out_event_name: string;
+            out_name_changed: boolean;
+            out_answers_changed: boolean;
+          }>('SELECT * FROM eventhub.public_update_registration($1, $2, $3)', [
+            hash,
+            body.name,
+            JSON.stringify(answers),
+          ]);
+          const r = rows[0];
+          if (!r) return null;
+          const changed = [
+            ...(r.out_name_changed ? ['name'] : []),
+            ...(r.out_answers_changed ? ['answers'] : []),
+          ];
+          if (changed.length > 0) {
+            await setTenantContext(client, r.out_organization_id);
+            // Which fields, never their values: attendee details stay out of audit records.
+            await record(
+              client,
+              r.out_organization_id,
+              SYSTEM,
+              'registration.details_changed',
+              r.out_registration_id,
+              correlationId,
+              { eventId: r.out_event_id, by: 'attendee', fields: changed },
+            );
+          }
+          return { eventName: r.out_event_name, changed: changed.length > 0 };
+        });
+        if (result === null) throw closedLink();
+        return { status: 200, body: { status: 'saved', ...result } };
       },
     }),
 

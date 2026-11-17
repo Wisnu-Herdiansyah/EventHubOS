@@ -98,6 +98,11 @@ export function sendRegistrationConfirmationConsumer(
           : null;
       const eventPage = site ? [`Event page: ${site}/${r.out_event_slug}`] : [];
       const link = site ? `${site}/cancel-registration#token=${token}` : null;
+      // ADR-0065: the same token lets the person correct their own name and answers. It comes
+      // after the cancel link, so the cancel link stays the first link in every email.
+      const manage = site
+        ? ['', `Need to correct your name or answers? ${site}/manage-registration#token=${token}`]
+        : [];
       if (r.out_status === 'pending') {
         // ADR-0064: no ticket until the organizer approves; the link withdraws the request.
         await sender.send({
@@ -118,6 +123,7 @@ export function sendRegistrationConfirmationConsumer(
             link
               ? `Changed your mind? Withdraw your request: ${link}`
               : 'Changed your mind? Reply to the organizer.',
+            ...manage,
           ].join('\n'),
         });
         return;
@@ -141,6 +147,7 @@ export function sendRegistrationConfirmationConsumer(
             link
               ? `Changed your mind? Leave the waitlist: ${link}`
               : 'Changed your mind? Reply to the organizer.',
+            ...manage,
           ].join('\n'),
         });
         return;
@@ -187,6 +194,7 @@ export function sendRegistrationConfirmationConsumer(
           link
             ? `Can't come? Cancel your registration: ${link}`
             : "Can't come? Reply to the organizer to cancel.",
+          ...manage,
         ].join('\n'),
       });
     },

@@ -222,3 +222,102 @@ export async function submitFeedbackAction(
     return { ok: false, message: 'Something went wrong. Please try again.' };
   }
 }
+
+/** A person's own entry, as the "change your details" page shows it (ADR-0065). */
+export interface OwnDetails {
+  eventName: string;
+  organizationName: string;
+  status: 'confirmed' | 'waitlisted' | 'pending';
+  name: string;
+  answers: Record<string, string | boolean>;
+  questions: Question[];
+}
+const LINK_TOKEN = /^[A-Za-z0-9_-]{43}$/;
+const CLOSED_LINK =
+  'This link can no longer be used to change your details. The event may have ended, or the registration was cancelled.';
+
+export async function registrationDetailsAction(
+  token: string,
+): Promise<OwnDetails | { error: string }> {
+  if (!LINK_TOKEN.test(token)) {
+    return { error: 'This link is incomplete. Open it from your email again.' };
+  }
+  try {
+    const res = await fetch(`${siteConfig().apiUrl}/v1/public/registrations/details`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'content-type': 'application/json', ...(await forwardedFor()) },
+      body: JSON.stringify({ token }),
+    });
+    if (res.status === 429) return { error: 'Too many attempts. Please wait a minute.' };
+    if (!res.ok) return { error: CLOSED_LINK };
+    return (await res.json()) as OwnDetails;
+  } catch {
+    return { error: 'Something went wrong. Please try again.' };
+  }
+}
+
+/** What the "change your details" form shows after a save. */
+export interface DetailsState {
+  status: 'idle' | 'done' | 'error';
+  message?: string;
+  /** Errors by field: name, or `q-<question id>`. */
+  fields?: Record<string, string>;
+  values?: Record<string, string>;
+}
+
+export async function saveRegistrationDetailsAction(
+  token: string,
+  questions: Question[],
+  _prev: DetailsState,
+  form: FormData,
+): Promise<DetailsState> {
+  const values: Record<string, string> = { name: text(form, 'name') };
+  for (const q of questions.slice(0, 10)) {
+    const v = form.get(`q-${q.id}`);
+    if (typeof v === 'string') values[`q-${q.id}`] = v.slice(0, 2000);
+  }
+  if (!LINK_TOKEN.test(token)) {
+    return { status: 'error', message: 'This link is incomplete. Open it from your email again.' };
+  }
+  try {
+    const res = await fetch(`${siteConfig().apiUrl}/v1/public/registrations/details/update`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'content-type': 'application/json', ...(await forwardedFor()) },
+      body: JSON.stringify({
+        token,
+        name: values.name,
+        ...(questions.length > 0 ? { answers: answersFrom(questions, form) } : {}),
+      }),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      changed?: boolean;
+      error?: { details?: { fields?: Array<{ path: string; message: string }> } };
+    };
+    if (res.ok) {
+      return {
+        status: 'done',
+        message: body.changed
+          ? 'Your details are saved.'
+          : 'Nothing changed: your details were already like this.',
+        values,
+      };
+    }
+    const fields: Record<string, string> = {};
+    for (const f of body.error?.details?.fields ?? []) {
+      if (f.path === 'body.name') fields.name ??= f.message;
+      const a = ANSWER.exec(f.path);
+      if (a) fields[`q-${a[1]}`] ??= f.message;
+    }
+    if (Object.keys(fields).length > 0) {
+      return { status: 'error', message: 'Check the highlighted fields.', fields, values };
+    }
+    if (res.status === 429) {
+      return { status: 'error', message: 'Too many attempts. Please wait a minute.', values };
+    }
+    return { status: 'error', message: CLOSED_LINK, values };
+  } catch {
+    return { status: 'error', message: 'Something went wrong. Please try again.', values };
+  }
+}
