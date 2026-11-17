@@ -102,6 +102,8 @@ async function publishedEvent(label: string, registration: Record<string, unknow
     owner,
     orgId,
     eventId,
+    handle,
+    slug: evt.slug,
     url: `${TEMPLATE.replace('{handle}', handle)}/${evt.slug}`,
   };
 }
@@ -1228,6 +1230,69 @@ test('a person withdraws their request with the link in their email (ADR-0064)',
   await axeScan(v.page);
   await mailMessage(person, 'registration_request_withdrawn');
   await v.context.close();
+});
+
+test('an organizer approves several requests at once, then declines the rest (ADR-0066)', async ({
+  page,
+}) => {
+  const t = await publishedEvent('bulk', { capacity: 2, approval: true });
+  // Five people ask for a place (through the API: the form has its own test).
+  const people = ['Ada', 'Bo', 'Cy', 'Di', 'Ed'].map((name) => ({
+    name: `${name} Bulk`,
+    email: uniqueEmail(`bulk-${name.toLowerCase()}`),
+  }));
+  for (const p of people) {
+    await apiCall('POST', `/v1/public/sites/${t.handle}/events/${t.slug}/registrations`, {
+      name: p.name,
+      email: p.email,
+      privacyConsent: true,
+    });
+  }
+
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/registrations?status=pending`);
+  const bar = page.getByRole('group', { name: 'Decide several requests' });
+  await expect(bar.getByText('None selected')).toBeVisible();
+  await expect(bar.getByRole('button', { name: 'Approve selected…' })).toBeDisabled();
+
+  // Three are picked; approving them goes past the two seats, and the dialog says so.
+  for (const p of people.slice(0, 3)) {
+    await page.getByRole('checkbox', { name: `Select ${p.name}` }).check();
+  }
+  await expect(bar.getByText('3 requests selected')).toBeVisible();
+  await expectAccessible(page);
+  await bar.getByRole('button', { name: 'Approve selected…' }).click();
+  const approve = page.getByRole('dialog', { name: 'Approve 3 requests?' });
+  await expect(approve).toContainText('Only 2 of 2 seats are free, so this goes over capacity.');
+  await approve.getByRole('button', { name: 'Approve 3 requests over capacity' }).click();
+  await expect(
+    page.getByText(
+      '3 requests approved. Each person is registered and has been emailed their ticket.',
+    ),
+  ).toBeVisible();
+  for (const p of people.slice(0, 3)) {
+    expect((await mailMessage(p.email, 'registration_approved')).text).toContain('/ticket#id=');
+  }
+
+  // The two left: select all, then decline.
+  const table = page.getByRole('table', { name: 'Attendees' });
+  await expect(table.getByText('Waiting for approval')).toHaveCount(2);
+  await bar.getByRole('checkbox', { name: 'Select all' }).check();
+  await expect(bar.getByText('2 requests selected')).toBeVisible();
+  await bar.getByRole('button', { name: 'Decline selected…' }).click();
+  const decline = page.getByRole('dialog', { name: 'Decline 2 requests?' });
+  await expect(decline).toContainText('no reason given');
+  await decline.getByRole('button', { name: 'Decline 2 requests' }).click();
+  await expect(
+    page.getByText('2 requests declined. Each person has been told by email.'),
+  ).toBeVisible();
+  await expect(page.getByText('No requests to decide')).toBeVisible();
+  for (const p of people.slice(3)) {
+    expect((await mailMessage(p.email, 'registration_declined')).text).toContain(
+      "isn't able to offer you a place",
+    );
+  }
+  await expectAccessible(page);
 });
 
 test('an attendee corrects their own name and answers with the link in their email (ADR-0065)', async ({

@@ -240,6 +240,135 @@ async function record(
   }
 }
 
+type Decision = 'approve' | 'decline';
+type DecideResult = 'decided' | 'not_pending' | 'not_found';
+interface DecisionEvent {
+  capacity: number | null;
+  cancelled: boolean;
+}
+
+/**
+ * Locks the event a decision is about. Event first, then the entries: the lock order of every
+ * path that changes seats. Refuses a cancelled event: everyone who asked was told by the
+ * cancellation email (ADR-0050). Returns undefined when the event is not this organization's.
+ */
+async function lockEventForDecision(
+  client: PoolClient,
+  organizationId: string,
+  eventId: string,
+): Promise<DecisionEvent | undefined> {
+  const ev = await client.query<DecisionEvent>(
+    `SELECT (settings->'registration'->>'capacity')::int AS capacity,
+            cancelled_at IS NOT NULL AS cancelled
+       FROM eventhub.event WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
+    [organizationId, eventId],
+  );
+  const event = ev.rows[0];
+  if (event?.cancelled) {
+    throw new AppError('conflict', 'This event is cancelled.', {
+      details: { reason: 'event_cancelled' },
+    });
+  }
+  return event;
+}
+
+/**
+ * Approves or declines one request (ADR-0064), with its audit entry and email. The caller holds
+ * the event lock from lockEventForDecision. Approving beyond capacity is allowed and recorded.
+ */
+async function decideRequest(
+  client: PoolClient,
+  access: OrganizationAccess,
+  eventId: string,
+  event: DecisionEvent,
+  registrationId: string,
+  decision: Decision,
+  correlationId: string,
+): Promise<{ result: 'decided'; row: RegistrationRow } | { result: 'not_pending' | 'not_found' }> {
+  const current = await client.query<{ status: Status }>(
+    `SELECT status FROM eventhub.registration
+      WHERE organization_id = $1 AND event_id = $2 AND id = $3 FOR UPDATE`,
+    [access.organizationId, eventId, registrationId],
+  );
+  const previous = current.rows[0]?.status;
+  if (!previous) return { result: 'not_found' };
+  if (previous !== 'pending') return { result: 'not_pending' };
+  const { rows } = await client.query<RegistrationRow>(
+    `UPDATE eventhub.registration
+        SET status = $4, decided_at = now(), decided_by = $5
+      WHERE organization_id = $1 AND event_id = $2 AND id = $3
+  RETURNING ${REGISTRATION_COLUMNS}`,
+    [
+      access.organizationId,
+      eventId,
+      registrationId,
+      decision === 'approve' ? 'confirmed' : 'declined',
+      access.userId,
+    ],
+  );
+  const row = rows[0]!;
+  const actor = { type: 'user' as const, id: access.userId };
+  if (decision === 'approve') {
+    const confirmed = await client.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM eventhub.registration
+        WHERE organization_id = $1 AND event_id = $2 AND status = 'confirmed'`,
+      [access.organizationId, eventId],
+    );
+    const overCapacity = event.capacity !== null && confirmed.rows[0]!.n > event.capacity;
+    await record(
+      client,
+      access.organizationId,
+      actor,
+      'registration.approved',
+      row.id,
+      correlationId,
+      { eventId, overCapacity },
+      {
+        eventType: REGISTRATION_CONFIRMATION_REQUESTED,
+        payload: { eventId, kind: 'approved' },
+      },
+    );
+  } else {
+    await record(
+      client,
+      access.organizationId,
+      actor,
+      'registration.declined',
+      row.id,
+      correlationId,
+      { eventId },
+      { eventType: REGISTRATION_DECLINED, payload: { eventId } },
+    );
+  }
+  return { result: 'decided', row };
+}
+
+export const BULK_DECIDE_MAX = 100;
+const bulkDecideBody = z
+  .object({
+    decision: z.enum(['approve', 'decline']),
+    registrationIds: z
+      .array(uuid)
+      .min(1)
+      .max(BULK_DECIDE_MAX)
+      .refine((ids) => new Set(ids).size === ids.length, 'Each request can be listed once.'),
+  })
+  .strict();
+const bulkDecideResultSchema = z
+  .object({
+    decision: z.enum(['approve', 'decline']),
+    decided: z.number().int(),
+    results: z.array(
+      z
+        .object({
+          registrationId: uuid,
+          result: z.enum(['decided', 'not_pending', 'not_found']),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
 /**
  * Gives freed seats to the waitlist in joining order (ADR-0035), recording each promotion with an
  * audit entry and a confirmation email. Call it in the same transaction as whatever freed seats
@@ -1060,91 +1189,93 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                   body: {},
                 },
                 async () => {
-                  // Event first, then the entry: the lock order of every path that changes seats.
-                  const ev = await client.query<{
-                    capacity: number | null;
-                    cancelled: boolean;
-                  }>(
-                    `SELECT (settings->'registration'->>'capacity')::int AS capacity,
-                            cancelled_at IS NOT NULL AS cancelled
-                       FROM eventhub.event WHERE organization_id = $1 AND id = $2 FOR UPDATE`,
-                    [access.organizationId, params.eventId],
+                  const event = await lockEventForDecision(
+                    client,
+                    access.organizationId,
+                    params.eventId,
                   );
-                  const event = ev.rows[0];
                   if (!event) throw notFound('Registration');
-                  const current = await client.query<{ status: Status }>(
-                    `SELECT status FROM eventhub.registration
-                      WHERE organization_id = $1 AND event_id = $2 AND id = $3 FOR UPDATE`,
-                    [access.organizationId, params.eventId, params.registrationId],
+                  const outcome = await decideRequest(
+                    client,
+                    access,
+                    params.eventId,
+                    event,
+                    params.registrationId,
+                    action,
+                    correlationId,
                   );
-                  const previous = current.rows[0]?.status;
-                  if (!previous) throw notFound('Registration');
-                  if (previous !== 'pending') {
+                  if (outcome.result !== 'decided') {
+                    if (outcome.result === 'not_found') throw notFound('Registration');
                     throw new AppError('conflict', 'This request has already been dealt with.', {
                       details: { reason: 'not_pending' },
                     });
                   }
-                  // Everyone who asked was told by the cancellation email (ADR-0050).
-                  if (event.cancelled) {
-                    throw new AppError('conflict', 'This event is cancelled.', {
-                      details: { reason: 'event_cancelled' },
-                    });
-                  }
-                  const { rows } = await client.query<RegistrationRow>(
-                    `UPDATE eventhub.registration
-                        SET status = $4, decided_at = now(), decided_by = $5
-                      WHERE organization_id = $1 AND event_id = $2 AND id = $3
-                  RETURNING ${REGISTRATION_COLUMNS}`,
-                    [
-                      access.organizationId,
-                      params.eventId,
-                      params.registrationId,
-                      action === 'approve' ? 'confirmed' : 'declined',
-                      access.userId,
-                    ],
-                  );
-                  const row = rows[0]!;
-                  const actor = { type: 'user' as const, id: access.userId };
-                  if (action === 'approve') {
-                    const confirmed = await client.query<{ n: number }>(
-                      `SELECT count(*)::int AS n FROM eventhub.registration
-                        WHERE organization_id = $1 AND event_id = $2 AND status = 'confirmed'`,
-                      [access.organizationId, params.eventId],
-                    );
-                    const overCapacity =
-                      event.capacity !== null && confirmed.rows[0]!.n > event.capacity;
-                    await record(
-                      client,
-                      access.organizationId,
-                      actor,
-                      'registration.approved',
-                      row.id,
-                      correlationId,
-                      { eventId: params.eventId, overCapacity },
-                      {
-                        eventType: REGISTRATION_CONFIRMATION_REQUESTED,
-                        payload: { eventId: params.eventId, kind: 'approved' },
-                      },
-                    );
-                  } else {
-                    await record(
-                      client,
-                      access.organizationId,
-                      actor,
-                      'registration.declined',
-                      row.id,
-                      correlationId,
-                      { eventId: params.eventId },
-                      { eventType: REGISTRATION_DECLINED, payload: { eventId: params.eventId } },
-                    );
-                  }
-                  return { status: 200, body: toDto(row) };
+                  return { status: 200, body: toDto(outcome.row) };
                 },
               ),
           );
         },
       }),
     ),
+
+    defineRoute({
+      method: 'POST',
+      path: '/v1/organizations/:organizationId/events/:eventId/registrations/decide',
+      operationId: 'decideRegistrations',
+      summary:
+        'Approve or decline up to 100 requests at once (ADR-0066). Each is handled as the single approve or decline would be, with its own audit entry and email; requests already dealt with or not found are reported, not failed. Refused as a whole for a cancelled event.',
+      tags: ['registrations'],
+      requires: 'registration.manage',
+      idempotent: true,
+      schemas: {
+        params: eventParams,
+        body: bulkDecideBody,
+        response: { status: 200, schema: bulkDecideResultSchema },
+      },
+      async handler({ principal, params, body, correlationId, idempotencyKey, idempotencyScope }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'registration.manage',
+          (client, access: OrganizationAccess) =>
+            runIdempotentCommand(
+              client,
+              { actorId: principal.userId, scope: idempotencyScope, key: idempotencyKey!, body },
+              async () => {
+                const event = await lockEventForDecision(
+                  client,
+                  access.organizationId,
+                  params.eventId,
+                );
+                if (!event) throw notFound('Event');
+                const results: { registrationId: string; result: DecideResult }[] = [];
+                // Ids are unique (schema), handled in the order given, so seats count up in that order.
+                for (const registrationId of body.registrationIds) {
+                  const outcome = await decideRequest(
+                    client,
+                    access,
+                    params.eventId,
+                    event,
+                    registrationId,
+                    body.decision,
+                    correlationId,
+                  );
+                  results.push({ registrationId, result: outcome.result });
+                }
+                return {
+                  status: 200,
+                  body: {
+                    decision: body.decision,
+                    decided: results.filter((r) => r.result === 'decided').length,
+                    results,
+                  },
+                };
+              },
+            ),
+        );
+      },
+    }),
 
     defineRoute({
       method: 'GET',

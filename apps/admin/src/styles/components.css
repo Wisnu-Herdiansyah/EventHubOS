@@ -1618,6 +1618,23 @@
   gap: var(--space-2);
 }
 
+/* Deciding several requests at once (ADR-0066): select all, count, approve or decline. */
+.bulk-bar {
+  padding: var(--space-3) var(--space-5);
+  border-bottom: var(--border-width) solid var(--color-divider);
+  gap: var(--space-4);
+}
+
+.bulk-bar__actions {
+  margin-inline-start: auto;
+}
+
+.bulk-select {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--color-accent-fill);
+}
+
 /* Sent announcements (ADR-0037): the message as written, line breaks kept. */
 .announcement-list {
   list-style: none;
