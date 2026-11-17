@@ -28,7 +28,7 @@ const BY: Record<string, string> = { attendee: 'Attendee', organizer: 'Organizer
 
 /**
  * The attendee list as CSV (ADR-0027), times in the event's time zone, then one column per
- * registration question (ADR-0041). Answers come from the public, so the same formula
+ * registration question (ADR-0041). The staff note (ADR-0067) sits before the answers. Answers come from the public, so the same formula
  * protection applies to them as to names.
  */
 export function registrationsCsv(e: Export): string {
@@ -43,6 +43,7 @@ export function registrationsCsv(e: Export): string {
       `Cancelled at (${tz})`,
       'Cancelled by',
       `Checked in at (${tz})`,
+      'Staff note',
       ...questions.map((q) => q.label),
     ],
     e.data.map((r) => [
@@ -53,6 +54,7 @@ export function registrationsCsv(e: Export): string {
       local(r.cancelledAt, tz),
       r.cancelledBy ? (BY[r.cancelledBy] ?? r.cancelledBy) : '',
       local(r.checkedInAt, tz),
+      r.staffNote ?? '',
       ...questions.map((q) => answerText(q, r.answers?.[q.id])),
     ]),
   );

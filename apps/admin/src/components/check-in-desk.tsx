@@ -204,6 +204,13 @@ export function CheckInDesk(props: {
                 <span className="door-list__who">
                   <span className="table__primary wrap-anywhere">{a.name}</span>
                   <span className="table__secondary wrap-anywhere">{a.email}</span>
+                  {/* ADR-0067: staff's note, for the door (e.g. access needs). */}
+                  {a.staffNote ? (
+                    <span className="staff-note wrap-anywhere">
+                      <span className="visually-hidden">Staff note: </span>
+                      {a.staffNote}
+                    </span>
+                  ) : null}
                 </span>
                 {a.checkedInAt ? (
                   <>

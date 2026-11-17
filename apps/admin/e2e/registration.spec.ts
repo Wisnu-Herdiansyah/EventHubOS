@@ -1295,6 +1295,53 @@ test('an organizer approves several requests at once, then declines the rest (AD
   await expectAccessible(page);
 });
 
+test('staff keep a private note on an attendee, seen in the list and at the door (ADR-0067)', async ({
+  page,
+}) => {
+  const t = await publishedEvent('notes', { capacity: 10 });
+  const person = { name: 'Nadia Noted', email: uniqueEmail('note') };
+  await apiCall('POST', `/v1/public/sites/${t.handle}/events/${t.slug}/registrations`, {
+    ...person,
+    privacyConsent: true,
+  });
+
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/registrations`);
+  await page.getByRole('button', { name: 'Add note for Nadia Noted' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Note for Nadia Noted' });
+  await expect(dialog).toContainText('Never the attendee.');
+  await dialog.getByLabel('Note').fill('Needs step-free access.\nSpeaker’s guest.');
+  await expectAccessible(page);
+  await dialog.getByRole('button', { name: 'Save note' }).click();
+  await expect(page.getByText('Note saved. Only staff see it.')).toBeVisible();
+  const table = page.getByRole('table', { name: 'Attendees' });
+  await expect(table.locator('.staff-note')).toHaveText(
+    'Staff note: Needs step-free access.\nSpeaker’s guest.',
+  );
+  await expectAccessible(page);
+
+  // At the door, the note is next to the name.
+  await page.getByRole('link', { name: 'Open check-in' }).click();
+  const search = page.getByRole('searchbox', { name: 'Find an attendee' });
+  await search.fill('nadia');
+  await page.getByRole('button', { name: 'Find' }).click();
+  const results = page.getByRole('list', { name: 'Search results' });
+  await expect(results.getByRole('listitem')).toContainText('Needs step-free access.');
+
+  // Removing it: an empty note.
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/registrations`);
+  await page.getByRole('button', { name: 'Edit note for Nadia Noted' }).click();
+  const edit = page.getByRole('dialog', { name: 'Note for Nadia Noted' });
+  await expect(edit.getByLabel('Note')).toHaveValue('Needs step-free access.\nSpeaker’s guest.');
+  await edit.getByLabel('Note').fill('');
+  await edit.getByRole('button', { name: 'Save note' }).click();
+  await expect(page.getByText('Note removed.')).toBeVisible();
+  await expect(page.getByRole('table', { name: 'Attendees' }).locator('.staff-note')).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole('button', { name: 'Add note for Nadia Noted' })).toBeVisible();
+});
+
 test('an attendee corrects their own name and answers with the link in their email (ADR-0065)', async ({
   page,
   browser,

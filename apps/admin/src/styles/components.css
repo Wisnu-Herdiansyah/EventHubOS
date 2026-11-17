@@ -923,6 +923,8 @@
 .dialog {
   border: 0;
   padding: 0;
+  /* Opened from a right-aligned table cell, it must not inherit that alignment. */
+  text-align: start;
   margin: auto;
   width: min(30rem, calc(100vw - 2 * var(--space-4)));
   max-height: calc(100dvh - 2 * var(--space-8));
@@ -1616,6 +1618,17 @@
 .row-actions {
   justify-content: flex-end;
   gap: var(--space-2);
+}
+
+/* Staff's private note on a registration (ADR-0067): set apart, line breaks kept. */
+.staff-note {
+  display: block;
+  margin-top: var(--space-1);
+  padding-inline-start: var(--space-2);
+  border-inline-start: 2px solid var(--color-accent-fill);
+  color: var(--color-text-secondary);
+  font-size: var(--text-sm);
+  white-space: pre-line;
 }
 
 /* Deciding several requests at once (ADR-0066): select all, count, approve or decline. */

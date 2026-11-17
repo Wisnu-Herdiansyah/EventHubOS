@@ -57,6 +57,8 @@ describe('attendee export (ADR-0027)', () => {
         waitlistClosedAt: null,
         decidedAt: null,
         detailsUpdatedAt: null,
+        staffNote: 'VIP, front row',
+        staffNoteUpdatedAt: '2027-02-05T02:00:00Z',
         answers: { company: 'Acme, Inc.', photos: true },
       },
       {
@@ -73,6 +75,8 @@ describe('attendee export (ADR-0027)', () => {
         waitlistClosedAt: null,
         decidedAt: null,
         detailsUpdatedAt: null,
+        staffNote: '=SUM(A1)',
+        staffNoteUpdatedAt: '2027-02-05T02:00:00Z',
         answers: { company: '=HYPERLINK("http://evil.example")' },
       },
     ],
@@ -80,9 +84,9 @@ describe('attendee export (ADR-0027)', () => {
 
   it('lists attendees with times in the event time zone', () => {
     expect(registrationsCsv(data).slice(1).split('\r\n')).toEqual([
-      'Name,Email,Status,Registered at (Asia/Jakarta),Cancelled at (Asia/Jakarta),Cancelled by,Checked in at (Asia/Jakarta),Company,Photos OK?',
-      'Ade Wisnu,ade@example.test,Registered,2027-02-01 09:00,,,2027-03-01 08:05,"Acme, Inc.",Yes',
-      `'=cmd,x@example.test,Cancelled,2027-02-02 09:00,2027-02-03 09:30,Organizer,,"'=HYPERLINK(""http://evil.example"")",`,
+      'Name,Email,Status,Registered at (Asia/Jakarta),Cancelled at (Asia/Jakarta),Cancelled by,Checked in at (Asia/Jakarta),Staff note,Company,Photos OK?',
+      'Ade Wisnu,ade@example.test,Registered,2027-02-01 09:00,,,2027-03-01 08:05,"VIP, front row","Acme, Inc.",Yes',
+      `'=cmd,x@example.test,Cancelled,2027-02-02 09:00,2027-02-03 09:30,Organizer,,'=SUM(A1),"'=HYPERLINK(""http://evil.example"")",`,
       '',
     ]);
   });
