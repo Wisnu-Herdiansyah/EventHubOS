@@ -44,6 +44,7 @@ describe('OpenAPI contract', () => {
     // The email provider's webhook is authenticated by its signature, not a session (ADR-0043).
     // The site counts views of public pages; only a daily number is stored (ADR-0044).
     // Calendar files carry what the public page shows, under the same rules (ADR-0048).
+    // Attendees give feedback with the personal link from their email (ADR-0063).
     expect(publicOps).toEqual([
       'cancelRegistrationByLink',
       'completeMfaLogin',
@@ -53,11 +54,13 @@ describe('OpenAPI contract', () => {
       'getPublicEventCalendar',
       'getPublicEventPage',
       'logIn',
+      'lookUpFeedbackLink',
       'receiveEmailFeedback',
       'registerForEvent',
       'requestPasswordReset',
       'signUp',
       'startPasskeyLogin',
+      'submitFeedback',
       'verifyEmail',
     ]);
     for (const r of routes().filter((x) => x.auth === 'public'))

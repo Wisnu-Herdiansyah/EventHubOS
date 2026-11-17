@@ -1,8 +1,8 @@
 # Repository map against the technical architecture
 
 Where each part of `TECHNICAL_ARCHITECTURE.md` lives, and how far it goes. ADRs explain the
-decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0062 (migrations
-`0001`–`0033`).
+decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0063 (migrations
+`0001`–`0034`).
 
 **Status words**
 
@@ -63,15 +63,16 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0062
 
 ## Registration and event day
 
-| Element                 | Location                                                                                               | Status                                                                                                          |
-| ----------------------- | ------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| Free registration       | `apps/api/src/modules/registration`, `apps/site`, migration `0014`                                     | Done (ADR-0023): public sign-up, emailed cancel link, attendee list, CSV export (ADR-0027)                      |
-| Registration questions  | `apps/api/src/modules/registration/questions.ts`, migration `0024`                                     | Done (ADR-0041)                                                                                                 |
-| Waitlist                | migrations `0021`, `0023`, `apps/worker/src/waitlist-closer.ts`                                        | Done (ADR-0035, ADR-0038)                                                                                       |
-| Check-in and QR tickets | migration `0018`, `apps/admin/src/components/{check-in-desk,ticket-scanner}.tsx`                       | Done (ADR-0028, ADR-0029)                                                                                       |
-| Add to calendar         | `apps/site/src/lib/calendar.ts`, `apps/site/src/app/k`, `public-site` calendar route, migration `0030` | Done (ADR-0048): iCalendar file from the page, ticket and confirmation email. Subscription feeds later          |
-| Event reminders         | `apps/worker/src/event-reminders.ts`, migration `0033`, `settings.registration.reminder`               | Done (ADR-0062): one email to confirmed seats in the 24 hours before the start; on by default, switch per event |
-| Paid ticketing, billing | —                                                                                                      | Blocked on D2                                                                                                   |
+| Element                 | Location                                                                                                      | Status                                                                                                                                                                         |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Free registration       | `apps/api/src/modules/registration`, `apps/site`, migration `0014`                                            | Done (ADR-0023): public sign-up, emailed cancel link, attendee list, CSV export (ADR-0027)                                                                                     |
+| Registration questions  | `apps/api/src/modules/registration/questions.ts`, migration `0024`                                            | Done (ADR-0041)                                                                                                                                                                |
+| Waitlist                | migrations `0021`, `0023`, `apps/worker/src/waitlist-closer.ts`                                               | Done (ADR-0035, ADR-0038)                                                                                                                                                      |
+| Check-in and QR tickets | migration `0018`, `apps/admin/src/components/{check-in-desk,ticket-scanner}.tsx`                              | Done (ADR-0028, ADR-0029)                                                                                                                                                      |
+| Add to calendar         | `apps/site/src/lib/calendar.ts`, `apps/site/src/app/k`, `public-site` calendar route, migration `0030`        | Done (ADR-0048): iCalendar file from the page, ticket and confirmation email. Subscription feeds later                                                                         |
+| Event reminders         | `apps/worker/src/event-reminders.ts`, migration `0033`, `settings.registration.reminder`                      | Done (ADR-0062): one email to confirmed seats in the 24 hours before the start; on by default, switch per event                                                                |
+| Post-event feedback     | `apps/worker/src/event-feedback.ts`, `apps/api/src/modules/feedback`, `apps/site/src/app/f`, migration `0034` | Done (ADR-0063): one email after the event with a personal link; rating 1–5 and a comment; anonymous figures in the report, comments for registration managers; off by default |
+| Paid ticketing, billing | —                                                                                                             | Blocked on D2                                                                                                                                                                  |
 
 ## Communication
 

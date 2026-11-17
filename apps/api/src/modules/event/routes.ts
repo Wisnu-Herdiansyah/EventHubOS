@@ -56,6 +56,8 @@ export const RESERVED_EVENT_SLUGS = new Set([
   'status',
   // Public site path for cancelling a registration (ADR-0023).
   'cancel-registration',
+  // Public site path for giving feedback (ADR-0063).
+  'feedback',
 ]);
 
 export const slugSchema = z

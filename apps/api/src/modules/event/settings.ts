@@ -37,6 +37,8 @@ const sections = {
       questions: questionsSchema.optional(),
     })
     .strict(),
+  /** Ask people who attended for feedback after the event (ADR-0063). Off unless switched on. */
+  feedback: z.object({ enabled: z.boolean().optional() }).strict(),
   sharing: z
     .object({
       title: z.string().trim().min(1).max(70).optional(),
@@ -69,6 +71,7 @@ export const eventSettingsSchema = z
     visibility: sections.visibility.optional(),
     theme: themeSchema.optional(),
     registration: sections.registration.optional(),
+    feedback: sections.feedback.optional(),
     sharing: sections.sharing.optional(),
     contact: sections.contact.optional(),
     legal: sections.legal.optional(),
@@ -84,6 +87,7 @@ export const eventSettingsPatchSchema = z
     visibility: sections.visibility.nullable().optional(),
     theme: themeSchema.nullable().optional(),
     registration: sections.registration.nullable().optional(),
+    feedback: sections.feedback.nullable().optional(),
     sharing: sections.sharing.nullable().optional(),
     contact: sections.contact.nullable().optional(),
     legal: sections.legal.nullable().optional(),

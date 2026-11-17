@@ -292,6 +292,24 @@ export async function mailLinks(to: string, template: string, count: number): Pr
   }
 }
 
+/** Moves an event into the past, so it ended `minutes` ago (test database only). */
+export async function endEventMinutesAgo(eventId: string, minutes: number): Promise<void> {
+  const { default: pg } = await import('pg');
+  const client = new pg.Client({ connectionString: process.env.E2E_FIXTURE_DATABASE_URL });
+  await client.connect();
+  try {
+    await client.query(
+      `UPDATE eventhub.event
+          SET starts_at = now() - make_interval(mins => $2 + 120),
+              ends_at = now() - make_interval(mins => $2)
+        WHERE id = $1`,
+      [eventId, minutes],
+    );
+  } finally {
+    await client.end();
+  }
+}
+
 /** Pretends every session of `email` last made a request `minutes` ago (test database only). */
 export async function lastActiveMinutesAgo(email: string, minutes: number): Promise<void> {
   const { default: pg } = await import('pg');

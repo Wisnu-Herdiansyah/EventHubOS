@@ -150,6 +150,8 @@ function settingsFromForm(
     }),
     legal: section({ privacyPolicyUrl: opt('privacyPolicyUrl'), termsUrl: opt('termsUrl') }),
     contact: section({ email: opt('email'), url: opt('contactUrl') }),
+    // Feedback is off unless switched on (ADR-0063): only "on" is stored.
+    feedback: section({ enabled: form.get('feedback') === 'on' ? true : undefined }),
     registration: section({
       opensAt: instant(form, 'opensAt', timeZone, fields),
       closesAt: instant(form, 'closesAt', timeZone, fields),

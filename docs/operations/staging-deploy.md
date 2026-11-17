@@ -55,7 +55,7 @@ About 10 minutes.
 scripts/staging/03-database.sh
 ```
 
-Two Cloud Run jobs: the first creates the three roles, the second applies the 33 migrations.
+Two Cloud Run jobs: the first creates the three roles, the second applies the 34 migrations.
 Expect the second to end with `migrations: applied [...]`. This is verification step 1: a
 permission error here is the first thing to report.
 
