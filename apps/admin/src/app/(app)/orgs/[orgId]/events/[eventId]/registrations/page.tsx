@@ -238,7 +238,17 @@ export default async function RegistrationsPage({
                   key: 'name',
                   header: 'Name',
                   lead: true,
-                  cell: (r) => <span className="table__primary wrap-anywhere">{r.name}</span>,
+                  cell: (r) => (
+                    <span className="stack-sm">
+                      <span className="table__primary wrap-anywhere">{r.name}</span>
+                      {/* ADR-0065: the person corrected their own details with their link. */}
+                      {r.detailsUpdatedAt ? (
+                        <span className="text-secondary">
+                          Details changed {formatInZone(r.detailsUpdatedAt, evt.timezone)}
+                        </span>
+                      ) : null}
+                    </span>
+                  ),
                 },
                 {
                   key: 'email',

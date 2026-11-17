@@ -45,6 +45,7 @@ describe('OpenAPI contract', () => {
     // The site counts views of public pages; only a daily number is stored (ADR-0044).
     // Calendar files carry what the public page shows, under the same rules (ADR-0048).
     // Attendees give feedback with the personal link from their email (ADR-0063).
+    // With the same link that cancels, they can correct their own details (ADR-0065).
     expect(publicOps).toEqual([
       'cancelRegistrationByLink',
       'completeMfaLogin',
@@ -53,6 +54,7 @@ describe('OpenAPI contract', () => {
       'getPublicAsset',
       'getPublicEventCalendar',
       'getPublicEventPage',
+      'getRegistrationDetailsByLink',
       'logIn',
       'lookUpFeedbackLink',
       'receiveEmailFeedback',
@@ -61,6 +63,7 @@ describe('OpenAPI contract', () => {
       'signUp',
       'startPasskeyLogin',
       'submitFeedback',
+      'updateRegistrationDetailsByLink',
       'verifyEmail',
     ]);
     for (const r of routes().filter((x) => x.auth === 'public'))

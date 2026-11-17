@@ -154,7 +154,7 @@ export function RegisterForm({
 }
 
 /** One registration question (ADR-0041), with its hint and error tied to the input. */
-function QuestionField({
+export function QuestionField({
   question: q,
   error,
   value,

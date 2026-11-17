@@ -1229,3 +1229,63 @@ test('a person withdraws their request with the link in their email (ADR-0064)',
   await mailMessage(person, 'registration_request_withdrawn');
   await v.context.close();
 });
+
+test('an attendee corrects their own name and answers with the link in their email (ADR-0065)', async ({
+  page,
+  browser,
+}) => {
+  const t = await publishedEvent('selfserve', {
+    capacity: 10,
+    questions: [
+      { id: 'diet', type: 'choice', label: 'Diet', required: true, options: ['None', 'Vegan'] },
+      { id: 'company', type: 'short_text', label: 'Company', required: false },
+    ],
+  });
+  const person = uniqueEmail('ss-person');
+  const v = await visitor(browser);
+  await v.page.goto(t.url);
+  const form = v.page.getByRole('region', { name: 'Save your seat' });
+  await form.getByLabel('Name', { exact: true }).fill('Sam Mistyped');
+  await form.getByLabel('Email', { exact: true }).fill(person);
+  await form.getByRole('radio', { name: 'None' }).check();
+  await form.getByLabel('Company').fill('Old Company');
+  await form.getByRole('checkbox').check();
+  await form.getByRole('button', { name: 'Save my seat' }).click();
+  await expect(form.getByRole('status').last()).toContainText('Check your email');
+
+  const mail = await mailMessage(person, 'registration_confirmed');
+  const link = /https?:\/\/\S+\/manage-registration#token=[A-Za-z0-9_-]{43}/.exec(mail.text)![0];
+  await v.page.goto(link);
+  await expect(v.page.getByRole('heading', { name: 'Your registration' })).toBeVisible();
+  expect(v.page.url()).not.toContain('token');
+  await expect(v.page.getByText('You’re registered.')).toBeVisible();
+  await expect(v.page.getByLabel('Name', { exact: true })).toHaveValue('Sam Mistyped');
+  await expect(v.page.getByRole('radio', { name: 'None' })).toBeChecked();
+  await expect(v.page.getByLabel('Company')).toHaveValue('Old Company');
+  await expect(v.page.getByText('Your email address can’t be changed here.')).toBeVisible();
+  await axeScan(v.page);
+
+  // A required answer cannot be removed; the error is shown at the field.
+  await v.page.getByLabel('Name', { exact: true }).fill('');
+  await v.page.getByRole('button', { name: 'Save my details' }).click();
+  await expect(v.page.locator('p[role="alert"]')).toHaveText('Check the highlighted fields.');
+  await expect(v.page.getByText('Enter your name.')).toBeVisible();
+  await axeScan(v.page);
+
+  await v.page.getByLabel('Name', { exact: true }).fill('Sam Corrected');
+  await v.page.getByRole('radio', { name: 'Vegan' }).check();
+  await v.page.getByLabel('Company').fill('New Company');
+  await v.page.getByRole('button', { name: 'Save my details' }).click();
+  await expect(v.page.getByRole('status')).toHaveText('Your details are saved.');
+  await expect(v.page.getByRole('link', { name: 'Cancel your registration' })).toBeVisible();
+  await v.context.close();
+
+  // The organizer sees the new details, and that the person changed them.
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/registrations`);
+  const table = page.getByRole('table', { name: 'Attendees' });
+  await expect(table.locator('.table__primary', { hasText: 'Sam Corrected' })).toBeVisible();
+  await expect(table.getByText(/^Details changed /)).toBeVisible();
+  await expect(table.locator('.table__primary', { hasText: 'Sam Mistyped' })).toHaveCount(0);
+  await expectAccessible(page);
+});

@@ -100,7 +100,7 @@ if [[ -n "${PG_SOCKET_VOLUME:-}" ]]; then
   out=$(docker run --rm --network none "${MOUNT[@]}" -e EVENTHUB_ENV=staging \
     -e DATABASE_MIGRATOR_URL="$(sock_url eventhub_migrator "$MIGRATOR_PW")" \
     "$(img api)" node packages/db/src/cli/migrate.ts)
-  [[ "$out" == *"already applied 35"* ]] || fail "migrations over the socket: $out"
+  [[ "$out" == *"already applied 36"* ]] || fail "migrations over the socket: $out"
   echo "ok: migrate job reaches the database through the socket (no network)"
 
   CONTAINERS+=(smoke-socket-api)

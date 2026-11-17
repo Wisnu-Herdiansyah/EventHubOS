@@ -808,6 +808,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/public/registrations/details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** A person's own name and answers, with the link from their email (ADR-0065), so they can correct them. Invalid, used and closed links all answer the same. The email address is not returned. */
+        post: operations["getRegistrationDetailsByLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/registrations/details/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Correct your own name and answers with the link from your email (ADR-0065). Answers are checked against the event's current questions and replace the earlier ones. Until the event ends. */
+        post: operations["updateRegistrationDetailsByLink"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/organizations/{organizationId}/events/{eventId}/registrations/summary": {
         parameters: {
             query?: never;
@@ -2027,6 +2061,17 @@ export interface components {
         OtherSessionsRevoked: {
             signedOut: number;
         };
+        OwnRegistrationDetails: {
+            eventName: string;
+            organizationName: string;
+            /** @enum {string} */
+            status: "confirmed" | "waitlisted" | "pending";
+            name: string;
+            answers: {
+                [key: string]: string | boolean;
+            };
+            questions: components["schemas"]["RegistrationQuestion"][];
+        };
         PageRevisionList: {
             data: {
                 revision: number;
@@ -2183,6 +2228,7 @@ export interface components {
             promotedBy: ("waitlist" | "organizer") | null;
             waitlistClosedAt: string | null;
             decidedAt: string | null;
+            detailsUpdatedAt: string | null;
             answers?: {
                 [key: string]: string | boolean;
             };
@@ -2203,6 +2249,12 @@ export interface components {
             wasWaitlisted: boolean;
             wasPending: boolean;
         };
+        RegistrationDetailsSaved: {
+            /** @constant */
+            status: "saved";
+            eventName: string;
+            changed: boolean;
+        };
         RegistrationExport: {
             eventName: string;
             eventSlug: string;
@@ -2216,6 +2268,9 @@ export interface components {
         RegistrationExportRequest: {
             /** @enum {string} */
             status?: "confirmed" | "cancelled" | "waitlisted" | "pending" | "declined";
+        };
+        RegistrationLinkRequest: {
+            token: string;
         };
         RegistrationList: {
             data: components["schemas"]["Registration"][];
@@ -2418,6 +2473,11 @@ export interface components {
                 name: string;
                 email: string;
             } | null;
+        };
+        UpdateRegistrationDetailsRequest: {
+            token: string;
+            name: string;
+            answers?: components["schemas"]["RegistrationAnswers"];
         };
         UploadAssetRequest: {
             name: string;
@@ -7460,6 +7520,202 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegistrationCancelled"];
+                };
+            };
+            /** @description Validation failed or Idempotency-Key missing */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unauthenticated, or invalid credentials on login */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden (missing permission or unverified email) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found (also returned for resources in other organizations) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Idempotency-Key reused with a different payload */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error (generic body with correlation ID) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    getRegistrationDetailsByLink: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Correlation-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegistrationLinkRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnRegistrationDetails"];
+                };
+            };
+            /** @description Validation failed or Idempotency-Key missing */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unauthenticated, or invalid credentials on login */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Forbidden (missing permission or unverified email) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Not found (also returned for resources in other organizations) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Idempotency-Key reused with a different payload */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Rate limited */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error (generic body with correlation ID) */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    updateRegistrationDetailsByLink: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Correlation-Id"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRegistrationDetailsRequest"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegistrationDetailsSaved"];
                 };
             };
             /** @description Validation failed or Idempotency-Key missing */

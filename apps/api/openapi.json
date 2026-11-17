@@ -7090,6 +7090,264 @@
         }
       }
     },
+    "/v1/public/registrations/details": {
+      "post": {
+        "operationId": "getRegistrationDetailsByLink",
+        "summary": "A person's own name and answers, with the link from their email (ADR-0065), so they can correct them. Invalid, used and closed links all answer the same. The email address is not returned.",
+        "tags": [
+          "public"
+        ],
+        "security": [],
+        "x-eventhub-requires": "public",
+        "x-eventhub-idempotency-exempt": "Reads only: it is a POST so the token stays out of URLs and logs.",
+        "x-eventhub-rate-limit": {
+          "max": 10,
+          "timeWindow": "1 minute"
+        },
+        "parameters": [
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationLinkRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnRegistrationDetails"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or Idempotency-Key missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated, or invalid credentials on login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (missing permission or unverified email)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found (also returned for resources in other organizations)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Idempotency-Key reused with a different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (generic body with correlation ID)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/public/registrations/details/update": {
+      "post": {
+        "operationId": "updateRegistrationDetailsByLink",
+        "summary": "Correct your own name and answers with the link from your email (ADR-0065). Answers are checked against the event's current questions and replace the earlier ones. Until the event ends.",
+        "tags": [
+          "public"
+        ],
+        "security": [],
+        "x-eventhub-requires": "public",
+        "x-eventhub-idempotency-exempt": "Sets the details to the values sent: repeating it changes nothing.",
+        "x-eventhub-rate-limit": {
+          "max": 10,
+          "timeWindow": "1 minute"
+        },
+        "parameters": [
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{8,128}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRegistrationDetailsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationDetailsSaved"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation failed or Idempotency-Key missing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthenticated, or invalid credentials on login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden (missing permission or unverified email)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found (also returned for resources in other organizations)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Idempotency-Key reused with a different payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error (generic body with correlation ID)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/organizations/{organizationId}/events/{eventId}/registrations/summary": {
       "get": {
         "operationId": "getRegistrationSummary",
@@ -15177,6 +15435,55 @@
         ],
         "additionalProperties": false
       },
+      "OwnRegistrationDetails": {
+        "type": "object",
+        "properties": {
+          "eventName": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "waitlisted",
+              "pending"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "answers": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": [
+                "string",
+                "boolean"
+              ]
+            }
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegistrationQuestion"
+            }
+          }
+        },
+        "required": [
+          "eventName",
+          "organizationName",
+          "status",
+          "name",
+          "answers",
+          "questions"
+        ],
+        "additionalProperties": false
+      },
       "PageRevisionList": {
         "type": "object",
         "properties": {
@@ -15964,6 +16271,18 @@
               }
             ]
           },
+          "detailsUpdatedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "answers": {
             "type": "object",
             "propertyNames": {
@@ -15992,7 +16311,8 @@
           "promotedAt",
           "promotedBy",
           "waitlistClosedAt",
-          "decidedAt"
+          "decidedAt",
+          "detailsUpdatedAt"
         ],
         "additionalProperties": false
       },
@@ -16056,6 +16376,27 @@
         ],
         "additionalProperties": false
       },
+      "RegistrationDetailsSaved": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "saved"
+          },
+          "eventName": {
+            "type": "string"
+          },
+          "changed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "status",
+          "eventName",
+          "changed"
+        ],
+        "additionalProperties": false
+      },
       "RegistrationExport": {
         "type": "object",
         "properties": {
@@ -16114,6 +16455,19 @@
             ]
           }
         },
+        "additionalProperties": false
+      },
+      "RegistrationLinkRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          }
+        },
+        "required": [
+          "token"
+        ],
         "additionalProperties": false
       },
       "RegistrationList": {
@@ -17092,6 +17446,29 @@
         },
         "required": [
           "expectedVersion"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateRegistrationDetailsRequest": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{43}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
+          },
+          "answers": {
+            "$ref": "#/components/schemas/RegistrationAnswers"
+          }
+        },
+        "required": [
+          "token",
+          "name"
         ],
         "additionalProperties": false
       },
