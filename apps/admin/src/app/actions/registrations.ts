@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { api, unwrap } from '@/lib/api';
 import { errorToFormState, type FormState } from '@/lib/errors';
 import { formText } from '@/lib/form-data';
+import { BULK_DECIDE_MAX } from '@/lib/registrations';
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
@@ -116,5 +117,55 @@ export async function decideRegistrationAction(
   }
   redirect(
     `/orgs/${organizationId}/events/${eventId}/registrations?status=pending&notice=request_${decision === 'approve' ? 'approved' : 'declined'}`,
+  );
+}
+
+/**
+ * Approves or declines several requests at once (ADR-0066). Each is emailed as a single decision
+ * would be; requests someone else already dealt with are counted and left.
+ */
+export async function bulkDecideRegistrationsAction(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const organizationId = formText(form, 'organizationId');
+  const eventId = formText(form, 'eventId');
+  const decision = formText(form, 'decision');
+  const registrationIds = [
+    ...new Set(form.getAll('registrationIds').filter((v) => typeof v === 'string')),
+  ];
+  if (
+    ![organizationId, eventId].every((id) => UUID.test(id)) ||
+    (decision !== 'approve' && decision !== 'decline')
+  ) {
+    return { ok: false, message: 'Something went wrong. Please try again.' };
+  }
+  if (registrationIds.length === 0) {
+    return { ok: false, message: 'Select at least one request.' };
+  }
+  if (registrationIds.length > BULK_DECIDE_MAX || !registrationIds.every((id) => UUID.test(id))) {
+    return { ok: false, message: `Select up to ${BULK_DECIDE_MAX} requests at a time.` };
+  }
+  let result;
+  try {
+    const client = await api();
+    result = unwrap(
+      await client.POST(
+        '/v1/organizations/{organizationId}/events/{eventId}/registrations/decide',
+        {
+          params: {
+            path: { organizationId, eventId },
+            header: { 'Idempotency-Key': formText(form, 'idempotencyKey') },
+          },
+          body: { decision, registrationIds },
+        },
+      ),
+    );
+  } catch (error) {
+    return errorToFormState(error);
+  }
+  const skipped = result.results.length - result.decided;
+  redirect(
+    `/orgs/${organizationId}/events/${eventId}/registrations?status=pending&notice=requests_${decision === 'approve' ? 'approved' : 'declined'}&decided=${result.decided}&skipped=${skipped}`,
   );
 }

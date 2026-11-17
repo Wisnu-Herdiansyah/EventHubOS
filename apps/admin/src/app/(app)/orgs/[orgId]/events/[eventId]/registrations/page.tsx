@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
+  BulkDecideBar,
   CancelRegistrationForm,
   DecideRegistrationForm,
   PromoteRegistrationForm,
@@ -17,7 +18,7 @@ import { Toast } from '@/components/ui/toast';
 import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
 import { can } from '@/lib/permissions';
-import { registrationStateLabel, seatsLabel } from '@/lib/registrations';
+import { bulkDecisionNotice, registrationStateLabel, seatsLabel } from '@/lib/registrations';
 import { answerText } from '@/lib/registration-export';
 import type { components } from '@/lib/api-types';
 
@@ -63,7 +64,17 @@ export default async function RegistrationsPage({
     sp.status === 'declined'
       ? sp.status
       : undefined;
-  const notice = typeof sp.notice === 'string' ? NOTICES[sp.notice] : undefined;
+  const count = (v: unknown) => (typeof v === 'string' && /^\d{1,3}$/.test(v) ? Number(v) : 0);
+  const notice =
+    sp.notice === 'requests_approved' || sp.notice === 'requests_declined'
+      ? bulkDecisionNotice(
+          sp.notice === 'requests_approved' ? 'approve' : 'decline',
+          count(sp.decided),
+          count(sp.skipped),
+        )
+      : typeof sp.notice === 'string'
+        ? NOTICES[sp.notice]
+        : undefined;
   const path = { organizationId: orgId, eventId };
   let org, evt, summary, list;
   try {
@@ -99,6 +110,9 @@ export default async function RegistrationsPage({
   const base = `/orgs/${orgId}/events/${eventId}/registrations`;
   // Attendees whose email bounces or was refused (ADR-0043).
   const undelivered = list?.filter((r) => r.emailUndeliverable).length ?? 0;
+  // Bulk decisions on the Requests view, when there is more than one to decide (ADR-0066).
+  const bulk =
+    status === 'pending' && (list?.filter((r) => r.status === 'pending').length ?? 0) > 1;
 
   return (
     <div className="stack">
@@ -229,161 +243,193 @@ export default async function RegistrationsPage({
               }
             />
           ) : (
-            <DataTable
-              caption="Attendees"
-              rows={list}
-              rowKey={(r) => r.id}
-              columns={[
-                {
-                  key: 'name',
-                  header: 'Name',
-                  lead: true,
-                  cell: (r) => (
-                    <span className="stack-sm">
-                      <span className="table__primary wrap-anywhere">{r.name}</span>
-                      {/* ADR-0065: the person corrected their own details with their link. */}
-                      {r.detailsUpdatedAt ? (
-                        <span className="text-secondary">
-                          Details changed {formatInZone(r.detailsUpdatedAt, evt.timezone)}
-                        </span>
-                      ) : null}
-                    </span>
-                  ),
-                },
-                {
-                  key: 'email',
-                  header: 'Email',
-                  // ADR-0043: email to this address bounces or was refused. Why is not shown.
-                  cell: (r) => (
-                    <span className="stack-sm">
-                      <span className="wrap-anywhere">{r.email}</span>
-                      {r.emailUndeliverable ? (
-                        <span>
-                          <Badge tone="warning">Email not delivered</Badge>
-                        </span>
-                      ) : null}
-                    </span>
-                  ),
-                },
-                ...(questions.length > 0
-                  ? [
-                      {
-                        key: 'answers',
-                        header: 'Answers',
-                        cell: (r: Registration) => {
-                          const answered = questions.filter((q) => r.answers?.[q.id] !== undefined);
-                          if (answered.length === 0) {
-                            return <span className="text-secondary">None</span>;
-                          }
-                          return (
-                            <details className="answers">
-                              <summary>
-                                {answered.length} of {questions.length}
-                                <span className="visually-hidden"> answers from {r.name}</span>
-                              </summary>
-                              <dl>
-                                {answered.map((q) => (
-                                  <div key={q.id}>
-                                    <dt>{q.label}</dt>
-                                    <dd className="wrap-anywhere">
-                                      {answerText(q, r.answers?.[q.id])}
-                                    </dd>
-                                  </div>
-                                ))}
-                              </dl>
-                            </details>
-                          );
+            <>
+              {/* ADR-0066: on the Requests view, several can be approved or declined at once. */}
+              {bulk ? (
+                <BulkDecideBar
+                  organizationId={orgId}
+                  eventId={eventId}
+                  idempotencyKey={newIdempotencyKey()}
+                  confirmed={summary.confirmed}
+                  capacity={summary.capacity}
+                />
+              ) : null}
+              <DataTable
+                caption="Attendees"
+                rows={list}
+                rowKey={(r) => r.id}
+                columns={[
+                  ...(bulk
+                    ? [
+                        {
+                          key: 'select',
+                          header: 'Select',
+                          hideHeader: true,
+                          cell: (r: Registration) => (
+                            <input
+                              type="checkbox"
+                              className="bulk-select"
+                              value={r.id}
+                              data-bulk-decide=""
+                              aria-label={`Select ${r.name}`}
+                            />
+                          ),
                         },
-                      },
-                    ]
-                  : []),
-                {
-                  key: 'when',
-                  header: 'Registered',
-                  cell: (r) => formatInZone(r.createdAt, evt.timezone),
-                },
-                {
-                  key: 'status',
-                  header: 'Status',
-                  cell: (r) =>
-                    r.status === 'confirmed' ? (
-                      <Badge tone="success" dot>
-                        {r.promotedBy ? 'Registered from waitlist' : 'Registered'}
-                      </Badge>
-                    ) : r.status === 'waitlisted' ? (
-                      r.waitlistClosedAt ? (
-                        <Badge>Waitlist closed</Badge>
-                      ) : (
-                        <Badge tone="warning" dot>
-                          Waiting
-                        </Badge>
-                      )
-                    ) : r.status === 'pending' ? (
-                      <Badge tone="warning" dot>
-                        Waiting for approval
-                      </Badge>
-                    ) : r.status === 'declined' ? (
-                      <Badge>Declined</Badge>
-                    ) : (
-                      <Badge>
-                        {r.cancelledBy === 'organizer' ? 'Cancelled by you' : 'Cancelled'}
-                      </Badge>
-                    ),
-                },
-                {
-                  key: 'actions',
-                  header: 'Actions',
-                  hideHeader: true,
-                  align: 'end',
-                  cell: (r) =>
-                    r.status === 'confirmed' ? (
-                      <CancelRegistrationForm
-                        organizationId={orgId}
-                        eventId={eventId}
-                        registrationId={r.id}
-                        name={r.name}
-                        idempotencyKey={newIdempotencyKey()}
-                      />
-                    ) : r.status === 'pending' ? (
-                      <span className="cluster row-actions">
-                        {(['approve', 'decline'] as const).map((decision) => (
-                          <DecideRegistrationForm
-                            key={decision}
-                            organizationId={orgId}
-                            eventId={eventId}
-                            registrationId={r.id}
-                            name={r.name}
-                            decision={decision}
-                            idempotencyKey={newIdempotencyKey()}
-                            confirmed={summary.confirmed}
-                            capacity={summary.capacity}
-                          />
-                        ))}
+                      ]
+                    : []),
+                  {
+                    key: 'name',
+                    header: 'Name',
+                    lead: true,
+                    cell: (r) => (
+                      <span className="stack-sm">
+                        <span className="table__primary wrap-anywhere">{r.name}</span>
+                        {/* ADR-0065: the person corrected their own details with their link. */}
+                        {r.detailsUpdatedAt ? (
+                          <span className="text-secondary">
+                            Details changed {formatInZone(r.detailsUpdatedAt, evt.timezone)}
+                          </span>
+                        ) : null}
                       </span>
-                    ) : r.status === 'waitlisted' ? (
-                      <span className="cluster row-actions">
-                        <PromoteRegistrationForm
-                          organizationId={orgId}
-                          eventId={eventId}
-                          registrationId={r.id}
-                          name={r.name}
-                          idempotencyKey={newIdempotencyKey()}
-                          confirmed={summary.confirmed}
-                          capacity={summary.capacity}
-                        />
+                    ),
+                  },
+                  {
+                    key: 'email',
+                    header: 'Email',
+                    // ADR-0043: email to this address bounces or was refused. Why is not shown.
+                    cell: (r) => (
+                      <span className="stack-sm">
+                        <span className="wrap-anywhere">{r.email}</span>
+                        {r.emailUndeliverable ? (
+                          <span>
+                            <Badge tone="warning">Email not delivered</Badge>
+                          </span>
+                        ) : null}
+                      </span>
+                    ),
+                  },
+                  ...(questions.length > 0
+                    ? [
+                        {
+                          key: 'answers',
+                          header: 'Answers',
+                          cell: (r: Registration) => {
+                            const answered = questions.filter(
+                              (q) => r.answers?.[q.id] !== undefined,
+                            );
+                            if (answered.length === 0) {
+                              return <span className="text-secondary">None</span>;
+                            }
+                            return (
+                              <details className="answers">
+                                <summary>
+                                  {answered.length} of {questions.length}
+                                  <span className="visually-hidden"> answers from {r.name}</span>
+                                </summary>
+                                <dl>
+                                  {answered.map((q) => (
+                                    <div key={q.id}>
+                                      <dt>{q.label}</dt>
+                                      <dd className="wrap-anywhere">
+                                        {answerText(q, r.answers?.[q.id])}
+                                      </dd>
+                                    </div>
+                                  ))}
+                                </dl>
+                              </details>
+                            );
+                          },
+                        },
+                      ]
+                    : []),
+                  {
+                    key: 'when',
+                    header: 'Registered',
+                    cell: (r) => formatInZone(r.createdAt, evt.timezone),
+                  },
+                  {
+                    key: 'status',
+                    header: 'Status',
+                    cell: (r) =>
+                      r.status === 'confirmed' ? (
+                        <Badge tone="success" dot>
+                          {r.promotedBy ? 'Registered from waitlist' : 'Registered'}
+                        </Badge>
+                      ) : r.status === 'waitlisted' ? (
+                        r.waitlistClosedAt ? (
+                          <Badge>Waitlist closed</Badge>
+                        ) : (
+                          <Badge tone="warning" dot>
+                            Waiting
+                          </Badge>
+                        )
+                      ) : r.status === 'pending' ? (
+                        <Badge tone="warning" dot>
+                          Waiting for approval
+                        </Badge>
+                      ) : r.status === 'declined' ? (
+                        <Badge>Declined</Badge>
+                      ) : (
+                        <Badge>
+                          {r.cancelledBy === 'organizer' ? 'Cancelled by you' : 'Cancelled'}
+                        </Badge>
+                      ),
+                  },
+                  {
+                    key: 'actions',
+                    header: 'Actions',
+                    hideHeader: true,
+                    align: 'end',
+                    cell: (r) =>
+                      r.status === 'confirmed' ? (
                         <CancelRegistrationForm
                           organizationId={orgId}
                           eventId={eventId}
                           registrationId={r.id}
                           name={r.name}
                           idempotencyKey={newIdempotencyKey()}
-                          waitlisted
                         />
-                      </span>
-                    ) : null,
-                },
-              ]}
-            />
+                      ) : r.status === 'pending' ? (
+                        <span className="cluster row-actions">
+                          {(['approve', 'decline'] as const).map((decision) => (
+                            <DecideRegistrationForm
+                              key={decision}
+                              organizationId={orgId}
+                              eventId={eventId}
+                              registrationId={r.id}
+                              name={r.name}
+                              decision={decision}
+                              idempotencyKey={newIdempotencyKey()}
+                              confirmed={summary.confirmed}
+                              capacity={summary.capacity}
+                            />
+                          ))}
+                        </span>
+                      ) : r.status === 'waitlisted' ? (
+                        <span className="cluster row-actions">
+                          <PromoteRegistrationForm
+                            organizationId={orgId}
+                            eventId={eventId}
+                            registrationId={r.id}
+                            name={r.name}
+                            idempotencyKey={newIdempotencyKey()}
+                            confirmed={summary.confirmed}
+                            capacity={summary.capacity}
+                          />
+                          <CancelRegistrationForm
+                            organizationId={orgId}
+                            eventId={eventId}
+                            registrationId={r.id}
+                            name={r.name}
+                            idempotencyKey={newIdempotencyKey()}
+                            waitlisted
+                          />
+                        </span>
+                      ) : null,
+                  },
+                ]}
+              />
+            </>
           )}
         </Card>
       )}
