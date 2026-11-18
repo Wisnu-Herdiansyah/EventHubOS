@@ -101,6 +101,13 @@ const registrationSchema = z
     /** When the person last changed their own name or answers (ADR-0065), or null. */
     detailsUpdatedAt: z.iso.datetime().nullable(),
     /**
+     * Staff's private note (ADR-0067), or null. Shown to staff in the list, export and at the
+     * door; never to the person or on the public site.
+     */
+    staffNote: z.string().nullable(),
+    /** When the note was last changed, or null. */
+    staffNoteUpdatedAt: z.iso.datetime().nullable(),
+    /**
      * Answers to the registration questions (ADR-0041). Personal data: only in the attendee list
      * and export (registration.manage), never at the door.
      */
@@ -163,6 +170,8 @@ interface RegistrationRow {
   waitlist_closed_at: Date | null;
   decided_at: Date | null;
   details_updated_at: Date | null;
+  staff_note: string | null;
+  staff_note_updated_at: Date | null;
   answers: Record<string, string | boolean>;
 }
 
@@ -180,6 +189,8 @@ const toDto = (r: RegistrationRow) => ({
   waitlistClosedAt: r.waitlist_closed_at?.toISOString() ?? null,
   decidedAt: r.decided_at?.toISOString() ?? null,
   detailsUpdatedAt: r.details_updated_at?.toISOString() ?? null,
+  staffNote: r.staff_note,
+  staffNoteUpdatedAt: r.staff_note_updated_at?.toISOString() ?? null,
   answers: r.answers,
 });
 
@@ -190,7 +201,7 @@ const toDoorDto = (r: RegistrationRow) => {
 };
 
 const REGISTRATION_COLUMNS =
-  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at, promoted_at, promoted_by, waitlist_closed_at, decided_at, details_updated_at, answers';
+  'id, name, email, status, created_at, cancelled_at, cancelled_by, checked_in_at, promoted_at, promoted_by, waitlist_closed_at, decided_at, details_updated_at, staff_note, staff_note_updated_at, answers';
 
 /** For the door: no email confirmation, just who and when (ADR-0028). */
 const checkInResultSchema = z
@@ -342,6 +353,21 @@ async function decideRequest(
   }
   return { result: 'decided', row };
 }
+
+export const STAFF_NOTE_MAX = 500;
+/** A staff note (ADR-0067): trimmed, line breaks allowed, no other control characters. Empty clears it. */
+const staffNoteBody = z
+  .object({
+    note: z
+      .string()
+      // Browsers send a textarea's line breaks as CRLF: keep them as plain line breaks.
+      .overwrite((v) => v.replace(/\r\n?/g, '\n'))
+      .trim()
+      .max(STAFF_NOTE_MAX, `A note can be up to ${STAFF_NOTE_MAX} characters.`)
+      // eslint-disable-next-line no-control-regex
+      .refine((v) => !/[\u0000-\u0009\u000b-\u001f\u007f]/.test(v), 'Use plain text.'),
+  })
+  .strict();
 
 export const BULK_DECIDE_MAX = 100;
 const bulkDecideBody = z
@@ -1271,6 +1297,71 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                     results,
                   },
                 };
+              },
+            ),
+        );
+      },
+    }),
+
+    defineRoute({
+      method: 'PATCH',
+      path: '/v1/organizations/:organizationId/events/:eventId/registrations/:registrationId/note',
+      operationId: 'setRegistrationNote',
+      summary:
+        "Set or clear staff's private note on a registration (ADR-0067). Up to 500 characters; an empty note clears it. Never shown to the person. registration.manage.",
+      tags: ['registrations'],
+      requires: 'registration.manage',
+      idempotent: true,
+      schemas: {
+        params: z.object({ organizationId: uuid, eventId: uuid, registrationId: uuid }).strict(),
+        body: staffNoteBody,
+        response: { status: 200, schema: registrationSchema },
+      },
+      async handler({ principal, params, body, correlationId, idempotencyKey, idempotencyScope }) {
+        return withOrganization(
+          pool,
+          principal,
+          params.organizationId,
+          'registration.manage',
+          (client, access: OrganizationAccess) =>
+            runIdempotentCommand(
+              client,
+              { actorId: principal.userId, scope: idempotencyScope, key: idempotencyKey!, body },
+              async () => {
+                const note = body.note === '' ? null : body.note;
+                const current = await client.query<RegistrationRow>(
+                  `SELECT ${REGISTRATION_COLUMNS} FROM eventhub.registration
+                    WHERE organization_id = $1 AND event_id = $2 AND id = $3 FOR UPDATE`,
+                  [access.organizationId, params.eventId, params.registrationId],
+                );
+                const before = current.rows[0];
+                if (!before) throw notFound('Registration');
+                // The same note again changes nothing and records nothing.
+                if (before.staff_note === note) return { status: 200, body: toDto(before) };
+                const { rows } = await client.query<RegistrationRow>(
+                  `UPDATE eventhub.registration
+                      SET staff_note = $4, staff_note_updated_at = now(), staff_note_updated_by = $5
+                    WHERE organization_id = $1 AND event_id = $2 AND id = $3
+                RETURNING ${REGISTRATION_COLUMNS}`,
+                  [
+                    access.organizationId,
+                    params.eventId,
+                    params.registrationId,
+                    note,
+                    access.userId,
+                  ],
+                );
+                // The audit records that the note changed, never what it says.
+                await record(
+                  client,
+                  access.organizationId,
+                  { type: 'user', id: access.userId },
+                  'registration.note_changed',
+                  params.registrationId,
+                  correlationId,
+                  { eventId: params.eventId, cleared: note === null },
+                );
+                return { status: 200, body: toDto(rows[0]!) };
               },
             ),
         );

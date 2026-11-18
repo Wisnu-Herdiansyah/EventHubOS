@@ -176,3 +176,41 @@ export async function bulkDecideRegistrationsAction(
     `/orgs/${organizationId}/events/${eventId}/registrations?status=pending&notice=requests_${decision === 'approve' ? 'approved' : 'declined'}&decided=${result.decided}&skipped=${skipped}`,
   );
 }
+
+/** Staff's private note on a registration (ADR-0067). An empty note removes it. */
+export async function setRegistrationNoteAction(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const organizationId = formText(form, 'organizationId');
+  const eventId = formText(form, 'eventId');
+  const registrationId = formText(form, 'registrationId');
+  const note = formText(form, 'note');
+  if (![organizationId, eventId, registrationId].every((id) => UUID.test(id))) {
+    return { ok: false, message: 'Something went wrong. Please try again.' };
+  }
+  try {
+    const client = await api();
+    unwrap(
+      await client.PATCH(
+        '/v1/organizations/{organizationId}/events/{eventId}/registrations/{registrationId}/note',
+        {
+          params: {
+            path: { organizationId, eventId, registrationId },
+            header: { 'Idempotency-Key': formText(form, 'idempotencyKey') },
+          },
+          body: { note },
+        },
+      ),
+    );
+  } catch (error) {
+    return { ...errorToFormState(error), values: { note } };
+  }
+  const filter = formText(form, 'status');
+  const status = /^(confirmed|pending|waitlisted|declined|cancelled)$/.test(filter)
+    ? `status=${filter}&`
+    : '';
+  redirect(
+    `/orgs/${organizationId}/events/${eventId}/registrations?${status}notice=${note.trim() ? 'note_saved' : 'note_removed'}`,
+  );
+}

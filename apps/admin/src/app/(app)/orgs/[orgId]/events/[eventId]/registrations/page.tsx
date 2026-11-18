@@ -6,6 +6,7 @@ import {
   CancelRegistrationForm,
   DecideRegistrationForm,
   PromoteRegistrationForm,
+  RegistrationNoteForm,
 } from '@/components/registration-forms';
 import { Badge } from '@/components/ui/badge';
 import { Button, ButtonLink } from '@/components/ui/button';
@@ -35,6 +36,8 @@ const NOTICES: Record<string, string> = {
   request_approved: 'Request approved. They are registered and have been emailed their ticket.',
   request_declined: 'Request declined. They have been told by email.',
   export_denied: 'You don’t have permission to download attendee lists.',
+  note_saved: 'Note saved. Only staff see it.',
+  note_removed: 'Note removed.',
 };
 const FILTERS = [
   { value: undefined, label: 'All' },
@@ -285,6 +288,13 @@ export default async function RegistrationsPage({
                       <span className="stack-sm">
                         <span className="table__primary wrap-anywhere">{r.name}</span>
                         {/* ADR-0065: the person corrected their own details with their link. */}
+                        {/* ADR-0067: staff's private note; the attendee never sees it. */}
+                        {r.staffNote ? (
+                          <span className="staff-note wrap-anywhere">
+                            <span className="visually-hidden">Staff note: </span>
+                            {r.staffNote}
+                          </span>
+                        ) : null}
                         {r.detailsUpdatedAt ? (
                           <span className="text-secondary">
                             Details changed {formatInZone(r.detailsUpdatedAt, evt.timezone)}
@@ -380,52 +390,64 @@ export default async function RegistrationsPage({
                     header: 'Actions',
                     hideHeader: true,
                     align: 'end',
-                    cell: (r) =>
-                      r.status === 'confirmed' ? (
-                        <CancelRegistrationForm
-                          organizationId={orgId}
-                          eventId={eventId}
-                          registrationId={r.id}
-                          name={r.name}
-                          idempotencyKey={newIdempotencyKey()}
-                        />
-                      ) : r.status === 'pending' ? (
-                        <span className="cluster row-actions">
-                          {(['approve', 'decline'] as const).map((decision) => (
-                            <DecideRegistrationForm
-                              key={decision}
-                              organizationId={orgId}
-                              eventId={eventId}
-                              registrationId={r.id}
-                              name={r.name}
-                              decision={decision}
-                              idempotencyKey={newIdempotencyKey()}
-                              confirmed={summary.confirmed}
-                              capacity={summary.capacity}
-                            />
-                          ))}
-                        </span>
-                      ) : r.status === 'waitlisted' ? (
-                        <span className="cluster row-actions">
-                          <PromoteRegistrationForm
-                            organizationId={orgId}
-                            eventId={eventId}
-                            registrationId={r.id}
-                            name={r.name}
-                            idempotencyKey={newIdempotencyKey()}
-                            confirmed={summary.confirmed}
-                            capacity={summary.capacity}
-                          />
+                    cell: (r) => (
+                      <span className="cluster row-actions">
+                        {r.status === 'confirmed' ? (
                           <CancelRegistrationForm
                             organizationId={orgId}
                             eventId={eventId}
                             registrationId={r.id}
                             name={r.name}
                             idempotencyKey={newIdempotencyKey()}
-                            waitlisted
                           />
-                        </span>
-                      ) : null,
+                        ) : r.status === 'pending' ? (
+                          <span className="cluster row-actions">
+                            {(['approve', 'decline'] as const).map((decision) => (
+                              <DecideRegistrationForm
+                                key={decision}
+                                organizationId={orgId}
+                                eventId={eventId}
+                                registrationId={r.id}
+                                name={r.name}
+                                decision={decision}
+                                idempotencyKey={newIdempotencyKey()}
+                                confirmed={summary.confirmed}
+                                capacity={summary.capacity}
+                              />
+                            ))}
+                          </span>
+                        ) : r.status === 'waitlisted' ? (
+                          <span className="cluster row-actions">
+                            <PromoteRegistrationForm
+                              organizationId={orgId}
+                              eventId={eventId}
+                              registrationId={r.id}
+                              name={r.name}
+                              idempotencyKey={newIdempotencyKey()}
+                              confirmed={summary.confirmed}
+                              capacity={summary.capacity}
+                            />
+                            <CancelRegistrationForm
+                              organizationId={orgId}
+                              eventId={eventId}
+                              registrationId={r.id}
+                              name={r.name}
+                              idempotencyKey={newIdempotencyKey()}
+                              waitlisted
+                            />
+                          </span>
+                        ) : null}
+                        <RegistrationNoteForm
+                          organizationId={orgId}
+                          eventId={eventId}
+                          registrationId={r.id}
+                          name={r.name}
+                          note={r.staffNote}
+                          status={status}
+                          idempotencyKey={newIdempotencyKey()}
+                        />
+                      </span>
+                    ),
                   },
                 ]}
               />

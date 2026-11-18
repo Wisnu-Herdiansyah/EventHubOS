@@ -6,10 +6,11 @@ import {
   promoteRegistrationAction,
   decideRegistrationAction,
   bulkDecideRegistrationsAction,
+  setRegistrationNoteAction,
 } from '@/app/actions/registrations';
 import { initialFormState } from '@/lib/errors';
 import { BULK_DECIDE_MAX } from '@/lib/registrations';
-import { FormMessage, SubmitButton } from './form';
+import { FormMessage, SubmitButton, TextArea } from './form';
 import { Dialog, DialogCancel } from './ui/dialog';
 
 export function CancelRegistrationForm(props: {
@@ -297,6 +298,64 @@ function BulkDecideDialog(props: {
                 : `Approve ${props.label}`
               : `Decline ${props.label}`}
           </SubmitButton>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+/** The most a staff note holds (ADR-0067); the API refuses more. */
+const NOTE_MAX = 500;
+
+/**
+ * Add, change or remove staff's private note on a registration (ADR-0067). The person never
+ * sees it; staff see it in the list, the export and at check-in.
+ */
+export function RegistrationNoteForm(props: {
+  organizationId: string;
+  eventId: string;
+  registrationId: string;
+  name: string;
+  note: string | null;
+  /** The list filter to come back to. */
+  status?: string;
+  idempotencyKey: string;
+}) {
+  const [state, action] = useActionState(setRegistrationNoteAction, initialFormState);
+  return (
+    <Dialog
+      trigger={{
+        label: (
+          <>
+            {props.note ? 'Edit note' : 'Add note'}
+            <span className="visually-hidden"> for {props.name}</span>…
+          </>
+        ),
+        variant: 'plain',
+        size: 'sm',
+      }}
+      title={`Note for ${props.name}`}
+      description="Only staff see this: in this list, the download and at check-in. Never the attendee."
+    >
+      <form action={action} className="form">
+        <FormMessage state={state} />
+        <input type="hidden" name="organizationId" value={props.organizationId} />
+        <input type="hidden" name="eventId" value={props.eventId} />
+        <input type="hidden" name="registrationId" value={props.registrationId} />
+        <input type="hidden" name="idempotencyKey" value={props.idempotencyKey} />
+        {props.status ? <input type="hidden" name="status" value={props.status} /> : null}
+        <TextArea
+          name="note"
+          label="Note"
+          hint={`Up to ${NOTE_MAX} characters. Leave it empty to remove the note.`}
+          state={state}
+          defaultValue={props.note ?? ''}
+          maxLength={NOTE_MAX}
+          rows={4}
+        />
+        <div className="form__actions form__actions--end">
+          <DialogCancel>Cancel</DialogCancel>
+          <SubmitButton pendingLabel="Saving…">Save note</SubmitButton>
         </div>
       </form>
     </Dialog>
