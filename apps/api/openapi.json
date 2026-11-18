@@ -10113,7 +10113,7 @@
     "/v1/organizations/{organizationId}/events/{eventId}/announcements": {
       "post": {
         "operationId": "sendAnnouncement",
-        "summary": "Email everyone registered for an event (optionally the waitlist too). Plain text; at most 3 per event per 24 hours. communication.send.",
+        "summary": "Email everyone registered for an event (optionally the waitlist too), or only the requests waiting for approval (ADR-0068). Plain text; at most 3 per event per 24 hours. communication.send.",
         "tags": [
           "announcements"
         ],
@@ -13264,7 +13264,8 @@
             "type": "string",
             "enum": [
               "registered",
-              "registered_and_waitlist"
+              "registered_and_waitlist",
+              "requests"
             ]
           },
           "createdAt": {
@@ -17247,7 +17248,8 @@
             "type": "string",
             "enum": [
               "registered",
-              "registered_and_waitlist"
+              "registered_and_waitlist",
+              "requests"
             ]
           }
         },

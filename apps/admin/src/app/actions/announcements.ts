@@ -14,10 +14,9 @@ export async function sendAnnouncementAction(_prev: FormState, form: FormData): 
   if (![organizationId, eventId].every((id) => UUID.test(id))) {
     return { ok: false, message: 'Something went wrong. Please try again.' };
   }
+  const chosen = formText(form, 'audience');
   const audience =
-    formText(form, 'audience') === 'registered_and_waitlist'
-      ? 'registered_and_waitlist'
-      : 'registered';
+    chosen === 'registered_and_waitlist' || chosen === 'requests' ? chosen : 'registered';
   try {
     const client = await api();
     unwrap(

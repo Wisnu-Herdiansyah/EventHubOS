@@ -1158,7 +1158,7 @@ export interface paths {
         /** Announcements sent for an event, newest first (up to 50), with delivery counts. */
         get: operations["listAnnouncements"];
         put?: never;
-        /** Email everyone registered for an event (optionally the waitlist too). Plain text; at most 3 per event per 24 hours. communication.send. */
+        /** Email everyone registered for an event (optionally the waitlist too), or only the requests waiting for approval (ADR-0068). Plain text; at most 3 per event per 24 hours. communication.send. */
         post: operations["sendAnnouncement"];
         delete?: never;
         options?: never;
@@ -1513,7 +1513,7 @@ export interface components {
             subject: string;
             body: string;
             /** @enum {string} */
-            audience: "registered" | "registered_and_waitlist";
+            audience: "registered" | "registered_and_waitlist" | "requests";
             /** Format: date-time */
             createdAt: string;
             sentBy: string | null;
@@ -2377,7 +2377,7 @@ export interface components {
             subject: string;
             body: string;
             /** @enum {string} */
-            audience: "registered" | "registered_and_waitlist";
+            audience: "registered" | "registered_and_waitlist" | "requests";
         };
         Session: {
             token: string;

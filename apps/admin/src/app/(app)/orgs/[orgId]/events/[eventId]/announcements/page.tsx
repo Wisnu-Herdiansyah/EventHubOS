@@ -85,7 +85,7 @@ export default async function AnnouncementsPage({
           <Card title="New announcement" titleId="compose-heading">
             {evt.lifecycle === 'archived' ? (
               <Notice>Archived events are read-only.</Notice>
-            ) : summary.confirmed + summary.waitlisted === 0 ? (
+            ) : summary.confirmed + summary.waitlisted + summary.pending === 0 ? (
               <EmptyState
                 icon="users"
                 title="Nobody to email yet"
@@ -99,6 +99,7 @@ export default async function AnnouncementsPage({
                 idempotencyKey={newIdempotencyKey()}
                 registered={summary.confirmed}
                 waitlisted={summary.waitlisted}
+                pending={summary.pending}
               />
             )}
             <p className="text-secondary text-sm">
@@ -129,9 +130,13 @@ export default async function AnnouncementsPage({
                         {a.sentBy ? ` · by ${a.sentBy}` : ''} ·{' '}
                         {a.audience === 'registered_and_waitlist'
                           ? 'Registered and waitlist'
-                          : 'Registered'}
+                          : a.audience === 'requests'
+                            ? 'Waiting for approval'
+                            : 'Registered'}
                         {a.skipped > 0
-                          ? ` · ${a.skipped} skipped (cancelled meanwhile, or email not delivered)`
+                          ? a.audience === 'requests'
+                            ? ` · ${a.skipped} skipped (decided or withdrawn meanwhile, or email not delivered)`
+                            : ` · ${a.skipped} skipped (cancelled meanwhile, or email not delivered)`
                           : ''}
                       </p>
                       <p className="announcement__body">{a.body}</p>
