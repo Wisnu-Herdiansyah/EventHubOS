@@ -20,9 +20,18 @@ export function AnnouncementForm(props: {
   idempotencyKey: string;
   registered: number;
   waitlisted: number;
+  /** Requests waiting for an approval decision (ADR-0068). */
+  pending: number;
 }) {
   const [state, action] = useActionState(sendAnnouncementAction, initialFormState);
-  const chosen = state.values?.audience ?? 'registered';
+  // The first group that has anyone in it, unless the person already chose.
+  const chosen =
+    state.values?.audience ??
+    (props.registered > 0
+      ? 'registered'
+      : props.waitlisted > 0
+        ? 'registered_and_waitlist'
+        : 'requests');
   const people = (n: number) => (n === 1 ? '1 person' : `${n.toLocaleString('en')} people`);
   return (
     <form id={FORM_ID} action={action} className="form" noValidate>
@@ -37,7 +46,7 @@ export function AnnouncementForm(props: {
             type="radio"
             name="audience"
             value="registered"
-            defaultChecked={chosen !== 'registered_and_waitlist'}
+            defaultChecked={chosen === 'registered'}
           />
           <span>Everyone registered ({people(props.registered)})</span>
         </label>
@@ -53,6 +62,17 @@ export function AnnouncementForm(props: {
               Everyone registered and on the waitlist ({people(props.registered + props.waitlisted)}
               )
             </span>
+          </label>
+        ) : null}
+        {props.pending > 0 ? (
+          <label className="checkbox">
+            <input
+              type="radio"
+              name="audience"
+              value="requests"
+              defaultChecked={chosen === 'requests'}
+            />
+            <span>Only people waiting for your approval ({people(props.pending)})</span>
           </label>
         ) : null}
       </fieldset>
