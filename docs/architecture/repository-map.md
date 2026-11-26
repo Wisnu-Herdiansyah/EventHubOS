@@ -1,7 +1,7 @@
 # Repository map against the technical architecture
 
 Where each part of `TECHNICAL_ARCHITECTURE.md` lives, and how far it goes. ADRs explain the
-decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0072 (migrations
+decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0078 (migrations
 `0001`–`0038`).
 
 **Status words**
@@ -39,7 +39,7 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0072
 | Two-step verification                        | `apps/api/src/modules/identity/{mfa-routes,totp,mfa-crypto,passkey-routes}.ts`, `apps/api/src/adapters/simplewebauthn-passkeys.ts`, migrations `0013`, `0020` | Done: authenticator app with recovery codes (ADR-0022), passkeys (ADR-0033) |
 | Organization requirement and reminders       | migrations `0015`, `0016`, `0017`, `0019`                                                                                                                     | Done (ADR-0024, ADR-0025, ADR-0026, ADR-0031)                               |
 | SSO (SAML/OIDC), SCIM                        | —                                                                                                                                                             | Deferred by ADR-0071 until the first enterprise customer                    |
-| Breached-password screening                  | —                                                                                                                                                             | Blocked on D14 (length-only policy today)                                   |
+| Breached-password screening                  | —                                                                                                                                                             | Decided by ADR-0078 (Pwned Passwords range API); not built                  |
 
 ## Organizations and team
 
