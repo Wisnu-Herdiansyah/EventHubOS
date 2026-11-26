@@ -311,7 +311,18 @@ describe('bulk decisions', () => {
       people.map((p) => p.id),
     );
     expect(res.json().decided).toBe(3);
-    expect((await audits(t.orgId, 'registration.approved')).map((a) => a.metadata)).toEqual([
+    // One transaction writes all three entries with the same time, so read each person's own
+    // entry rather than relying on the order the database returns them in.
+    const byPerson = new Map(
+      (
+        await pools.migrator.query<{ target_id: string; metadata: Record<string, unknown> }>(
+          `SELECT target_id, metadata FROM eventhub.audit_event
+            WHERE organization_id = $1 AND action = 'registration.approved'`,
+          [t.orgId],
+        )
+      ).rows.map((r) => [r.target_id, r.metadata]),
+    );
+    expect(people.map((p) => byPerson.get(p.id))).toEqual([
       { eventId: t.eventId, overCapacity: false },
       { eventId: t.eventId, overCapacity: false },
       { eventId: t.eventId, overCapacity: true },

@@ -53,3 +53,31 @@ export function bulkDecisionNotice(
     ? `${requests(decided)} approved. Each person is registered and has been emailed their ticket.${left}`
     : `${requests(decided)} declined. Each person has been told by email.${left}`;
 }
+
+// eslint-disable-next-line no-control-regex
+const CONTROL = /[\u0000-\u001f\u007f]/;
+
+/**
+ * The attendee search from the page URL (ADR-0069): trimmed, one line, up to 100 characters.
+ * Anything the API would refuse is dropped, so a hand-edited link still shows the list.
+ */
+export function parseAttendeeSearch(raw: string | string[] | undefined): string | undefined {
+  const q = (Array.isArray(raw) ? raw[0] : raw)?.trim();
+  return q && q.length <= 100 && !CONTROL.test(q) ? q : undefined;
+}
+
+/** The Registrations page link for a filter and search, so each keeps the other. */
+export function registrationsHref(base: string, f: { status?: string; q?: string }): string {
+  const p = new URLSearchParams();
+  if (f.status) p.set('status', f.status);
+  if (f.q) p.set('q', f.q);
+  const qs = p.toString();
+  return qs ? `${base}?${qs}` : base;
+}
+
+/** How many people a search found, for the line above the list. */
+export function searchResultLabel(count: number, q: string, capped: boolean): string {
+  // The list holds at most 1,000: at the cap, there may be more.
+  const n = capped ? `${count} or more people` : count === 1 ? '1 person' : `${count} people`;
+  return `${n} ${count === 1 && !capped ? 'matches' : 'match'} “${q}”.`;
+}

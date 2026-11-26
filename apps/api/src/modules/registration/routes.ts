@@ -144,6 +144,22 @@ const summarySchema = z
 
 const eventParams = z.object({ organizationId: uuid, eventId: uuid }).strict();
 
+/**
+ * Text to find attendees by (ADR-0069): part of a name, an email address or a staff note,
+ * ignoring case. One line of plain text, 1 to 100 characters after trimming.
+ */
+const searchText = z
+  .string()
+  .trim()
+  .min(1, 'Type something to search for.')
+  .max(100, 'Search for up to 100 characters.')
+  // eslint-disable-next-line no-control-regex
+  .regex(/^[^\u0000-\u001f\u007f]*$/, 'Use one line of plain text.');
+/** The LIKE pattern for a search: its own % and _ match themselves, not anything. */
+const containsPattern = (q: string | undefined) => (q ? `%${likeEscape(q)}%` : null);
+const SEARCH_CONDITION =
+  '($4::text IS NULL OR name ILIKE $4 OR email ILIKE $4 OR staff_note ILIKE $4)';
+
 /** What a person sees of their own entry (ADR-0065): not their email, not staff notes. */
 const ownDetailsSchema = z
   .object({
@@ -850,13 +866,13 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       path: '/v1/organizations/:organizationId/events/:eventId/registrations',
       operationId: 'listRegistrations',
       summary:
-        'Attendees of an event, newest first (up to 1,000); the waitlist and requests awaiting approval in joining order. Personal data: registration.manage.',
+        'Attendees of an event, newest first (up to 1,000); the waitlist and requests awaiting approval in joining order. q finds part of a name, email or staff note, ignoring case (ADR-0069). Personal data: registration.manage.',
       tags: ['registrations'],
       requires: 'registration.manage',
       idempotent: false,
       schemas: {
         params: eventParams,
-        query: z.object({ status: z.enum(STATUSES).optional() }).strict(),
+        query: z.object({ status: z.enum(STATUSES).optional(), q: searchText.optional() }).strict(),
         response: {
           status: 200,
           schema: z.object({ data: z.array(registrationSchema) }).meta({ id: 'RegistrationList' }),
@@ -879,11 +895,17 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                  FROM eventhub.registration
                 WHERE organization_id = $1 AND event_id = $2
                   AND ($3::text IS NULL OR status = $3)
+                  AND ${SEARCH_CONDITION}
                 ORDER BY CASE WHEN $3 IN ('waitlisted', 'pending') THEN created_at END,
                          CASE WHEN $3 IN ('waitlisted', 'pending') THEN id END,
                          created_at DESC, id DESC
                 LIMIT 1000`,
-              [access.organizationId, params.eventId, query.status ?? null],
+              [
+                access.organizationId,
+                params.eventId,
+                query.status ?? null,
+                containsPattern(query.q),
+              ],
             );
             // Only this event's own addresses are looked up (ADR-0043).
             const undeliverable = new Set(
@@ -924,7 +946,7 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
       schemas: {
         params: eventParams,
         body: z
-          .object({ status: z.enum(STATUSES).optional() })
+          .object({ status: z.enum(STATUSES).optional(), q: searchText.optional() })
           .strict()
           .meta({ id: 'RegistrationExportRequest' }),
         response: {
@@ -968,9 +990,10 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
                  FROM eventhub.registration
                 WHERE organization_id = $1 AND event_id = $2
                   AND ($3::text IS NULL OR status = $3)
+                  AND ${SEARCH_CONDITION}
                 ORDER BY created_at, id
                 LIMIT ${EXPORT_LIMIT + 1}`,
-              [access.organizationId, params.eventId, body.status ?? null],
+              [access.organizationId, params.eventId, body.status ?? null, containsPattern(body.q)],
             );
             const truncated = rows.length > EXPORT_LIMIT;
             const data = rows.slice(0, EXPORT_LIMIT).map(toDto);
@@ -982,7 +1005,13 @@ export function registrationRoutes(pool: Pool): AnyRoute[] {
               targetType: 'event',
               targetId: params.eventId,
               correlationId,
-              metadata: { count: data.length, status: body.status ?? 'all', truncated },
+              // Whether the list was narrowed by a search, never what was searched for (ADR-0069).
+              metadata: {
+                count: data.length,
+                status: body.status ?? 'all',
+                truncated,
+                searched: body.q !== undefined,
+              },
             });
             // ADR-0049: the other Owners and Admins are told, unless they turned it off.
             await enqueueDataDownload(client, {

@@ -866,7 +866,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Attendees of an event, newest first (up to 1,000); the waitlist and requests awaiting approval in joining order. Personal data: registration.manage. */
+        /** Attendees of an event, newest first (up to 1,000); the waitlist and requests awaiting approval in joining order. q finds part of a name, email or staff note, ignoring case (ADR-0069). Personal data: registration.manage. */
         get: operations["listRegistrations"];
         put?: never;
         post?: never;
@@ -2304,6 +2304,7 @@ export interface components {
         RegistrationExportRequest: {
             /** @enum {string} */
             status?: "confirmed" | "cancelled" | "waitlisted" | "pending" | "declined";
+            q?: string;
         };
         RegistrationLinkRequest: {
             token: string;
@@ -7929,6 +7930,7 @@ export interface operations {
         parameters: {
             query?: {
                 status?: "confirmed" | "cancelled" | "waitlisted" | "pending" | "declined";
+                q?: string;
             };
             header?: {
                 "X-Correlation-Id"?: string;

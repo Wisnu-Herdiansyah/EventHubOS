@@ -19,7 +19,15 @@ import { Toast } from '@/components/ui/toast';
 import { api, newIdempotencyKey, signInOn401, unwrap } from '@/lib/api';
 import { ApiError } from '@/lib/errors';
 import { can } from '@/lib/permissions';
-import { bulkDecisionNotice, registrationStateLabel, seatsLabel } from '@/lib/registrations';
+import {
+  bulkDecisionNotice,
+  parseAttendeeSearch,
+  registrationStateLabel,
+  registrationsHref,
+  searchResultLabel,
+  seatsLabel,
+} from '@/lib/registrations';
+import { SearchField } from '@/components/ui/search-field';
 import { answerText } from '@/lib/registration-export';
 import type { components } from '@/lib/api-types';
 
@@ -78,6 +86,8 @@ export default async function RegistrationsPage({
       : typeof sp.notice === 'string'
         ? NOTICES[sp.notice]
         : undefined;
+  // ADR-0069: part of a name, email or staff note; kept across the filters and in the download.
+  const q = parseAttendeeSearch(sp.q);
   const path = { organizationId: orgId, eventId };
   let org, evt, summary, list;
   try {
@@ -100,7 +110,7 @@ export default async function RegistrationsPage({
     if (can(org.role, 'registration.manage')) {
       list = unwrap(
         await client.GET('/v1/organizations/{organizationId}/events/{eventId}/registrations', {
-          params: { path, query: status ? { status } : {} },
+          params: { path, query: { ...(status ? { status } : {}), ...(q ? { q } : {}) } },
         }),
       ).data;
     }
@@ -192,6 +202,7 @@ export default async function RegistrationsPage({
               // A plain form POST: the browser downloads the file and stays on this page.
               <form method="post" action={`${base}/export`}>
                 {status ? <input type="hidden" name="status" value={status} /> : null}
+                {q ? <input type="hidden" name="q" value={q} /> : null}
                 <Button type="submit" variant="secondary" size="sm" icon="download">
                   Download CSV
                 </Button>
@@ -209,11 +220,29 @@ export default async function RegistrationsPage({
               {`Email to ${undelivered === 1 ? '1 attendee' : `${undelivered} attendees`} is not being delivered (marked below). Announcements skip them; ask them for another address if you need to reach them.`}
             </p>
           ) : null}
+          <form method="get" action={base} className="door-search attendee-search">
+            {status ? <input type="hidden" name="status" value={status} /> : null}
+            <SearchField
+              label="Find an attendee"
+              name="q"
+              defaultValue={q}
+              placeholder="Name, email or staff note"
+              maxLength={100}
+            />
+            <Button type="submit" variant="secondary">
+              Search
+            </Button>
+            {q ? (
+              <Link href={registrationsHref(base, { status })} className="filter-link">
+                Clear search
+              </Link>
+            ) : null}
+          </form>
           <nav aria-label="Filter registrations" className="cluster filter-links">
             {FILTERS.map((f) => (
               <Link
                 key={f.label}
-                href={f.value ? `${base}?status=${f.value}` : base}
+                href={registrationsHref(base, { status: f.value, q })}
                 aria-current={status === f.value ? 'page' : undefined}
                 className="filter-link"
               >
@@ -225,28 +254,37 @@ export default async function RegistrationsPage({
             <EmptyState
               icon="users"
               title={
-                status === 'waitlisted'
-                  ? 'Nobody is waiting'
-                  : status === 'pending'
-                    ? 'No requests to decide'
-                    : status
-                      ? 'No registrations here'
-                      : 'No registrations yet'
+                q
+                  ? `No one matches “${q}”`
+                  : status === 'waitlisted'
+                    ? 'Nobody is waiting'
+                    : status === 'pending'
+                      ? 'No requests to decide'
+                      : status
+                        ? 'No registrations here'
+                        : 'No registrations yet'
               }
               description={
-                status === 'pending'
-                  ? summary.approval
-                    ? 'New sign-ups wait here until you approve or decline them.'
-                    : 'Turn on approval in the event settings to review each sign-up first.'
-                  : status === 'waitlisted'
-                    ? summary.waitlist
-                      ? 'When the event is full, new sign-ups wait here and get freed seats in order.'
-                      : 'Turn on the waitlist in the event settings to let people wait for a seat.'
-                    : 'People register on the event’s public page once it is published.'
+                q
+                  ? 'Search looks in names, email addresses and staff notes, here and in the filter you chose.'
+                  : status === 'pending'
+                    ? summary.approval
+                      ? 'New sign-ups wait here until you approve or decline them.'
+                      : 'Turn on approval in the event settings to review each sign-up first.'
+                    : status === 'waitlisted'
+                      ? summary.waitlist
+                        ? 'When the event is full, new sign-ups wait here and get freed seats in order.'
+                        : 'Turn on the waitlist in the event settings to let people wait for a seat.'
+                      : 'People register on the event’s public page once it is published.'
               }
             />
           ) : (
             <>
+              {q ? (
+                <p className="card__note text-secondary" role="status">
+                  {searchResultLabel(list.length, q, list.length >= 1000)}
+                </p>
+              ) : null}
               {/* ADR-0066: on the Requests view, several can be approved or declined at once. */}
               {bulk ? (
                 <BulkDecideBar

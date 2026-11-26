@@ -7489,7 +7489,7 @@
     "/v1/organizations/{organizationId}/events/{eventId}/registrations": {
       "get": {
         "operationId": "listRegistrations",
-        "summary": "Attendees of an event, newest first (up to 1,000); the waitlist and requests awaiting approval in joining order. Personal data: registration.manage.",
+        "summary": "Attendees of an event, newest first (up to 1,000); the waitlist and requests awaiting approval in joining order. q finds part of a name, email or staff note, ignoring case (ADR-0069). Personal data: registration.manage.",
         "tags": [
           "registrations"
         ],
@@ -7533,6 +7533,17 @@
                 "pending",
                 "declined"
               ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
             }
           },
           {
@@ -16878,6 +16889,12 @@
               "pending",
               "declined"
             ]
+          },
+          "q": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "^[^\\u0000-\\u001f\\u007f]*$"
           }
         },
         "additionalProperties": false
