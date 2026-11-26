@@ -217,6 +217,9 @@ const baseSchema = z.object({
   LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
 });
 
+/** Breached-password screening adapters (ADR-0078); only the first is allowed remotely. */
+export const BREACHED_PASSWORD_CHECKS = ['pwned_passwords', 'in_memory', 'off'] as const;
+
 const apiSchema = baseSchema.extend({
   HTTP_HOST: z.string().min(1).default('127.0.0.1'),
   HTTP_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
@@ -288,10 +291,18 @@ const apiSchema = baseSchema.extend({
     .string()
     .regex(/^(whsec_)?[A-Za-z0-9+/]{22,}={0,2}$/, 'Use the whsec_… secret of the webhook')
     .optional(),
+  /**
+   * Breached-password screening (ADR-0078): `pwned_passwords` asks the Pwned Passwords range
+   * API (no key needed); `in_memory` uses a short built-in list (tests); `off` skips it. Only
+   * `pwned_passwords` is allowed in staging and production.
+   */
+  BREACHED_PASSWORD_CHECK: z.enum(BREACHED_PASSWORD_CHECKS).default('pwned_passwords'),
 });
 
 export interface ApiConfig {
   environment: DeployEnvironment;
+  /** How new passwords are screened against breached passwords (ADR-0078). */
+  breachedPasswordCheck: (typeof BREACHED_PASSWORD_CHECKS)[number];
   logLevel: (typeof LOG_LEVELS)[number];
   http: { host: string; port: number; trustProxy: boolean | string[] };
   visitorAddressKey: string | null;
@@ -335,8 +346,16 @@ export function loadApiConfig(env: Readonly<Record<string, string | undefined>>)
   if (!c.MFA_ENCRYPTION_KEY && isRemoteEnvironment(c.EVENTHUB_ENV)) {
     throw new ConfigError(['MFA_ENCRYPTION_KEY'], `is required in ${c.EVENTHUB_ENV}`);
   }
+  // pragma: allowlist nextline secret (a setting name, not a secret)
+  if (c.BREACHED_PASSWORD_CHECK !== 'pwned_passwords' && isRemoteEnvironment(c.EVENTHUB_ENV)) {
+    throw new ConfigError(
+      ['BREACHED_PASSWORD_CHECK'],
+      `must be pwned_passwords in ${c.EVENTHUB_ENV}`,
+    );
+  }
   return {
     environment: c.EVENTHUB_ENV,
+    breachedPasswordCheck: c.BREACHED_PASSWORD_CHECK,
     logLevel: c.LOG_LEVEL,
     http: { host: c.HTTP_HOST, port: c.HTTP_PORT, trustProxy: c.TRUST_PROXY },
     database: { appUrl: c.DATABASE_APP_URL },

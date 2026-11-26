@@ -15,7 +15,7 @@ export interface PasswordHasher {
 /**
  * Password policy per NIST SP 800-63B: length-based, no composition rules, all Unicode allowed,
  * NFKC-normalised before hashing so equivalent input always verifies. Max length bounds hashing
- * cost. A breached-password screen is a follow-up (needs an approved data source).
+ * cost. New passwords are also screened against breached passwords in the routes (ADR-0078).
  */
 export const PASSWORD_MIN_LENGTH = 12;
 export const PASSWORD_MAX_LENGTH = 128;

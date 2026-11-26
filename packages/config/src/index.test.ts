@@ -537,3 +537,48 @@ describe('email webhook secret (ADR-0043)', () => {
     expect(e.message).not.toContain(SECRET);
   });
 });
+
+describe('loadApiConfig: breached-password screening (ADR-0078)', () => {
+  it('asks Pwned Passwords by default; local runs may use the test list or turn it off', () => {
+    expect(
+      loadApiConfig({ EVENTHUB_ENV: 'local', DATABASE_APP_URL: localUrl }).breachedPasswordCheck,
+    ).toBe('pwned_passwords');
+    for (const value of ['in_memory', 'off'] as const) {
+      expect(
+        loadApiConfig({
+          EVENTHUB_ENV: 'ci',
+          DATABASE_APP_URL: localUrl,
+          BREACHED_PASSWORD_CHECK: value,
+        }).breachedPasswordCheck,
+      ).toBe(value);
+    }
+    const e = captureError(() =>
+      loadApiConfig({
+        EVENTHUB_ENV: 'local',
+        DATABASE_APP_URL: localUrl,
+        BREACHED_PASSWORD_CHECK: 'sometimes', // pragma: allowlist secret (a setting name, not a secret)
+      }),
+    );
+    expect(e.keys).toEqual(['BREACHED_PASSWORD_CHECK']);
+  });
+
+  it('must be pwned_passwords in staging and production', () => {
+    const remoteUrl = `postgres://eventhub_app:${SECRET}@db.internal:5432/eventhub?sslmode=verify-full`;
+    const remote = {
+      DATABASE_APP_URL: remoteUrl,
+      TRUST_PROXY: '10.0.0.1',
+      MFA_ENCRYPTION_KEY: MFA_KEY,
+    };
+    for (const env of ['staging', 'production']) {
+      for (const value of ['in_memory', 'off']) {
+        const e = captureError(() =>
+          loadApiConfig({ ...remote, EVENTHUB_ENV: env, BREACHED_PASSWORD_CHECK: value }),
+        );
+        expect(e.keys, `${env} ${value}`).toEqual(['BREACHED_PASSWORD_CHECK']);
+      }
+      expect(loadApiConfig({ ...remote, EVENTHUB_ENV: env }).breachedPasswordCheck).toBe(
+        'pwned_passwords',
+      );
+    }
+  });
+});
