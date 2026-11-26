@@ -1,7 +1,7 @@
 # Repository map against the technical architecture
 
 Where each part of `TECHNICAL_ARCHITECTURE.md` lives, and how far it goes. ADRs explain the
-decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0069 (migrations
+decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0072 (migrations
 `0001`–`0038`).
 
 **Status words**
@@ -38,7 +38,7 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0069
 | Sessions and idle timeout                    | `apps/api/src/modules/identity/authenticator.ts`, migrations `0009`, `0010`                                                                                   | Done (ADR-0017, ADR-0018)                                                   |
 | Two-step verification                        | `apps/api/src/modules/identity/{mfa-routes,totp,mfa-crypto,passkey-routes}.ts`, `apps/api/src/adapters/simplewebauthn-passkeys.ts`, migrations `0013`, `0020` | Done: authenticator app with recovery codes (ADR-0022), passkeys (ADR-0033) |
 | Organization requirement and reminders       | migrations `0015`, `0016`, `0017`, `0019`                                                                                                                     | Done (ADR-0024, ADR-0025, ADR-0026, ADR-0031)                               |
-| SSO (SAML/OIDC), SCIM                        | —                                                                                                                                                             | Blocked on D3                                                               |
+| SSO (SAML/OIDC), SCIM                        | —                                                                                                                                                             | Deferred by ADR-0071 until the first enterprise customer                    |
 | Breached-password screening                  | —                                                                                                                                                             | Blocked on D14 (length-only policy today)                                   |
 
 ## Organizations and team
@@ -78,7 +78,7 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0069
 | Add to calendar           | `apps/site/src/lib/calendar.ts`, `apps/site/src/app/k`, `public-site` calendar route, migration `0030`        | Done (ADR-0048): iCalendar file from the page, ticket and confirmation email. Subscription feeds later                                                                         |
 | Event reminders           | `apps/worker/src/event-reminders.ts`, migration `0033`, `settings.registration.reminder`                      | Done (ADR-0062): one email to confirmed seats in the 24 hours before the start; on by default, switch per event                                                                |
 | Post-event feedback       | `apps/worker/src/event-feedback.ts`, `apps/api/src/modules/feedback`, `apps/site/src/app/f`, migration `0034` | Done (ADR-0063): one email after the event with a personal link; rating 1–5 and a comment; anonymous figures in the report, comments for registration managers; off by default |
-| Paid ticketing, billing   | —                                                                                                             | Blocked on D2                                                                                                                                                                  |
+| Paid ticketing, billing   | `PaymentGateway` port in `packages/kernel/src/payments.ts`                                                    | Port only (ADR-0070): organizers sell, Xendit xenPlatform, Indonesia in rupiah; Xendit adapter, orders and ticket types not built                                              |
 
 ## Communication
 
@@ -88,7 +88,7 @@ decisions; `open-decisions.md` lists what blocks the rest. Updated with ADR-0069
 | Announcements               | `apps/api/src/modules/announcement`, migration `0022`, worker `send-announcement`                                                                            | Done (ADR-0037)                                                                                                                 |
 | Bounces and complaints      | `EmailFeedbackReceiver` port, `apps/api/src/{adapters/resend-email-feedback.ts,modules/email-feedback}`, `apps/worker/src/email-policy.ts`, migration `0026` | Done (ADR-0043). Configure the provider webhook before enabling it                                                              |
 | Email notification settings | `NOTIFICATIONS` in `packages/kernel`, `apps/api/src/modules/notifications`, worker `send-data-download-email`, migration `0031`                              | Done (ADR-0049): per-person, per-organization settings; data download alerts to Owners and Admins; security notices always sent |
-| SMS, WhatsApp               | —                                                                                                                                                            | Blocked on D4 (channels beyond email)                                                                                           |
+| SMS, WhatsApp               | `WhatsAppSender` port in `packages/kernel/src/messaging.ts`                                                                                                  | Port only (ADR-0072): WhatsApp through Meta Cloud API; Meta adapter, opt-in and templates not built; SMS open (D4)              |
 
 ## Reporting
 
