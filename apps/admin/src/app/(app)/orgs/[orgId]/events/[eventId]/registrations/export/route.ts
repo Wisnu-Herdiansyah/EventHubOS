@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { api, unwrap } from '@/lib/api';
 import { ApiError, isTwoStepRequired, twoStepRequiredPath } from '@/lib/errors';
 import { exportFilename, isSameOriginPost, registrationsCsv } from '@/lib/registration-export';
+import { parseAttendeeSearch } from '@/lib/registrations';
 
 const UUID = /^[0-9a-f-]{36}$/i;
 
@@ -28,8 +29,18 @@ export async function POST(
     return new NextResponse('Forbidden', { status: 403 });
   }
   const form = await request.formData();
+  // Every list filter, and the search (ADR-0069), as on the page: the file holds what was shown.
   const raw = form.get('status');
-  const status = raw === 'confirmed' || raw === 'cancelled' ? raw : undefined;
+  const status =
+    raw === 'confirmed' ||
+    raw === 'cancelled' ||
+    raw === 'waitlisted' ||
+    raw === 'pending' ||
+    raw === 'declined'
+      ? raw
+      : undefined;
+  const rawQ = form.get('q');
+  const q = parseAttendeeSearch(typeof rawQ === 'string' ? rawQ : undefined);
   const page = `/orgs/${orgId}/events/${eventId}/registrations`;
   const back = (path: string) => NextResponse.redirect(new URL(path, request.url), 303);
   try {
@@ -37,7 +48,10 @@ export async function POST(
     const data = unwrap(
       await client.POST(
         '/v1/organizations/{organizationId}/events/{eventId}/registrations/export',
-        { params: { path: { organizationId: orgId, eventId } }, body: status ? { status } : {} },
+        {
+          params: { path: { organizationId: orgId, eventId } },
+          body: { ...(status ? { status } : {}), ...(q ? { q } : {}) },
+        },
       ),
     );
     return new NextResponse(registrationsCsv(data), {

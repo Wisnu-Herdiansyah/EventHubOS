@@ -1398,6 +1398,69 @@ test('an organizer writes only to the people waiting for approval (ADR-0068)', a
   await expectAccessible(page);
 });
 
+test('an organizer searches the attendee list and downloads just what was found (ADR-0069)', async ({
+  page,
+}) => {
+  // Two seats: the third person joins the waitlist.
+  const t = await publishedEvent('search', { capacity: 2, waitlist: true });
+  const people = [
+    { name: 'Ayu Searchable', email: uniqueEmail('srch-ayu') },
+    { name: 'Bayu Searchable', email: uniqueEmail('srch-bayu') },
+    { name: 'Candra Other', email: uniqueEmail('srch-candra') },
+  ];
+  for (const p of people) {
+    await apiCall('POST', `/v1/public/sites/${t.handle}/events/${t.slug}/registrations`, {
+      ...p,
+      privacyConsent: true,
+    });
+  }
+
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/registrations`);
+  const table = page.getByRole('table', { name: 'Attendees' });
+  await expect(table.locator('.table__primary')).toHaveCount(3);
+  const box = page.getByRole('searchbox', { name: 'Find an attendee' });
+  await box.fill('searchable');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page).toHaveURL(/[?&]q=searchable/);
+  await expect(page.getByText('2 people match “searchable”.')).toBeVisible();
+  await expect(table.locator('.table__primary')).toHaveText(['Bayu Searchable', 'Ayu Searchable']);
+  await expectAccessible(page);
+
+  // The filters keep the search, and the download holds just what is shown.
+  await page.getByRole('link', { name: 'Registered' }).click();
+  await expect(page).toHaveURL(/status=confirmed/);
+  await expect(page).toHaveURL(/q=searchable/);
+  await expect(box).toHaveValue('searchable');
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download CSV' }).click(),
+  ]);
+  const csv = await readFile(await download.path(), 'utf8');
+  expect(csv).toContain('Ayu Searchable');
+  expect(csv).toContain('Bayu Searchable');
+  expect(csv).not.toContain('Candra Other');
+
+  // Nothing found, then the search is cleared.
+  await box.fill('nobody-at-all');
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
+  await expect(page.getByText('No one matches “nobody-at-all”')).toBeVisible();
+  await page.getByRole('link', { name: 'Clear search' }).click();
+  await expect(page).not.toHaveURL(/q=/);
+  await expect(page).toHaveURL(/status=confirmed/);
+  await expect(table.locator('.table__primary')).toHaveCount(2);
+
+  // Each filter's download holds only that group (the Waitlist one used to hold everyone).
+  await page.getByRole('link', { name: 'Waitlist' }).click();
+  const [waitlist] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Download CSV' }).click(),
+  ]);
+  const waiting = await readFile(await waitlist.path(), 'utf8');
+  expect(waiting).toContain('Candra Other');
+  expect(waiting).not.toContain('Ayu Searchable');
+});
+
 test('an attendee corrects their own name and answers with the link in their email (ADR-0065)', async ({
   page,
   browser,

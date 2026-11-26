@@ -387,13 +387,13 @@ describe('event registration', () => {
           actor_id: t.members.registration_manager!.id,
           target_type: 'event',
           target_id: t.eventId,
-          metadata: { count: 2, status: 'all', truncated: false },
+          metadata: { count: 2, status: 'all', truncated: false, searched: false },
         },
         {
           actor_id: t.owner.id,
           target_type: 'event',
           target_id: t.eventId,
-          metadata: { count: 1, status: 'confirmed', truncated: false },
+          metadata: { count: 1, status: 'confirmed', truncated: false, searched: false },
         },
       ]);
       expect(JSON.stringify(audit.rows)).not.toContain(first);

@@ -1620,6 +1620,12 @@
   gap: var(--space-2);
 }
 
+/* Attendee search on the Registrations page (ADR-0069): the door search layout, wrapping. */
+.attendee-search {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
 /* Staff's private note on a registration (ADR-0067): set apart, line breaks kept. */
 .staff-note {
   display: block;

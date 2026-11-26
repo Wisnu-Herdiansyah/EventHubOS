@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { bulkDecisionNotice, registrationStateLabel, seatsLabel } from './registrations';
+import {
+  bulkDecisionNotice,
+  parseAttendeeSearch,
+  registrationStateLabel,
+  registrationsHref,
+  searchResultLabel,
+  seatsLabel,
+} from './registrations';
 
 describe('registration labels', () => {
   it('names each state with a tone', () => {
@@ -52,5 +59,40 @@ describe('bulkDecisionNotice (ADR-0066)', () => {
         'Nothing changed: the selected requests had already been dealt with.',
       );
     }
+  });
+});
+
+describe('attendee search (ADR-0069)', () => {
+  it('keeps a trimmed one-line search of up to 100 characters', () => {
+    expect(parseAttendeeSearch('  ade  ')).toBe('ade');
+    expect(parseAttendeeSearch(['first', 'second'])).toBe('first');
+    expect(parseAttendeeSearch('x'.repeat(100))).toBe('x'.repeat(100));
+  });
+  it('drops what the API would refuse', () => {
+    for (const bad of [
+      undefined,
+      '',
+      '   ',
+      'x'.repeat(101),
+      'two\nlines',
+      'tab\there',
+      'nul\u0000',
+    ]) {
+      expect(parseAttendeeSearch(bad), JSON.stringify(bad)).toBeUndefined();
+    }
+  });
+  it('links keep the filter and the search together', () => {
+    const base = '/orgs/o/events/e/registrations';
+    expect(registrationsHref(base, {})).toBe(base);
+    expect(registrationsHref(base, { status: 'pending' })).toBe(`${base}?status=pending`);
+    expect(registrationsHref(base, { q: 'ade' })).toBe(`${base}?q=ade`);
+    expect(registrationsHref(base, { status: 'confirmed', q: 'a&b c' })).toBe(
+      `${base}?status=confirmed&q=a%26b+c`,
+    );
+  });
+  it('counts what was found', () => {
+    expect(searchResultLabel(1, 'ade', false)).toBe('1 person matches “ade”.');
+    expect(searchResultLabel(3, 'ade', false)).toBe('3 people match “ade”.');
+    expect(searchResultLabel(1000, 'a', true)).toBe('1000 or more people match “a”.');
   });
 });
