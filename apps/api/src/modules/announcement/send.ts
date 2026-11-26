@@ -10,9 +10,25 @@ export interface NewAnnouncement {
   correlationId: string;
   subject: string;
   body: string;
-  audience: 'registered' | 'registered_and_waitlist';
+  audience: 'registered' | 'registered_and_waitlist' | 'requests';
   /** Why it was sent: an organizer's message, or the notice of a cancellation (ADR-0050). */
   purpose?: 'announcement' | 'cancellation';
+}
+
+/**
+ * Whose registrations an announcement captures. A cancellation also reaches requests still
+ * waiting for approval (ADR-0064): they asked to come. Ordinary announcements to "registered and
+ * waitlist" do not; requests have their own audience (ADR-0068).
+ */
+export function audienceStatuses(
+  audience: NewAnnouncement['audience'],
+  purpose: NewAnnouncement['purpose'] = 'announcement',
+): string[] {
+  if (audience === 'requests') return ['pending'];
+  if (audience === 'registered') return ['confirmed'];
+  return purpose === 'cancellation'
+    ? ['confirmed', 'waitlisted', 'pending']
+    : ['confirmed', 'waitlisted'];
 }
 
 /**
@@ -24,14 +40,7 @@ export async function createAnnouncement(
   client: Queryable,
   a: NewAnnouncement,
 ): Promise<{ id: string; recipients: number }> {
-  // A cancellation also reaches requests still waiting for approval (ADR-0064): they asked to
-  // come. Ordinary announcements go only to people with a seat or on the waitlist.
-  const statuses =
-    a.audience !== 'registered_and_waitlist'
-      ? ['confirmed']
-      : a.purpose === 'cancellation'
-        ? ['confirmed', 'waitlisted', 'pending']
-        : ['confirmed', 'waitlisted'];
+  const statuses = audienceStatuses(a.audience, a.purpose);
   const ins = await client.query<{ id: string }>(
     `INSERT INTO eventhub.announcement
        (organization_id, event_id, subject, body, audience, created_by)

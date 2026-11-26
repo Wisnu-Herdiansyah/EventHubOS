@@ -5,7 +5,7 @@ import { runIdempotentCommand } from '../../http/idempotent-command.ts';
 import { defineRoute, type AnyRoute } from '../../http/route.ts';
 import { uuid } from '../../http/schemas.ts';
 import { withOrganization } from '../tenancy/access.ts';
-import { createAnnouncement } from './send.ts';
+import { audienceStatuses, createAnnouncement } from './send.ts';
 
 /**
  * Event announcements (ADR-0037): one plain-text email from the organizer to the people
@@ -24,7 +24,8 @@ const BODY_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 // eslint-disable-next-line no-control-regex
 const ANY_CONTROL = /[\u0000-\u001f\u007f]/;
 
-const AUDIENCES = ['registered', 'registered_and_waitlist'] as const;
+/** requests: only people waiting for an approval decision (ADR-0068). */
+const AUDIENCES = ['registered', 'registered_and_waitlist', 'requests'] as const;
 
 const sendBody = z
   .object({
@@ -106,7 +107,7 @@ export function announcementRoutes(pool: Pool): AnyRoute[] {
       method: 'POST',
       path: '/v1/organizations/:organizationId/events/:eventId/announcements',
       operationId: 'sendAnnouncement',
-      summary: `Email everyone registered for an event (optionally the waitlist too). Plain text; at most ${ANNOUNCEMENT_DAILY_LIMIT} per event per 24 hours. communication.send.`,
+      summary: `Email everyone registered for an event (optionally the waitlist too), or only the requests waiting for approval (ADR-0068). Plain text; at most ${ANNOUNCEMENT_DAILY_LIMIT} per event per 24 hours. communication.send.`,
       tags: ['announcements'],
       requires: 'communication.send',
       idempotent: true,
@@ -152,10 +153,7 @@ export function announcementRoutes(pool: Pool): AnyRoute[] {
                     { details: { reason: 'announcement_limit' } },
                   );
                 }
-                const statuses =
-                  body.audience === 'registered_and_waitlist'
-                    ? ['confirmed', 'waitlisted']
-                    : ['confirmed'];
+                const statuses = audienceStatuses(body.audience);
                 const count = await client.query<{ n: number }>(
                   `SELECT count(*)::int AS n FROM eventhub.registration
                     WHERE organization_id = $1 AND event_id = $2 AND status = ANY($3)`,
@@ -163,9 +161,15 @@ export function announcementRoutes(pool: Pool): AnyRoute[] {
                 );
                 const n = count.rows[0]!.n;
                 if (n === 0) {
-                  throw new AppError('conflict', 'Nobody is registered yet.', {
-                    details: { reason: 'no_recipients' },
-                  });
+                  throw new AppError(
+                    'conflict',
+                    body.audience === 'requests'
+                      ? 'Nobody is waiting for approval.'
+                      : 'Nobody is registered yet.',
+                    {
+                      details: { reason: 'no_recipients' },
+                    },
+                  );
                 }
                 if (n > ANNOUNCEMENT_MAX_RECIPIENTS) {
                   throw new AppError(

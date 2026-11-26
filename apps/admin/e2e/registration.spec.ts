@@ -1342,6 +1342,62 @@ test('staff keep a private note on an attendee, seen in the list and at the door
   await expect(page.getByRole('button', { name: 'Add note for Nadia Noted' })).toBeVisible();
 });
 
+test('an organizer writes only to the people waiting for approval (ADR-0068)', async ({ page }) => {
+  const t = await publishedEvent('announce-requests', { capacity: 10, approval: true });
+  const waiting = uniqueEmail('ar-waiting');
+  const seated = uniqueEmail('ar-seated');
+  for (const [name, email] of [
+    ['Willa Waiting', waiting],
+    ['Sid Seated', seated],
+  ] as const) {
+    await apiCall('POST', `/v1/public/sites/${t.handle}/events/${t.slug}/registrations`, {
+      name,
+      email,
+      privacyConsent: true,
+    });
+  }
+  // One of them is approved first, so only one request is still waiting.
+
+  await signIn(page, t.owner.email);
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/registrations?status=pending`);
+  await page.getByRole('button', { name: 'Approve Sid Seated' }).click();
+  await page
+    .getByRole('dialog', { name: 'Approve Sid Seated?' })
+    .getByRole('button', { name: 'Approve', exact: true })
+    .click();
+  await expect(page.getByText('Request approved.')).toBeVisible();
+
+  await page.goto(`/orgs/${t.orgId}/events/${t.eventId}/announcements`);
+  const requests = page.getByRole('radio', {
+    name: 'Only people waiting for your approval (1 person)',
+  });
+  await expect(page.getByRole('radio', { name: 'Everyone registered (1 person)' })).toBeChecked();
+  await requests.check();
+  await page.getByLabel('Subject').fill('Decisions by Friday');
+  await page.getByLabel('Message').fill('Thanks for asking. We decide on every request by Friday.');
+  await expectAccessible(page);
+  await page.getByRole('button', { name: 'Send…' }).click();
+  await page
+    .getByRole('dialog', { name: 'Send this announcement now?' })
+    .getByRole('button', { name: 'Send now' })
+    .click();
+  await expect(page.locator('.toast')).toContainText('Announcement sent.');
+
+  const mail = await mailMessage(waiting, 'event_announcement');
+  expect(mail.subject).toBe('Private Summit: Decisions by Friday');
+  expect(mail.text).toContain('Hello Willa Waiting,');
+  const sent = page.getByRole('list', { name: 'Sent announcements' });
+  await expect(sent).toContainText('Waiting for approval');
+  await expect(async () => {
+    await page.reload();
+    await expect(sent.getByText('Delivered to 1')).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
+  // It was captured for the one request only, not for the person who already has a seat (the
+  // integration tests check every other group).
+  await expect(sent).toContainText('Waiting for approval');
+  await expectAccessible(page);
+});
+
 test('an attendee corrects their own name and answers with the link in their email (ADR-0065)', async ({
   page,
   browser,
