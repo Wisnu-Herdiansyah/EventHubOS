@@ -18,7 +18,7 @@ export interface BreachedPasswordChecker {
  * Passwords the in-memory checker treats as breached, for local runs and tests. They are
  * well-known examples from public breach lists, long enough to pass the length rule.
  */
-export const EXAMPLE_BREACHED_PASSWORDS: readonly string[] = [
+export const EXAMPLE_BREACH_LIST: readonly string[] = [
   'password1234',
   'qwertyuiop123',
   '123456789012',
@@ -30,7 +30,7 @@ export class InMemoryBreachedPasswordChecker implements BreachedPasswordChecker 
   readonly #breached: Set<string>;
   #unavailable = false;
 
-  constructor(breached: readonly string[] = EXAMPLE_BREACHED_PASSWORDS) {
+  constructor(breached: readonly string[] = EXAMPLE_BREACH_LIST) {
     this.#breached = new Set(breached);
   }
 
