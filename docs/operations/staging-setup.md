@@ -44,7 +44,16 @@ A small instance for staging. The tier can be changed later.
 gcloud sql instances create eventhub-staging \
   --database-version=POSTGRES_16 --edition=enterprise --tier=db-custom-1-3840 \
   --region=asia-southeast1 --storage-auto-increase \
-  --backup-start-time=18:00 --backup-location=asia-southeast1
+  --backup-start-time=18:00 --backup-location=asia-southeast1 \
+  --enable-point-in-time-recovery --retained-transaction-log-days=7 --retained-backups-count=8
+```
+
+Point-in-time recovery with 7 days of logs and 8 daily backups is the recovery setting for
+staging and production (ADR-0073). If the instance already exists, turn it on with:
+
+```bash
+gcloud sql instances patch eventhub-staging \
+  --enable-point-in-time-recovery --retained-transaction-log-days=7 --retained-backups-count=8
 ```
 
 ```bash
