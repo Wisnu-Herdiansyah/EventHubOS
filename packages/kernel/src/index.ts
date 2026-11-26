@@ -7,3 +7,4 @@ export * from './event-themes.ts';
 export * from './notifications.ts';
 export * from './payments.ts';
 export * from './messaging.ts';
+export * from './breached-passwords.ts';

@@ -1,7 +1,12 @@
 import type { PasskeyRelyingParty } from './passkeys.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { z } from 'zod';
-import { AppError, createDomainEvent, type Actor } from '@eventhub/kernel';
+import {
+  AppError,
+  createDomainEvent,
+  type Actor,
+  type BreachedPasswordChecker,
+} from '@eventhub/kernel';
 import {
   enqueueEvent,
   withTransaction,
@@ -31,6 +36,27 @@ export interface IdentitySettings {
   sessionIdleSeconds?: number;
   loginMaxFailures: number;
   loginLockSeconds: number;
+  /** Screens new passwords against breached ones (ADR-0078); null or absent: length only. */
+  breachedPasswords?: BreachedPasswordChecker | null;
+}
+
+/** Said when a new password appears in breach data; how often it appeared is not shown. */
+export const BREACHED_PASSWORD_MESSAGE =
+  'This password has appeared in a data breach. Choose a different one.';
+
+/**
+ * Refuses a new password that appears in breach data (ADR-0078). When the source cannot be
+ * asked, the password is accepted on length alone: an outside outage never stops sign-up.
+ */
+async function refuseBreached(
+  checker: BreachedPasswordChecker | null | undefined,
+  password: string,
+  path: string,
+): Promise<void> {
+  if (!checker || (await checker.check(password)) !== 'breached') return;
+  throw new AppError('validation_failed', 'Invalid request body.', {
+    details: { fields: [{ path, message: BREACHED_PASSWORD_MESSAGE }] },
+  });
 }
 
 export const EMAIL_VERIFICATION_REQUESTED = 'identity.email_verification_requested';
@@ -215,6 +241,8 @@ export function identityRoutes(
       rateLimit: AUTH_RATE_LIMIT,
       schemas: { body: signupBody, response: { status: 202, schema: acceptedSchema } },
       async handler({ body, correlationId }) {
+        // Before any account lookup: the answer depends on the password only, never the account.
+        await refuseBreached(settings.breachedPasswords, body.password, 'body.password');
         // Hash before any lookup so every outcome costs the same.
         const passwordHash = await hasher.hash(body.password);
         await withTransaction(pool, {}, async (client) => {
@@ -527,6 +555,8 @@ export function identityRoutes(
         },
       },
       async handler({ body, correlationId }) {
+        // Before the link is used, so a refused password leaves the link working.
+        await refuseBreached(settings.breachedPasswords, body.password, 'body.password');
         const tokenHash = createHash('sha256').update(body.token).digest();
         const passwordHash = await hasher.hash(body.password);
         const outcome = await withTransaction(pool, {}, async (client) => {
@@ -662,6 +692,7 @@ export function identityRoutes(
             details: { fields: policy },
           });
         }
+        await refuseBreached(settings.breachedPasswords, body.newPassword, 'body.newPassword');
 
         const passwordHash = await hasher.hash(body.newPassword);
         const revoked = await withTransaction(

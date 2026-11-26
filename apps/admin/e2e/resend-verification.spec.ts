@@ -72,3 +72,20 @@ test('verified users are not offered a resend', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Create organization' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Send a new verification email' })).toHaveCount(0);
 });
+
+test('sign-up refuses a password known from data breaches (ADR-0078)', async ({ page }) => {
+  await page.goto('/signup');
+  await page.getByLabel('Email').fill(`breached-${randomBytes(4).toString('hex')}@example.test`);
+  // On the browser tests' built-in list of breached passwords; long enough for the length rule.
+  await page.getByLabel('Password').fill('password1234');
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(
+    page.getByText('This password has appeared in a data breach. Choose a different one.'),
+  ).toBeVisible();
+  await expect(page.getByLabel('Password')).toHaveAttribute('aria-invalid', 'true');
+  await expectAccessible(page);
+  // A different password goes through.
+  await page.getByLabel('Password').fill(PASSWORD);
+  await page.getByRole('button', { name: 'Create account' }).click();
+  await expect(page.getByRole('status')).toContainText('Open the link in that email');
+});

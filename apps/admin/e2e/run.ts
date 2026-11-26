@@ -177,6 +177,8 @@ try {
     OBJECT_STORE: 'local_directory',
     OBJECT_STORE_DIR: objectDir,
     RESEND_WEBHOOK_SECRET: emailWebhookSecret,
+    // A short built-in list instead of the live service (ADR-0078): no network in browser tests.
+    BREACHED_PASSWORD_CHECK: 'in_memory', // pragma: allowlist secret (a setting name, not a secret)
   });
   start('worker', process.execPath, ['apps/worker/src/main.ts'], {
     EVENTHUB_ENV: 'ci',

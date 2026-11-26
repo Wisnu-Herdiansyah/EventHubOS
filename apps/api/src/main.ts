@@ -1,7 +1,12 @@
 import { loadApiConfig } from '@eventhub/config';
 import { simpleWebAuthnRelyingParty } from './adapters/simplewebauthn-passkeys.ts';
 import { createPool } from '@eventhub/db';
-import { InMemoryObjectStore, type ObjectStore } from '@eventhub/kernel';
+import {
+  InMemoryBreachedPasswordChecker,
+  InMemoryObjectStore,
+  type BreachedPasswordChecker,
+  type ObjectStore,
+} from '@eventhub/kernel';
 import { LocalDirectoryObjectStore } from '@eventhub/kernel/object-stores';
 import { CloudStorageObjectStore, cloudStorageBucket } from '@eventhub/kernel/gcs-object-store';
 import {
@@ -11,6 +16,7 @@ import {
 import { buildApp, loggerOptions } from './app.ts';
 import { Argon2idPasswordHasher } from './adapters/argon2id-password-hasher.ts';
 import { ResendEmailFeedbackReceiver } from './adapters/resend-email-feedback.ts';
+import { PwnedPasswordsChecker } from './adapters/pwned-passwords-checker.ts';
 import { DatabaseSessionAuthenticator } from './modules/identity/authenticator.ts';
 
 const config = loadApiConfig(process.env);
@@ -32,6 +38,14 @@ function selectObjectStore(): ObjectStore | null {
     : new InMemoryObjectStore();
 }
 
+// The app's logger exists only once the app is built; until then a skipped check is not logged.
+let logUnavailable: (reason: string) => void = () => undefined;
+function selectBreachedPasswords(): BreachedPasswordChecker | null {
+  if (config.breachedPasswordCheck === 'off') return null; // pragma: allowlist secret (a setting name, not a secret)
+  if (config.breachedPasswordCheck === 'in_memory') return new InMemoryBreachedPasswordChecker(); // pragma: allowlist secret (a setting name, not a secret)
+  return new PwnedPasswordsChecker({ onUnavailable: (reason) => logUnavailable(reason) });
+}
+
 const app = await buildApp({
   objectStore: selectObjectStore(),
   emailFeedback: config.emailWebhookSecret
@@ -46,6 +60,7 @@ const app = await buildApp({
     ...config.auth,
     mfaEncryptionKey: config.mfa.encryptionKey,
     passkeys: config.passkeys ? simpleWebAuthnRelyingParty(config.passkeys) : null,
+    breachedPasswords: selectBreachedPasswords(),
   },
   invitationTtlSeconds: config.invitations.ttlSeconds,
   logger: loggerOptions(config.logLevel),
@@ -54,6 +69,13 @@ const app = await buildApp({
   rateLimitPerMinute: config.rateLimitPerMinute,
   validateResponses: config.environment !== 'production',
 });
+
+// ADR-0078: the password was accepted on length alone; never the password or its hash.
+logUnavailable = (reason) =>
+  app.log.warn(
+    { event: 'breached_password_check_skipped', reason },
+    'breached-password check skipped',
+  );
 
 const shutdown = async (signal: string) => {
   app.log.info({ signal }, 'shutting down');
